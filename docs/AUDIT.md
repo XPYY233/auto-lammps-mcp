@@ -232,3 +232,19 @@ A workflow inspection initially assumed ci.yml; the actual file is checks.yml. T
 The real DSH export wrote a multi-gigabyte archive while the operation exposed a running state and heartbeat. The host repeatedly inspected file size through its shell. Persist export phase, processed files, input bytes, written archive bytes and the observation time; return the same evidence in operation and task reads. Stream file members so a changed task owner stops further chunks and retains a partial archive path. The original long export remains running on its fixed installed candidate while the repair is developed separately.
 
 The resumed DSH task completed another archive and passed its own checks. Independent data verification matched 144,000 atomic rows and 50 average rows, while visual/report review still found an omitted conversion factor in a legend, a covariance magnitude inconsistent with the CSV, and an old frame-table entry. Preserve the completed archive and register those specific findings before handing the same task to background Codex. The headless DSH profile also lacked the present tool; its Markdown links are retained separately from the earlier real web-preview evidence.
+
+## 2026-10-27 — Background scientific handoff
+
+The background continuation corrected the six registered review findings, rebuilt plots and produced a four-page PDF, then reached its configured 600-second limit before final registration and export. Its completed analyses and PDF remain in the task; the retained decision reports execution_timeout. A font check had failed during PDF preparation, and the next queued analysis completed after the font correction. Resume the saved handoff steps with a bounded instruction, preserving both failures.
+
+Independent reading found the report called the population standard deviation a sample standard deviation: 0.063954 versus 0.064153 GPa for the same retained interval. The generated verification data already contain the latter value, but the narrative check did not compare that paragraph. Correct the report and TeX together and check the actual displayed statistic.
+
+The computer was locked during official DSH visual verification. The in-app browser reached the official server's authentication page; opening its existing authenticated entry was queued by the app. Actual scientific-file web preview remains pending. No model configuration or credentials were changed.
+
+A read-only lookup used a nonexistent background.py path and a guessed background_configure tool name. The worker and public method inventory supply the actual definitions; neither failed lookup changed task state.
+
+Issue #28 tracks executor cleanup after confirmed background termination and an explicit wait/resume link for queued work. The recovered continuation completed its report repair and returned while the archive service kept working. Its model-turn completion and the remaining research handoff are recorded separately.
+
+The recovered agent discovered a README row-count mismatch after starting export. Its attempt to save background_request was rejected by the export worker's lease, so the text saying a background follow-up remained did not establish a queued operation. Issue #28 also needs request persistence while another worker owns the task: recording an intent must not compete with file mutation. Preserve the rejected call and archive; record the remaining correction explicitly before any final completion.
+
+A local log reader encountered a non-JSON diagnostic line and a guessed store.py path. Filter diagnostics when reading the JSON event stream; the actual persistence module is core.py.
