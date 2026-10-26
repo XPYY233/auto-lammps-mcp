@@ -17,3 +17,7 @@ For existing-data analysis: import the complete source directory; write a native
 For handoff, project_export returns a ZIP outside the project tree. Give the user that returned path directly; project_import accepts it in a new task and preserves original records. For backup, release leases, call backup_create and retain its SHA-256 receipt. A restored service waits for recovery_activate until the original controller has stopped.
 
 For paper reproduction, determine scope from published results first. Keep author source, reference answers and independent evaluation access separate. Retrieve resources through existing authorized connections.
+
+Reuse earlier analysis outputs through analysis_submit(input_bindings={"data/input.csv":"analysis/<earlier-operation>/data/input.csv"}, inputs=[]). The key is the path the native script reads in its working directory; the value is an existing project file. The service retains the source hash and creates an independent editable copy. Read the returned receipt before selecting output paths.
+
+For large historical projects, project_optimize queues sharing of unchanged data blocks with existing verified snapshots on supported volumes. Release task ownership while it runs. Every file path, byte content, mode, modification time and prior attempt remains. Files with extended access rules or without suitable snapshots/support stay in place. Read the receipt's path list and measured free space; archives retain all files and need their own disk space.

@@ -20,7 +20,7 @@
 
 
 
-开发版本：0.1.0a5。固定安装包及对应源码见发布记录，进度与完整研究验收见 交付记录。
+开发版本：0.1.0a6。固定安装包及对应源码见发布记录，进度与完整研究验收见 交付记录。
 
 
 
@@ -313,6 +313,17 @@ cluster 配置需要 ssh\_\allowbreak{}alias、remote\_\allowbreak{}root、accou
 
 恢复备份后，成果入口指向恢复目录中的文件；旧位置保留在 original\_\allowbreak{}paths 中，便于核对原历史。
 
+
+
+\subsection{继续分析与整理存储}
+
+
+输入“用已有统计表重新绘图，保留原结果”，Agent 可把已生成的数据直接交给下一份原生脚本。大轨迹在支持的磁盘上共享未改动内容，修改副本不影响原文件。
+
+
+
+输入“整理这个项目的重复存储，保留全部文件和历史”，后台核对并整理已有快照对应的大文件，返回完成路径和实际可用空间。导出的研究包仍包含完整文件。
+
 \clearpage
 \section{项目开发与交付}
 
@@ -395,6 +406,17 @@ NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保�
 
 
 固定源码与安装包、安装提示词和安装器、Codex/\allowbreak{}DSH 连接、skill、任务服务、后台接续、执行/\allowbreak{}分析/\allowbreak{}可视化/\allowbreak{}导出能力，以及用户、开发、恢复、迁移和验收文档。手册交付 PDF 与可编辑 TeX。
+
+
+
+\subsection{复用已有分析数据}
+
+
+analysis\_\allowbreak{}submit 的 input\_\allowbreak{}bindings 将工作目录内路径映射到项目原文件。例如脚本读取 data/\allowbreak{}input.csv，可绑定到先前分析的 analysis/\allowbreak{}<operation>/\allowbreak{}data/\allowbreak{}input.csv。回执保存映射、原文件摘要和副本方式。输入文件保持独立，输出、失败与重试继续保留。
+
+
+
+project\_\allowbreak{}optimize 通过持久队列整理已存在快照的大文件。支持文件克隆的卷共享未修改的数据块，逐个核对摘要、模式、属性和修改时间后原位替换；扩展访问规则的文件留在原位。任务暂停或操作权变化时保留已完成路径和部分回执。新工具与原生文件、分析、交接使用同一个任务服务。
 
 \clearpage
 \section{后台与恢复}
@@ -578,7 +600,7 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \section{当前交付记录}
 
 
-日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a5；已发布版本：0.1.0-alpha.3。
+日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a6；已发布版本：0.1.0-alpha.3。
 
 
 
@@ -681,6 +703,10 @@ Issue \#16 与 \#18 继续补齐单任务后台设置和大轨迹输入复用：
 
 候选 9bdc37e 已完成固定安装流程，并通过实际 MCP 将该研究设为前台处理、恢复共享后台。安装包在真实大轨迹上完成独立副本修改检查，源文件摘要和只读权限保持一致；真实分析回执也记录了共享数据块的复制方式。官方 DSH 已自行恢复新发现的解析错误，继续绘图和科学核验。后续源码补齐大分页请求的继续读取，96 项软件检查通过，新的独立 wheel 同样完成 514 文件与 36 操作的安装流程。
 
+
+
+Issue \#21/\allowbreak{}\#22 将追加分析与存储整理接入公开工具：可把先前结果绑定到原生脚本需要的路径，并在保留每个文件及历史的同时共享重复大文件的数据块。110 项软件检查、macOS/\allowbreak{}Linux CI 和固定安装候选 e819d7c 均通过；安装流程保存 514 个文件与 37 条操作。真实项目 627 个文件的摘要、大小、权限模式和修改时间逐项不变，实测可用空间从 3.67 GB 增至 9.04 GB。官方 DSH 已连接该候选并继续报告修正与最终交接。
+
 \clearpage
 \section{验证记录}
 
@@ -751,5 +777,16 @@ v0.1.0-alpha.3 固定在提交 7306577d\allowbreak{}234389ac\allowbreak{}d6d1921
 
 
 完整研究是否交付，按 ACCEPTANCE.md 中的原始要求、科学检查、可打开成果与接续能力共同判断。
+
+
+
+\subsection{2026-10-27 — Native input reuse and preserved storage}
+
+
+Fixed installed candidate e819d7cc\allowbreak{}894d3944\allowbreak{}913dd88f\allowbreak{}34a2e6ae\allowbreak{}8535f340, package version 0.1.0a6, wheel SHA-256 10697415\allowbreak{}3d89a349\allowbreak{}d9213c99\allowbreak{}25c1af2b\allowbreak{}ad05ff9c\allowbreak{}e05fbe3e\allowbreak{}a7476880\allowbreak{}8343fc8c. 110 software checks and four macOS/\allowbreak{}Linux CI jobs passed. The isolated installed MCP journey exercised binding a retained prior input, failure recovery, analysis, preview, optimization, complete history export and reimport: 514 files and 37 operations. Official DSH called doctor, task\_\allowbreak{}get and task\_\allowbreak{}records; the loaded conversation identity was current and all three results were complete.
+
+
+
+The installed storage operation processed a real existing research project. Independent before/\allowbreak{}after verification matched all 627 paths, byte hashes, sizes, permission modes and modification times. Thirty large files shared existing snapshot blocks; 27 were preserved in place. Observed free space increased from 3,668,824,064 to 9,035,972,608 bytes. Original archives and external source files remained intact. The next independent scientific review was registered through MCP and the same DSH task resumed from its retained deliverables.
 
 \end{document}

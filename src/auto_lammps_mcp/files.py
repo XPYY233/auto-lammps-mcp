@@ -39,6 +39,74 @@ def copy_independent(source, destination):
     return "copy"
 
 
+def optimize_storage(store, task_id, token=None):
+    """Share blocks with existing verified snapshots, preserving native files and history."""
+    root = store.root(task_id)
+    before = shutil.disk_usage(root).free
+    shared, skipped = [], []
+
+    def receipt():
+        return dict(shared=shared, skipped=skipped, files_preserved=True,
+                    free_bytes_before=before, free_bytes_after=shutil.disk_usage(root).free)
+
+    def ownership():
+        if token is not None:
+            with store.transaction() as db:
+                store.task(db, task_id, token=token)
+
+    try:
+        for path in sorted(root.rglob("*")):
+            ownership()
+            if path.is_symlink() or not path.is_file() or path.stat().st_size < 1024 * 1024:
+                continue
+            relative = path.relative_to(root).as_posix()
+            if sys.platform == "darwin":
+                # copystat preserves mode/flags/xattrs, but does not copy a macOS ACL.
+                import subprocess
+                acl = subprocess.run(["/bin/ls", "-lde", str(path)], capture_output=True, timeout=5)
+                if acl.returncode != 0 or len(acl.stdout.splitlines()) != 1:
+                    skipped.append(dict(path=relative, reason="extended_permissions_preserved_in_place"))
+                    continue
+            stat = path.stat()
+            sha = file_hash(path)
+            blob = store.home / "blobs" / sha
+            if not blob.is_file():
+                skipped.append(dict(path=relative, reason="no_existing_snapshot"))
+                continue
+            temporary = store.home / "blobs" / (".alm-share-" + identifier("copy"))
+            try:
+                if not clone_file(blob, temporary):
+                    skipped.append(dict(path=relative, reason="filesystem_clone_unavailable"))
+                    continue
+                require(file_hash(temporary) == sha, "内容快照摘要不一致", "snapshot_corrupt", "保留原文件，核对快照")
+                shutil.copystat(path, temporary)
+                if hasattr(os, "listxattr"):
+                    attrs = {name: os.getxattr(path, name) for name in os.listxattr(path)}
+                    for name in set(os.listxattr(temporary)) - attrs.keys():
+                        os.removexattr(temporary, name)
+                    for name, value in attrs.items():
+                        if name not in os.listxattr(temporary) or os.getxattr(temporary, name) != value:
+                            os.setxattr(temporary, name, value)
+                current = path.stat()
+                require((current.st_ino, current.st_size, current.st_mtime_ns) == (stat.st_ino, stat.st_size, stat.st_mtime_ns)
+                        and file_hash(path) == sha, f"整理期间文件发生变化: {relative}", "file_changed", "保存文件并释放编辑后重试")
+                replacement = temporary.stat()
+                require((replacement.st_uid, replacement.st_gid, replacement.st_mode, replacement.st_mtime_ns) ==
+                        (current.st_uid, current.st_gid, current.st_mode, current.st_mtime_ns),
+                        f"无法保持文件权限或修改时间: {relative}", "metadata_changed", "保留原文件，核对文件系统")
+                ownership()
+                os.replace(temporary, path)
+                shared.append(dict(path=relative, sha256=sha, bytes=stat.st_size, method="copy_on_write"))
+            finally:
+                temporary.unlink(missing_ok=True)
+    except Exception as exc:
+        from .core import Fault
+        error = exc if isinstance(exc, Fault) else Fault("storage_optimization_failed", str(exc), "核对当前文件与已完成路径后重试")
+        raise Fault(error.code, str(error), error.next_action,
+                    "partial" if shared else "saved_needs_correction", receipt()) from exc
+    return receipt()
+
+
 def atomic_write(path, content):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

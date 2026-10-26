@@ -80,7 +80,10 @@ async def verify(home, incoming):
             task = await invoke("task_get", task_id=tid)
             await invoke("file_patch", task_id=tid, revision=task["revision"], path="analyze.py", expected_sha256=evidence["sources"]["analyze.py"], old=FAILED_ANALYSIS, new=ANALYSIS, op_id="repair-analysis")
             task = await invoke("task_get", task_id=tid)
-            analysis = await finished(await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=["values.csv"], outputs=["statistics.json", "plot.png"], op_id="analysis"))
+            source_copy = str(Path(evidence["directory"]).relative_to(Path(task["project_path"])) / "values.csv")
+            analysis = await finished(await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=[], input_bindings={"values.csv": source_copy}, outputs=["statistics.json", "plot.png"], op_id="analysis"))
+            assert analysis["input_bindings"] == {"values.csv": source_copy}
+            assert analysis["sources"][source_copy] == evidence["sources"]["values.csv"]
             root = Path(task["project_path"])
             plot = Path(analysis["outputs"]["plot.png"]["path"]).relative_to(root).as_posix()
             statistics = Path(analysis["outputs"]["statistics.json"]["path"]).relative_to(root).as_posix()
@@ -125,6 +128,9 @@ async def verify(home, incoming):
                     assert stored == entries
             current = await invoke("task_get", task_id=tid)
             assert len(current["work"]) == 5 and current["record_counts"]["work"] > 30
+            optimized = await finished(await invoke("project_optimize", task_id=tid, revision=current["revision"], op_id="optimize-storage"))
+            assert optimized["files_preserved"]
+            current = await invoke("task_get", task_id=tid)
             exported = await finished(await invoke("project_export", task_id=tid, revision=current["revision"], op_id="export"))
             with zipfile.ZipFile(exported["path"]) as archive:
                 assert "project/" + plot in archive.namelist()
@@ -141,7 +147,7 @@ async def verify(home, incoming):
             assert imported["original_request"] == task["request"]
             reread = await invoke("file_read", task_id=next_task["id"], path=statistics)
             assert json.loads(reread["text"]) == actual
-            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "failed_analysis_evidence", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
+            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "failed_analysis_evidence", "native_analysis", "prior_result_binding", "storage_optimization", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
 
 
 def main():
