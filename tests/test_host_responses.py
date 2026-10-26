@@ -1,6 +1,8 @@
 import json
 import zipfile
+import pytest
 
+from auto_lammps_mcp.core import Fault
 from auto_lammps_mcp.backup import create_backup
 from auto_lammps_mcp.responses import bound_response, bound_error
 
@@ -50,3 +52,29 @@ def test_complete_error_is_available_beyond_host_window(service):
     assert bounded["code"] == error["code"] and bounded["effect"] == "unknown"
     read = json.loads(bounded["next_action"].split("：", 1)[1])
     assert reconstruct(service, read["response_id"]) == error
+
+
+def test_large_requested_text_pages_remain_complete_and_readable(service):
+    original = 'Measured data with units and identity.\n' * 800
+    summary = bound_response(service.store, 'task_get', dict(report=original))
+    response_id = summary['response_id']
+    offset, text = 0, ''
+    while True:
+        page = service.response_read(response_id, ['report'], offset, limit=1000, text_limit=5000)
+        assert page['applied_limits'] == dict(limit=50, text_limit=4096)
+        assert len(json.dumps(page, indent=2)) < 6000
+        text += page['text']
+        if not page['more']:
+            break
+        assert page['next_offset'] > offset
+        offset = page['next_offset']
+    assert text == original
+
+
+def test_invalid_page_tells_host_which_parameter_to_correct(service):
+    summary = bound_response(service.store, 'task_get', dict(report='large data\n' * 1000))
+    with pytest.raises(Fault) as error:
+        service.response_read(summary['response_id'], ['report'], text_limit=0)
+    assert 'text_limit' in str(error.value) and 'text_limit' in error.value.next_action
+    corrected = service.response_read(summary['response_id'], ['report'], text_limit=100)
+    assert corrected['text'] and corrected['next_offset'] == 100

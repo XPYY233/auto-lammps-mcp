@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import sys
 
 from .core import digest, encode, identifier, require
 
@@ -15,6 +16,27 @@ from .core import digest, encode, identifier, require
 def file_hash(path):
     with Path(path).open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def clone_file(source, destination):
+    """Try the macOS copy-on-write syscall; unsupported volumes use normal copying."""
+    if sys.platform != "darwin":
+        return False
+    import ctypes
+    clone = ctypes.CDLL(None, use_errno=True).clonefile
+    clone.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    clone.restype = ctypes.c_int
+    return clone(os.fsencode(source), os.fsencode(destination), 0) == 0
+
+
+def copy_independent(source, destination):
+    """Keep distinct editable files while sharing unchanged large blocks when supported."""
+    source, destination = Path(source), Path(destination)
+    if source.stat().st_size >= 1024 * 1024 and not destination.exists() and clone_file(source, destination):
+        shutil.copystat(source, destination)
+        return "copy_on_write"
+    shutil.copy2(source, destination)
+    return "copy"
 
 
 def atomic_write(path, content):
@@ -47,7 +69,7 @@ def manifest(store, task_id, paths=None):
         if not blob.exists():
             # Copy before publishing. Verify in case an editor changed the source mid-copy.
             temporary = blob.with_name(sha + "." + identifier("copy"))
-            shutil.copyfile(path, temporary)
+            copy_independent(path, temporary)
             require(file_hash(temporary) == sha, f"读取期间文件发生变化: {relative}", "file_changed", "保存文件后重新建立快照")
             os.replace(temporary, blob)
         result[relative] = dict(sha256=sha, bytes=path.stat().st_size, executable=bool(path.stat().st_mode & 0o111))
@@ -142,7 +164,7 @@ def import_directory(store, task_id, source):
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             temporary = destination.with_name(destination.name + ".alm-import")
-            shutil.copy2(item, temporary)
+            copy_independent(item, temporary)
             require(file_hash(temporary) == sha, "导入期间源文件改变", "file_changed", "保存源文件后重试")
             os.replace(temporary, destination)
     return dict(files=len(files), project_path=str(target), source=str(source), git_directory="excluded")

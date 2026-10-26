@@ -62,13 +62,13 @@ class Service:
 
     @public
     def response_read(self, response_id: str, path: list[str] | None = None, offset: int = 0, limit: int = 20, text_limit: int = 4096) -> dict:
-        """Read a stored complete host response by literal field path and next_offset; available across conversations and restarts."""
+        """Read a stored complete host response by literal field path and next_offset; available across conversations and restarts. offset is nonnegative; limit and text_limit are positive requested upper bounds. Pages use at most 50 items/4096 text characters and may be smaller to fit the host. Follow next_offset until more=false."""
         from .responses import read_response
         return read_response(self.store, response_id, path or [], offset, limit, text_limit)
 
     @public
     def setup_configure(self, section: str, values: dict, op_id: str) -> dict:
-        """Save setup progress. Sections: cluster, background, notifications. Store SSH aliases, never passwords."""
+        """Save shared setup progress. Sections: cluster, background, notifications. Store SSH aliases, never passwords. For one project's background preference use task_background instead of changing this shared setting."""
         from .installation import validate_config
         validate_config(section, values)
         def apply(db):
@@ -186,6 +186,7 @@ class Service:
                         executor.update(dict(operation))
                 result["executor"] = executor
             result["active_background"] = [dict(row) for row in db.execute("SELECT id AS operation_id,state,updated FROM queue WHERE task_id=? AND kind='decision' AND state='running' ORDER BY created", (task_id,))]
+            result["automation"] = self.background_status(db, task_id)
             result["runs"] = [dict(row) for row in db.execute("SELECT * FROM runs WHERE task_id=? ORDER BY created", (task_id,))]
             result["artifacts"] = [dict(row) for row in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created", (task_id,))]
             work_columns = "*" if include_details else "id,kind,state,result,updated"
@@ -214,6 +215,29 @@ class Service:
             for name in ("runs", "work", "events", "stages"):
                 result[name] = [decoded_record(row) for row in result[name]]
         return restored_paths(self.store, result if include_details else task_summary(result))
+
+    def background_status(self, db, task_id):
+        def setting(key, default):
+            row = db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+            return json.loads(row[0]) if row else default
+        shared = bool(setting("background", {}).get("enabled"))
+        local = setting("task_background:" + task_id, {}).get("enabled", True)
+        return dict(enabled=local, service_enabled=shared, effective_enabled=local and shared)
+
+    @public
+    def task_background(self, task_id: str, revision: int, enabled: bool, op_id: str, token: str | None = None) -> dict:
+        """Enable or hold future automatic Codex continuations for one project. Running continuations finish their current turn; this does not cancel them or active analyses/jobs. Read active_background before taking over. To interrupt immediately use task_control pause and read current work before resuming. Pending decisions remain saved. Shared setup and other projects stay unchanged."""
+        require(type(enabled) is bool, "enabled 需要 true 或 false")
+        def apply(db):
+            self.store.task(db, task_id, revision, token)
+            self.store.set_setting(db, "task_background:" + task_id, dict(enabled=enabled))
+            self.store.bump(db, task_id)
+            active = [row[0] for row in db.execute("SELECT id FROM queue WHERE task_id=? AND kind='decision' AND state='running'", (task_id,))]
+            status = self.background_status(db, task_id)
+            self.store.event(db, task_id, "task_background_updated", dict(**status, active_background=active))
+            return dict(task_id=task_id, revision=revision + 1, **status, active_background=active,
+                        next_action="跟进正在进行的接续；本设置控制后续自动启动" if active else "task_get")
+        return self.store.mutate(op_id, dict(method="task_background", task_id=task_id, revision=revision, enabled=enabled, token=token), apply)
 
     @public
     def task_records(self, task_id: str, kind: str, offset: int = 0, limit: int = 10) -> dict:
@@ -432,7 +456,7 @@ class Service:
 
     @public
     def operation_read(self, operation_id: str, path: list[str] | None = None, offset: int = 0, limit: int = 20, text_limit: int = 4096) -> dict:
-        """Read lossless pages of a work record. path=['result','files'] reads a snapshot manifest; child paths preserve literal filenames. Objects/arrays return items; long values link to deeper paths. Text uses character offsets. Follow next_offset while more is true."""
+        """Read lossless pages of a work record. path=['result','files'] reads a snapshot manifest; child paths preserve literal filenames. Objects/arrays return items; long values link to deeper paths. offset is nonnegative; limit/text_limit are positive requested upper bounds, capped at 50 items/4096 characters per page. Text uses character offsets. Follow next_offset while more is true."""
         from .operation_views import operation_page
         return operation_page(self.operation_get(operation_id, include_details=True), path or [], offset, limit, text_limit)
 
@@ -716,14 +740,14 @@ class Service:
 
     @public
     def background_request(self, task_id: str, revision: int, instruction: str, op_id: str, expected_outputs: list[str] | None = None) -> dict:
-        """Persist a concrete continuation request for the background Codex executor."""
+        """Persist a concrete continuation request for background Codex. automation reports whether the project and shared service allow dispatch; a held request remains saved until task_background enables it."""
         require(instruction.strip(), "需要接续任务说明")
         for path in expected_outputs or []:
             self.store.path(task_id, path)
         def apply(db):
             self.store.task(db, task_id, revision)
             self.store.bump(db, task_id)
-            return self.store.queue(db, task_id, "decision", dict(events=[dict(reason="user_request", instruction=instruction)], expected_outputs=expected_outputs or []))
+            return dict(**self.store.queue(db, task_id, "decision", dict(events=[dict(reason="user_request", instruction=instruction)], expected_outputs=expected_outputs or [])), automation=self.background_status(db, task_id))
         return self.store.mutate(op_id, dict(method="background_request", task_id=task_id, revision=revision, instruction=instruction, expected_outputs=expected_outputs), apply)
 
     @public

@@ -24,6 +24,8 @@ task_get gives compact progress and the original request. Page through task_reco
 
 Any oversized MCP reply, including an explicit full-detail read, keeps the complete response in the service and returns response_read links. Follow response_id, literal path and next_offset to read missing fields or text; these links survive a new conversation and service restart. A summary is not a complete dataset. Long errors also link to their original diagnostic and recovery text.
 
+For operation_read/response_read, offset starts at zero and limit/text_limit are positive requested maxima. The service returns at most 50 items or 4096 characters per page, with smaller pages when needed. Keep the returned next_offset; larger requests return their applied limits. Use these tools and task_records to read history.
+
 ## Execution and feedback
 
 All physical evaluations, including run 0 and engine checks, use accounted HPC through run_prepare/run_submit. Read the task's current policy and authorization; diagnostics, edits and existing-data analysis are separate from calculation submissions. Ordinary research, reference runs and formal B keep their own rules. Preserve stopped historical campaigns.

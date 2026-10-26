@@ -6,6 +6,8 @@ After a failed operation, read its error.evidence. Failed analyses retain a rece
 
 Read task_get.executor and active_background before taking over a repair. An active background operation may temporarily release its lease while awaiting analysis; follow that operation's progress. Re-read the task revision before a later write. A task-specific instruction should be handled within that task; keep other projects' shared service preferences intact.
 
+Use task_background(enabled=false) to hold this project's future automatic continuations, and enabled=true to resume them. Read task_get.automation for the project and shared service settings. A current background turn finishes; the response lists its active operation. For immediate interruption use task_control pause, read retained work, then resume when the foreground is ready. Pending decisions survive a hold and restart. This preference does not change scientific conditions, artifact validity, active calculations or other projects.
+
 Read run_get.evidence.output_progress alongside the scheduler state. It includes recent log text, output modification time and complete thermo rows when the column header is present. Use run_log for custom logs or more byte ranges; wait on its operation_id and continue from next_offset. Read physical time units from the native input. Keep distinct thermo blocks separate when steps reset.
 
 Before job dispatch, run_get.evidence.preparation reports input preparation/upload with a fresh observation every 30 seconds. Policy changes return undispatched runs to prepared; read the new policy, then call run_submit within the saved authorization. Uploading old settings cannot dispatch a newly updated run.

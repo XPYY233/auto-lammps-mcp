@@ -194,3 +194,19 @@ The existing-data host completed file delivery, but independent scientific revie
 A minimal review sequence reproduced `complete=true` after a later failed scientific check on the same unchanged report. completion_check counted an older positive record alongside the newer failed review. Use the latest record per artifact path, block deliverables linked to a current failed review, and reopen their task. Preserve both verdicts and require an explicit corrected review before completion.
 
 A private archive-inspection command guessed manifest.json after listing the archive. The actual package entry is project-manifest.json; the read failed without modifying the archive. Use the listed entry for the streaming hash verification.
+
+## 2026-10-27 — Task-specific continuation and large inputs
+
+The scientific journey copied the same large trajectory into multiple attempts. The first complete archive retained those files and passed every recorded byte hash, but the remaining local space would be consumed by another full analysis copy and export. Add copy-on-write input/import/snapshot copies where supported, retain independent editable files and hashes, and use ordinary copies on other volumes. Existing research files and archives remain intact. Tracked in Issue #18.
+
+A source lookup assumed a background_queue test module. Existing background and queue coverage is in test_background_evidence and test_recovery; inspect the file inventory before selecting a test file. The failed lookup made no changes.
+
+The first full check overlapped the development version update, so its long-lived parent imported the old version while fresh child services read the new one. Two identity tests failed on that mismatch; 92 checks passed. Finish source edits before starting the full check, then run the unchanged tree in fresh processes.
+
+The installed official DSH continuation requested response_read(text_limit=5000) four times and received only a generic invalid-range error. It then inspected the database to recover artifact history. Treat positive page sizes as requested upper bounds, return a bounded page with its applied limits and next offset, and give specific correction instructions for invalid zero/negative parameters. Preserve the full stored response. Tracked in Issue #20.
+
+The installed large-file isolation probe correctly preserved the read-only source mode, then its test write to the temporary copy was denied. Grant owner-write only on that disposable test copy before checking mutation isolation; retain the original mode and byte hash. No research file was modified.
+
+The resumed host assumed three values on each box-bound line and compared atom arrays in file order. The real output has orthogonal two-value bounds and reorders atom rows. Its retained failures and checks led to source-based parsing and ID-keyed comparisons; the next extraction preserved identities across all frames. Derive column and box formats from real headers and compare identity mappings, not row positions.
+
+A read-only audit guessed that a failed plotting preparation had analysis.log. Its receipt correctly reported log_path=null and a missing staged input. Read the actual receipt before selecting a log; preparation and executed-script failures have different evidence. Subsequent plotting reached the native layout checks, whose failed plots and overlap measurements remain available.

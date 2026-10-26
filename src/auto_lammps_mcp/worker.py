@@ -14,7 +14,7 @@ import time
 import zipfile
 
 from .core import Fault, digest, encode, identifier, require
-from .files import atomic_write, file_hash, import_directory, invalidate, manifest
+from .files import atomic_write, copy_independent, file_hash, import_directory, invalidate, manifest
 from .slurm import ACTIVE, TERMINAL, Slurm
 from .activity import activity_lock
 
@@ -352,7 +352,7 @@ class Worker:
                     if lease:
                         continue
                     task = self.store.task(db, candidate["task_id"])
-                    if candidate["kind"] == "decision" and (task["state"] in ("paused", "stopping", "stopped") or not self.store.setting("background", {}).get("enabled")):
+                    if candidate["kind"] == "decision" and (task["state"] in ("paused", "stopping", "stopped") or not self.service.background_status(db, candidate["task_id"])["effective_enabled"]):
                         continue
                 work = candidate
                 break
@@ -468,7 +468,7 @@ class Worker:
         relative_root = "analysis/" + work["id"]
         result_root = self.store.path(task_id, relative_root)
         result_root.mkdir(parents=True, exist_ok=True)
-        sources = {}
+        sources, input_copies = {}, {}
         output = result_root / "analysis.log"
         receipt_path = relative_root + "/analysis-receipt.json"
         started, returncode = False, None
@@ -479,7 +479,7 @@ class Worker:
                 path = result_root / name
                 if path.is_file():
                     files[name] = dict(path=str(path), sha256=file_hash(path), size=path.stat().st_size)
-            return dict(status=status, sources=sources, outputs=files, script=payload["script"],
+            return dict(status=status, sources=sources, input_copies=input_copies, outputs=files, script=payload["script"],
                         directory=str(result_root), log=str(output) if output.exists() else None,
                         log_path=relative_root + "/analysis.log" if output.exists() else None,
                         receipt_path=receipt_path, exit_code=returncode,
@@ -491,7 +491,8 @@ class Worker:
                 require(original.is_file(), f"分析输入缺失: {name}")
                 destination = result_root / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(original, destination)
+                mode = copy_independent(original, destination)
+                input_copies[name] = dict(method=mode, bytes=destination.stat().st_size)
                 sources[name] = file_hash(destination)
             environment = {**os.environ, "MPLBACKEND": "Agg", "PYTHONUNBUFFERED": "1"}
             with output.open("wb") as log:
