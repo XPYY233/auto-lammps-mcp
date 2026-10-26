@@ -10,6 +10,31 @@ from auto_lammps_mcp.dsh import connect, update_patch
 from auto_lammps_mcp.installation import install
 
 
+def test_runtime_identity_tracks_linked_skill_guides(tmp_path, monkeypatch):
+    from auto_lammps_mcp import identity
+    root = tmp_path / "package"
+    guide = root / "data/skill"
+    (guide / "references").mkdir(parents=True)
+    (root / "identity.py").write_text("fixed code")
+    (guide / "SKILL.md").write_text("Read references/delivery.md")
+    detail = guide / "references/delivery.md"
+    detail.write_text("original procedure")
+    monkeypatch.setattr(identity, "__file__", str(root / "identity.py"))
+    identity.runtime_identity.cache_clear()
+    try:
+        original = identity.runtime_identity()
+        detail.write_text("updated procedure")
+        identity.runtime_identity.cache_clear()
+        changed = identity.runtime_identity()
+        assert original["skill_sha256"] == changed["skill_sha256"]
+        assert original["code_sha256"] == changed["code_sha256"]
+        assert original["skill_bundle_sha256"] != changed["skill_bundle_sha256"]
+        assert original["fingerprint"] != changed["fingerprint"]
+        assert identity.connection_status({"client": original}, changed)["state"] == "reload_required"
+    finally:
+        identity.runtime_identity.cache_clear()
+
+
 def test_dsh_upgrade_preserves_model_and_other_tools():
     original = '# User settings\n- id: agent-default-model\n  config:\n    provider: deepseek-official\n    model: selected-model\n'
     first = update_patch(original, dict(id="mcp-auto-lammps", config=dict(command="version-one")))

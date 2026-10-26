@@ -17,10 +17,16 @@ def runtime_identity():
     guide = root / "data/skill/SKILL.md"
     if not guide.is_file():
         guide = root.parents[1] / "skills/auto-lammps-mcp/SKILL.md"
+    guide_bundle = hashlib.sha256()
+    if guide.is_file():
+        for path in sorted(guide.parent.rglob("*")):
+            if path.is_file():
+                guide_bundle.update(path.relative_to(guide.parent).as_posix().encode() + b"\0" + path.read_bytes() + b"\0")
     source_file = Path(sys.executable).parent.parent / "installation-source.json"
     source = json.loads(source_file.read_text()) if source_file.is_file() else {}
     identity = dict(version=__version__, code_sha256=code.hexdigest(),
                     skill_sha256=hashlib.sha256(guide.read_bytes()).hexdigest() if guide.is_file() else None,
+                    skill_bundle_sha256=guide_bundle.hexdigest() if guide.is_file() else None,
                     installation_identity=source.get("identity"))
     identity["fingerprint"] = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     return identity

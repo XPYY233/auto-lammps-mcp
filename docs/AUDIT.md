@@ -142,3 +142,15 @@ The failed assertion read the previous boot's heartbeat immediately after a daem
 ## 2026-10-27 — Large native project operation results
 
 A real 500-file snapshot returned 87,904 formatted characters; its snapshot_id appeared at character 87,712, beyond the previously observed host response window. Compact task progress alone did not make the individual operation readable. Return bounded operation summaries with identifiers and explicit detail links, provide lossless pages for structured data and text, and use those summaries for operation history. Preserve full stored and exported records. Tracked in Issue #8.
+
+The first isolated DSH replay supplied plugin entries directly instead of the official `insert` patch operation used by the installer. DSH consequently loaded no MCP connection and completed the project through CLI fallback. Keep that archive and transcript, correct the verification overlay using the installer format, and resume the same task. This is a verification setup failure, not evidence of a successful MCP journey.
+
+That replay also exposed a truncated skill-tool response. The full workflow no longer fits the host's ordinary result window. Keep a short entrypoint with explicit links to focused installation, execution and delivery guidance, preserve every operational requirement, and include linked guides in the candidate fingerprint. Verify actual skill loading and the existing 500-file task through official DSH.
+
+A test-file lookup assumed a separate identity test module. Candidate and installation coverage lives in the existing installation and process-integration tests; extend those files using the repository inventory.
+
+An interface lookup similarly assumed api/background modules; methods are implemented in service.py and worker.py. Search the actual source directory before selecting module filenames.
+
+The external skill validator requires PyYAML, which is absent from the product's development environment. Run that validator in its own dependency environment; keep the product's runtime requirements unchanged.
+
+Manual compilation targeted a directory that had not been created, so XeTeX could not write its log. Use the existing manual output directory and retain the failed build log privately.
