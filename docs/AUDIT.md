@@ -76,3 +76,13 @@ Wheel installation review found that the source path installed locked analysis l
 ## 2026-10-27 — Installer receipt with pip
 
 The new installed-package CI failed on both macOS and Linux: pip wrote dependency progress to stdout before the installer's JSON receipt, causing JSONDecodeError. Local verification had used uv, whose progress goes to stderr. Route dependency installer output to stderr and verify the pip-only path as well as the built package before retrying CI.
+
+## 2026-10-27 — Cross-platform progress and image capability
+
+The installed DSH check returned a truncated task_get record because snapshot and work results were repeated inside recent history. The configured model also rejected read_image because its declared input does not include images. Provide a compact default task record with explicit detail pagination, and use the host's user-facing presentation path without changing the user's model configuration. The image files and MCP binary response remain intact.
+
+A regression-test patch named the same file twice; the patch tool rejected it before applying changes. Combine edits for each file before retrying.
+
+Two follow-up checks reproduced the impact: one 500-file snapshot produced a 119 KB task summary, and a restored export receipt still pointed to the unavailable original directory. Preserve full history behind explicit reads, return compact task progress, and resolve recovered file links against the restored directory while retaining their original paths.
+
+The same recovery check failed after a second backup-and-restore cycle: historical receipts still contained the first source root. Preserve the complete chain of previous state roots when restoring, so all retained receipts resolve in the latest recovery directory.

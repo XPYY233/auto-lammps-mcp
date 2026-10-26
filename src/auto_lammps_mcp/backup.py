@@ -95,7 +95,10 @@ def restore_backup(archive_path, expected_sha256, destination):
             require(db.execute("PRAGMA user_version").fetchone()[0] == 1, "备份数据库需要对应版本的软件")
             db.execute("DELETE FROM leases")
             db.execute("DELETE FROM settings WHERE key LIKE 'process:%' OR key IN ('launchd','hosts','host_calls','background_receipt','service_heartbeat')")
-            context = dict(source_home=metadata["source_home"], source_host=metadata["source_host"], backup_sha256=expected_sha256,
+            previous = db.execute("SELECT value FROM settings WHERE key='recovery'").fetchone()
+            history = json.loads(previous[0]) if previous else {}
+            roots = list(dict.fromkeys([*history.get("source_homes", []), *([history["source_home"]] if history.get("source_home") else []), metadata["source_home"]]))
+            context = dict(source_home=metadata["source_home"], source_homes=roots, source_host=metadata["source_host"], backup_sha256=expected_sha256,
                            restored_at=time.time(), pending=True)
             db.execute("INSERT OR REPLACE INTO settings VALUES('recovery',?)", (encode(context),))
             db.execute("UPDATE queue SET state='interrupted',token=NULL,lease_until=NULL WHERE state='running'")

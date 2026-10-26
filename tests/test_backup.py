@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import time
+from pathlib import Path
 
 import pytest
 
@@ -52,3 +53,26 @@ def test_backup_refuses_active_writer_and_bad_hash(tmp_path):
     with pytest.raises(Fault, match="摘要与回执不一致"):
         restore_backup(receipt["path"], "wrong", tmp_path / "restored")
     assert not (tmp_path / "restored").exists()
+
+
+def test_restored_receipts_open_files_in_recovered_directory(tmp_path):
+    original = Service(tmp_path / "original")
+    task = original.task_create("Research", "export and continue", [{"id": "a", "description": "package", "kind": "archive"}], "create")
+    (original.store.root(task["id"]) / "data.txt").write_text("retained data")
+    exported = original.project_export(task["id"], 1, "export")
+    Worker(original).work_one()
+    backup = create_backup(original.store, tmp_path / "backup.zip")
+    restore_backup(backup["path"], backup["sha256"], tmp_path / "recovered")
+    original.store.home.rename(tmp_path / "original-offline")
+    recovered = Service(tmp_path / "recovered")
+    delivery = recovered.task_get(task["id"])["deliveries"][0]
+    operation = recovered.operation_get(exported["operation_id"])["result"]
+    for receipt in (delivery, operation):
+        assert Path(receipt["path"]).is_file()
+        assert Path(receipt["path"]).is_relative_to(recovered.store.home)
+        assert str(tmp_path / "original") in receipt["original_paths"]["path"]
+    second_backup = create_backup(recovered.store, tmp_path / "second-backup.zip")
+    restore_backup(second_backup["path"], second_backup["sha256"], tmp_path / "second-recovery")
+    second = Service(tmp_path / "second-recovery")
+    path = Path(second.operation_get(exported["operation_id"])["result"]["path"])
+    assert path.is_file() and path.is_relative_to(second.store.home)

@@ -9,6 +9,8 @@ For project development, begin every work turn by reading the entire original ap
 
 Use `doctor` first for installation or connection work. Use `task_list` and `task_get` first when continuing research. `help` returns the actual installed version's parameters. MCP and `alm call` share one service and task store.
 
+task_get returns compact progress with the full original request. Use task_records to page through complete run, artifact, work or stage records, and operation_get for a specific result. Follow returned cursors instead of repeatedly requesting the entire history.
+
 ## Installation and setup
 
 Follow the repository's `docs/FOR_AGENTS_INSTALL.md`. Detect local execution and MCP support. Reuse an existing installation. Use the actual executable path returned by the installer. Keep installation progress and give a copyable resume sentence when the host needs a new session.
@@ -44,6 +46,8 @@ Use background Codex only when enabled and verified. Record unresolved decisions
 Choose analyses from the scientific question and actual files. Separate averages from atom-resolved evidence, independent samples from frames, new samples from retries, program errors from physical anomalies. Preserve definitions, units, statistical windows, sample identities and uncertainty. Keep rejected hypotheses and previous plots.
 
 Use existing plotting and structure/trajectory viewers. Show important plots inline when the host supports them, plus data/script/trajectory links. Register real artifacts and their sources and checks. `completion_check` reports missing requirements; continue those items. Export a package that a colleague can inspect and continue using.
+
+In official DSH, use its present tool with files=[{path: absolute_path, description: short_description}] to give the user a plot and handoff ZIP they can open with their normal apps. This works with the existing text model: verify numerical outputs and file content, then present the files. Use image reading when the selected model declares image input. In Codex, show supported images inline or open the actual file in its preview panel.
 
 For existing-data analysis: import the complete source directory; write a native Python script under the task's project_path; call analysis_submit with project-relative inputs and output names; release the lease while the queue runs. Its working directory is analysis/<operation_id>/ and inputs keep their relative names. Read operation_get for output paths and logs, use artifact_preview for the actual plot, then register checks and requirement links. Use help(method) for these exact contracts before inspecting implementation files. All long-running methods return operation_id; a waiting queue needs its task lease released.
 

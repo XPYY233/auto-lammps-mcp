@@ -347,7 +347,8 @@ class Worker:
                 self.store.event(db, work["task_id"], "work_progress", dict(operation_id=work["id"], kind=work["kind"]))
 
     def execute(self, work):
-        payload = json.loads(work["payload"])
+        from .records import restored_paths
+        payload = restored_paths(self.store, json.loads(work["payload"]))
         kind, task_id = work["kind"], work["task_id"]
         if kind == "backup":
             from .backup import create_backup
@@ -510,7 +511,7 @@ class Worker:
         return dict(task_read=True, tools=[c["tool"] for c in successful], outputs=outputs)
 
     def export(self, task_id, requirement_ids=None, token=None):
-        task = self.service.task_get(task_id)
+        task = self.service.task_get(task_id, include_details=True)
         files = manifest(self.store, task_id)
         key = identifier("export")
         archive = self.store.home / "exports" / (key + ".zip")

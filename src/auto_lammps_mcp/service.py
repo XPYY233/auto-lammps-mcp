@@ -147,8 +147,8 @@ class Service:
         return dict(tasks=[dict(row) for row in rows])
 
     @public
-    def task_get(self, task_id: str) -> dict:
-        """Resume a project: original goals, current rules, runs, artifacts, work queue and latest events."""
+    def task_get(self, task_id: str, include_details: bool = False) -> dict:
+        """Resume a project with original goals, current rules and compact progress. Use task_records for paged runs/artifacts/work/stages, events for history, operation_get for full results. include_details=True returns the complete record for export."""
         with self.store.connect() as db:
             result = self.store.task(db, task_id)
             result["runs"] = [dict(row) for row in db.execute("SELECT * FROM runs WHERE task_id=? ORDER BY created", (task_id,))]
@@ -157,6 +157,8 @@ class Service:
             result["events"] = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 20", (task_id,))]
             result["stages"] = [dict(row) for row in db.execute("SELECT * FROM stages WHERE task_id=? ORDER BY created,id", (task_id,))]
             result["deliveries"] = [json.loads(row[0]) for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",))]
+            result["record_counts"] = {name: db.execute("SELECT count(*) FROM " + table + " WHERE task_id=?", (task_id,)).fetchone()[0] for name, table in {"runs":"runs", "artifacts":"artifacts", "work":"queue", "events":"events", "stages":"stages"}.items()}
+            result["record_counts"]["deliveries"] = len(result["deliveries"])
         result["project_path"] = str(self.store.root(task_id))
         for run in result["runs"]:
             for key in ("environment", "rules", "evidence"):
@@ -165,7 +167,24 @@ class Service:
             for key in ("sources", "requirements", "checks"):
                 artifact[key] = json.loads(artifact[key])
         result["next_action"] = "检查未交付成果，继续相关阶段"
-        return result
+        from .records import restored_paths, task_summary
+        return restored_paths(self.store, result if include_details else task_summary(result))
+
+    @public
+    def task_records(self, task_id: str, kind: str, offset: int = 0, limit: int = 10) -> dict:
+        """Read a page of full runs, artifacts, work or stages without repeating the whole project. Use next_offset when more is true."""
+        tables = {"runs": "runs", "artifacts": "artifacts", "work": "queue", "stages": "stages"}
+        require(kind in tables and offset >= 0 and 1 <= limit <= 50, "请选择 runs、artifacts、work 或 stages，以及有效分页范围")
+        with self.store.connect() as db:
+            self.store.task(db, task_id)
+            rows = db.execute("SELECT * FROM " + tables[kind] + " WHERE task_id=? ORDER BY created,id LIMIT ? OFFSET ?", (task_id, limit+1, offset)).fetchall()
+        records = [dict(row) for row in rows[:limit]]
+        for record in records:
+            for key in ("environment", "rules", "evidence", "sources", "requirements", "checks", "payload", "result", "dependencies", "specification"):
+                if isinstance(record.get(key), str):
+                    record[key] = json.loads(record[key])
+        from .records import restored_paths
+        return dict(records=restored_paths(self.store, records), next_offset=offset+len(records), more=len(rows)>limit)
 
     @public
     def task_claim(self, task_id: str, owner: str, seconds: int = 300, token: str | None = None) -> dict:
@@ -350,7 +369,8 @@ class Service:
         result = dict(row)
         for field in ("payload", "result"):
             result[field] = json.loads(result[field]) if result[field] else None
-        return result
+        from .records import restored_paths
+        return restored_paths(self.store, result)
 
     @public
     def operation_retry(self, operation_id: str, op_id: str) -> dict:

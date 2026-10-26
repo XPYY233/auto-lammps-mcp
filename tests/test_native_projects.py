@@ -123,3 +123,17 @@ def test_unread_progress_is_per_consumer_and_acknowledged_explicitly(service, ta
     assert not service.events(consumer="codex")["events"]
     assert service.events(consumer="dsh")["events"]
 
+def test_task_summary_does_not_repeat_large_snapshot_payloads(service, task):
+    with service.store.transaction() as db:
+        work = service.store.queue(db, task["id"], "snapshot", {})
+        result = {"files": {f"data/{n}.csv": {"sha256": "a" * 64, "bytes": 100} for n in range(500)}}
+        db.execute("UPDATE queue SET state='completed',result=? WHERE id=?", (json.dumps(result), work["operation_id"]))
+        service.store.event(db, task["id"], "work_completed", {"operation_id": work["operation_id"], "kind": "snapshot", "result": result})
+    summary = service.task_get(task["id"])
+    assert len(json.dumps(summary)) < 8000
+    assert summary["request"] == task["request"]
+    assert service.operation_get(work["operation_id"])["result"] == result
+    page = service.task_records(task["id"], "work", limit=1)
+    assert page["records"][0]["result"] == result
+    assert page["next_offset"] == 1 and not page["more"]
+
