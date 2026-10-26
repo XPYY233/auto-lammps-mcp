@@ -23,6 +23,7 @@ class Worker:
         self.service, self.store = service, service.store
         self.slurm = slurm or Slurm(self.store)
         self.stopping = threading.Event()
+        self.ready = threading.Event()
         self.last_poll = 0
         self.last_summary = 0
         self.boot_id = identifier("service")
@@ -40,6 +41,11 @@ class Worker:
                 db.execute("UPDATE queue SET state='interrupted',updated=? WHERE id=?", (time.time(), row["id"]))
                 self.store.event(db, row["task_id"], "work_interrupted", dict(operation_id=row["id"], kind=row["kind"], next_action="核对已有产物后接续"))
             db.execute("DELETE FROM leases WHERE owner LIKE 'background:%' OR owner LIKE 'worker:%'")
+            heartbeat = dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at,
+                             observed_at=time.time(), python=sys.executable)
+            self.store.set_setting(db, "service_heartbeat", heartbeat)
+            self.store.event(db, None, "service_heartbeat", heartbeat)
+        self.ready.set()
         threading.Thread(target=self.monitor_loop, daemon=True, name="alm-monitor").start()
         threading.Thread(target=self.decision_loop, daemon=True, name="alm-decisions").start()
         threading.Thread(target=self.dispatch_loop, daemon=True, name="alm-dispatch").start()
@@ -555,9 +561,7 @@ class Worker:
                 package.write(self.store.home / "blobs" / info["sha256"], "project/" + name)
             package.writestr("project-manifest.json", encode(files))
             package.writestr("research-record.json", encode(task))
-            with self.store.connect() as db:
-                events = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq", (task_id,))]
-            package.writestr("events.json", encode(events))
+            package.writestr("events.json", encode(sorted(task["events"], key=lambda event: event["seq"])))
             package.writestr("README.txt", "Auto-LAMMPS 研究交接\n打开 research-record.json 读取原始需求、规则、执行与成果。\nproject/ 保存原生脚本、输入、数据和图表。project-manifest.json 保存 SHA-256。\n在新对话中说：使用 Auto-LAMMPS 导入这个研究结果包，说明已完成内容和剩余成果，然后继续分析。\n")
         receipt = dict(path=str(archive), filename=archive.name, sha256=file_hash(archive), files=len(files),
                        manifest_digest=digest(encode(files).encode()), requirement_ids=requirement_ids or [])

@@ -75,10 +75,22 @@ async def verify(home, incoming):
             assert any(item.type == "image" for item in preview.content)
             before = await invoke("completion_check", task_id=tid, revision=registered["revision"], op_id="before-export")
             assert not before["complete"] and [r["id"] for r in before["missing"]] == ["bundle"]
-            exported = await finished(await invoke("project_export", task_id=tid, revision=before["revision"], op_id="export"))
+            snapshots = []
+            for index in range(31):
+                current = await invoke("task_get", task_id=tid)
+                operation = await invoke("project_snapshot", task_id=tid, revision=current["revision"], op_id="history-" + str(index))
+                snapshots.append(operation["operation_id"])
+                await finished(operation)
+            current = await invoke("task_get", task_id=tid)
+            assert len(current["work"]) == 5 and current["record_counts"]["work"] > 30
+            exported = await finished(await invoke("project_export", task_id=tid, revision=current["revision"], op_id="export"))
             with zipfile.ZipFile(exported["path"]) as archive:
                 assert "project/" + plot in archive.namelist()
-                assert json.loads(archive.read("research-record.json"))["request"] == task["request"]
+                record = json.loads(archive.read("research-record.json"))
+                assert record["request"] == task["request"]
+                assert len(record["work"]) == record["record_counts"]["work"]
+                assert set(snapshots) <= {item["id"] for item in record["work"]}
+                assert all(isinstance(item["payload"], dict) for item in record["work"])
             task = await invoke("task_get", task_id=tid)
             complete = await invoke("completion_check", task_id=tid, revision=task["revision"], op_id="complete")
             assert complete["complete"], complete
@@ -87,7 +99,7 @@ async def verify(home, incoming):
             assert imported["original_request"] == task["request"]
             reread = await invoke("file_read", task_id=next_task["id"], path=statistics)
             assert json.loads(reread["text"]) == actual
-            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "native_analysis", "image_preview", "required_archive", "handoff_reimport"], original_files=exported["files"], physics_submissions=0)
+            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
 
 
 def main():

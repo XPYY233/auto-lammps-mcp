@@ -128,3 +128,13 @@ Review of the real installation receipt found that host_calls contained only a p
 PDF inspection showed TeX joining the two hyphens in command options into a dash. Keep option hyphens separate in the generated source and verify extracted PDF text before packaging the updated manual.
 
 The same upgrade review found an earlier candidate's background verification still presented without its software identity. Preserve its evidence as historical, record the executing candidate for new continuations, and keep doctor concise by linking to the full operation result.
+
+## 2026-10-27 — Complete handoff history
+
+A populated 35-operation project exported only 30 work records and 20 embedded events, although record_counts reported 35 operations and 106 events. The separate events.json retained all 106 events. The export path reused task_get's conversation limits, and its selected work columns also omitted the original payload. Keep default progress compact, but export every operation with its payload and result and include the complete structured event history. Preserve the original archive and compare a restored project's history with the source store. Tracked in Issue #5.
+
+The first failure-and-recovery regression expected 37 operations but found 38: the failed analysis also created its durable diagnosis request. Compare the exported set with every original operation, including that pending decision, rather than omitting it from the expected history.
+
+One macOS CI job failed in pytest while the other macOS run of the same revision passed. The workflow-level log command initially waited for the remaining job, and the completed-job endpoint then required explicit handling of terminal escapes. Save that job's log privately, strip control sequences for reading, and identify the failing check before rerunning CI.
+
+The failed assertion read the previous boot's heartbeat immediately after a daemon restart. The socket accepted requests before the worker had restored state and replaced the persisted heartbeat. Publish the new boot receipt during recovery and open the request listener only after that initialization finishes. Add a deterministic slow-recovery check with an old stored heartbeat; keep the original failure evidence.

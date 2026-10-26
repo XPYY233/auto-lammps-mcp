@@ -78,3 +78,45 @@ def test_new_delivery_requirement_keeps_existing_plot_valid(tmp_path):
     assert not service.task_get(task["id"])["artifacts"][0]["stale"]
     check = service.completion_check(task["id"], updated["revision"], "check")
     assert [r["id"] for r in check["missing"]] == ["zip"]
+
+
+def test_long_handoff_retains_failed_attempt_payloads_and_complete_history(tmp_path):
+    from auto_lammps_mcp.records import decoded_record
+    service = Service(tmp_path / "source")
+    worker = Worker(service)
+    task = service.task_create("Long research", "Retain every analysis attempt", [{"id": "result", "description": "result"}], "create")
+    root = service.store.root(task["id"])
+    (root / "data.txt").write_text("3\n")
+    (root / "analyze.py").write_text("raise ValueError('wrong column')\n")
+    failed = service.analysis_submit(task["id"], 1, "analyze.py", ["data.txt"], ["answer.txt"], "analysis")
+    worker.work_one()
+    assert service.operation_get(failed["operation_id"])["state"] == "failed"
+    (root / "analyze.py").write_text("from pathlib import Path\nPath('answer.txt').write_text(Path('data.txt').read_text())\n")
+    recovered = service.operation_retry(failed["operation_id"], "retry")
+    worker.work_one()
+    assert service.operation_get(recovered["operation_id"])["state"] == "completed"
+    for n in range(35):
+        current = service.task_get(task["id"])
+        service.project_snapshot(task["id"], current["revision"], "snapshot-" + str(n))
+        worker.work_one()
+    with service.store.connect() as db:
+        expected = {r["id"]: decoded_record(r) for r in db.execute("SELECT * FROM queue WHERE task_id=?", (task["id"],))}
+        events = [decoded_record(r) for r in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq", (task["id"],))]
+    summary = service.task_get(task["id"])
+    assert len(summary["work"]) == 5 and len(summary["events"]) == 5
+    assert summary["record_counts"]["work"] == len(expected) > 35
+    assert "work" in summary["records_truncated"]
+    exported = worker.export(task["id"])
+    with zipfile.ZipFile(exported["path"]) as archive:
+        record = json.loads(archive.read("research-record.json"))
+        assert {r["id"]: r for r in record["work"]} == expected
+        assert sorted(record["events"], key=lambda r: r["seq"]) == events
+        assert json.loads(archive.read("events.json")) == events
+    destination = Service(tmp_path / "destination")
+    target = destination.task_create("Continue", "Continue the long study", [{"id": "result", "description": "result"}], "create")
+    imported = import_project(destination.store, target["id"], exported["path"])
+    restored = json.loads((destination.store.root(target["id"]) / imported["original_record"]).read_text())
+    assert {r["id"]: r for r in restored["work"]} == expected
+    assert restored["request"] == task["request"]
+    assert expected[failed["operation_id"]]["state"] == "failed"
+    assert expected[failed["operation_id"]]["payload"]["inputs"] == ["data.txt"]

@@ -153,8 +153,10 @@ class Service:
             result = self.store.task(db, task_id)
             result["runs"] = [dict(row) for row in db.execute("SELECT * FROM runs WHERE task_id=? ORDER BY created", (task_id,))]
             result["artifacts"] = [dict(row) for row in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created", (task_id,))]
-            result["work"] = [dict(row) for row in db.execute("SELECT id,kind,state,result,updated FROM queue WHERE task_id=? ORDER BY created DESC LIMIT 30", (task_id,))]
-            result["events"] = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 20", (task_id,))]
+            work_columns = "*" if include_details else "id,kind,state,result,updated"
+            recent_limit = "" if include_details else " LIMIT 5"
+            result["work"] = [dict(row) for row in db.execute("SELECT " + work_columns + " FROM queue WHERE task_id=? ORDER BY created DESC" + recent_limit, (task_id,))]
+            result["events"] = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq DESC" + recent_limit, (task_id,))]
             result["stages"] = [dict(row) for row in db.execute("SELECT * FROM stages WHERE task_id=? ORDER BY created,id", (task_id,))]
             result["deliveries"] = [json.loads(row[0]) for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",))]
             result["record_counts"] = {name: db.execute("SELECT count(*) FROM " + table + " WHERE task_id=?", (task_id,)).fetchone()[0] for name, table in {"runs":"runs", "artifacts":"artifacts", "work":"queue", "events":"events", "stages":"stages"}.items()}
@@ -172,7 +174,10 @@ class Service:
             "stopping": "停止意图已保存，正在取消当前作业；读取进展核对结果",
             "stopped": "停止意图已保存；核对作业取消结果，可继续读取和整理已有数据",
         }.get(result["state"], "检查当前阶段与未交付成果，继续相关工作")
-        from .records import restored_paths, task_summary
+        from .records import restored_paths, task_summary, decoded_record
+        if include_details:
+            for name in ("runs", "work", "events", "stages"):
+                result[name] = [decoded_record(row) for row in result[name]]
         return restored_paths(self.store, result if include_details else task_summary(result))
 
     @public
@@ -183,12 +188,8 @@ class Service:
         with self.store.connect() as db:
             self.store.task(db, task_id)
             rows = db.execute("SELECT * FROM " + tables[kind] + " WHERE task_id=? ORDER BY created,id LIMIT ? OFFSET ?", (task_id, limit+1, offset)).fetchall()
-        records = [dict(row) for row in rows[:limit]]
-        for record in records:
-            for key in ("environment", "rules", "evidence", "sources", "requirements", "checks", "payload", "result", "dependencies", "specification"):
-                if isinstance(record.get(key), str):
-                    record[key] = json.loads(record[key])
-        from .records import restored_paths
+        from .records import restored_paths, decoded_record
+        records = [decoded_record(row) for row in rows[:limit]]
         return dict(records=restored_paths(self.store, records), next_offset=offset+len(records), more=len(rows)>limit)
 
     @public

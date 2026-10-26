@@ -107,6 +107,8 @@ def serve(home):
     worker = Worker(service)
     threading.Thread(target=worker.loop, daemon=True, name="alm-worker").start()
     try:
+        if not worker.ready.wait(timeout=30):
+            raise Fault("service_recovery_timeout", "后台尚未完成重启恢复", "读取服务日志后从原任务接续")
         with Server(str(path), Handler) as server:
             path.chmod(0o600)
             server.serve_forever(poll_interval=0.5)
