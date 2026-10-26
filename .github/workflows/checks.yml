@@ -1,0 +1,35 @@
+name: checks
+on: [push, pull_request]
+jobs:
+  software:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements.lock.txt
+      - run: python -m pip install -e .
+      - run: python -m pytest -q
+      - run: python scripts/check_public_tree.py
+      - run: python -m pip install build
+      - run: python -m build
+      - name: Verify installed wheel through MCP and analysis
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, subprocess, sys
+          wheel = next(pathlib.Path('dist').glob('*.whl')).resolve()
+          digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+          with open('installed-receipt.json', 'w') as output:
+              subprocess.run([sys.executable, 'scripts/install.py', '--wheel', str(wheel), '--sha256', digest, '--prefix', '.installed', '--home', '.installed-state', '--host', 'none', '--no-launchd'], stdout=output, check=True)
+          receipt = json.loads(pathlib.Path('installed-receipt.json').read_text())
+          python = pathlib.Path(receipt['binary']).parent / 'python'
+          subprocess.run([str(python), 'scripts/verify_installed.py'], check=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}
+          path: dist/*

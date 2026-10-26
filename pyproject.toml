@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "auto-lammps-mcp"
+version = "0.1.0a1"
+description = "Native scientific projects, durable Slurm jobs and agent tools"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = ["mcp>=1.12,<2", "pint>=0.24,<0.26"]
+
+[project.optional-dependencies]
+analysis = ["numpy>=2,<3", "matplotlib>=3.9,<4"]
+test = ["pytest>=8,<9", "pytest-asyncio>=0.24,<2"]
+
+[project.scripts]
+alm = "auto_lammps_mcp.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/auto_lammps_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"skills/auto-lammps-mcp" = "auto_lammps_mcp/data/skill"
+"docs" = "auto_lammps_mcp/data/docs"
+"requirements.lock.txt" = "auto_lammps_mcp/data/requirements.lock.txt"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
