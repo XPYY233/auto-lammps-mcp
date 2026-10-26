@@ -40,6 +40,9 @@ class Worker:
         threading.Thread(target=self.monitor_loop, daemon=True, name="alm-monitor").start()
         while not self.stopping.is_set():
             try:
+                if self.store.setting("recovery", {}).get("pending"):
+                    self.stopping.wait(1)
+                    continue
                 self.advance_stages()
                 self.dispatch_one()
                 self.work_one()
@@ -149,6 +152,9 @@ class Worker:
     def monitor_loop(self):
         while not self.stopping.is_set():
             try:
+                if self.store.setting("recovery", {}).get("pending"):
+                    self.stopping.wait(1)
+                    continue
                 self.tick()
             except Exception as exc:
                 with self.store.transaction() as db:
@@ -321,6 +327,9 @@ class Worker:
     def execute(self, work):
         payload = json.loads(work["payload"])
         kind, task_id = work["kind"], work["task_id"]
+        if kind == "backup":
+            from .backup import create_backup
+            return create_backup(self.store, payload["destination"])
         if kind == "snapshot":
             files = manifest(self.store, task_id, payload.get("paths"))
             sid = identifier("snapshot")

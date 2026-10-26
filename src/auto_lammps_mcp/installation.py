@@ -59,7 +59,7 @@ def doctor(store):
     receipt = dict(version=__version__, protocol=1, schema=1, python=sys.executable, package_path=str(Path(__file__).parent),
                    state_directory=str(store.home), platform=platform.system(),
                    daemon=dict(socket_exists=socket_path(store.home).exists(), managed=store.setting("launchd", False)),
-                   hosts=store.setting("hosts", {}), host_calls=store.setting("host_calls", {}),
+                   hosts=store.setting("hosts", {}), host_calls=store.setting("host_calls", {}), recovery=store.setting("recovery"),
                    cluster_configured=bool(cluster), cluster_receipt=store.setting("cluster_receipt"),
                    environment_receipts=store.setting("environment_receipts", []),
                    background=dict(configured=background, executable=codex_path(), receipt=background_receipt),

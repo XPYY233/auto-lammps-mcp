@@ -23,6 +23,9 @@ def parser():
     sub.add_parser("start")
     sub.add_parser("doctor")
     sub.add_parser("help")
+    restore = sub.add_parser("restore")
+    restore.add_argument("archive")
+    restore.add_argument("--sha256", required=True)
     api = sub.add_parser("call")
     api.add_argument("method")
     api.add_argument("--json", default="{}", help="JSON object, or @path to a JSON file")
@@ -41,7 +44,12 @@ def main():
     args = parser().parse_args()
     home = str(Path(args.home).expanduser().resolve())
     try:
-        if args.command == "serve":
+        if args.command == "restore":
+            from .backup import restore_backup
+            result = restore_backup(args.archive, args.sha256, home)
+            print(encode(result))
+            return
+        elif args.command == "serve":
             serve(home)
             return
         if args.command == "mcp":

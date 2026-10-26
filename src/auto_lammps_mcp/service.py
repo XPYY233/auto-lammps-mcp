@@ -65,6 +65,36 @@ class Service:
         return self.store.mutate(op_id, dict(method="connection_check"), lambda db: self.store.queue(db, None, "connection_check", {}))
 
     @public
+    def backup_create(self, destination: str, op_id: str) -> dict:
+        """Queue a verified database/files backup outside the state directory. Release task leases before starting."""
+        path = Path(destination).expanduser().resolve()
+        def apply(db):
+            require(not path.exists() and not path.is_relative_to(self.store.home), "请选择数据目录外的新备份文件")
+            return self.store.queue(db, None, "backup", dict(destination=str(path)))
+        return self.store.mutate(op_id, dict(method="backup_create", destination=str(path)), apply)
+
+    @public
+    def recovery_activate(self, previous_controller_stopped: bool, op_id: str) -> dict:
+        """Resume a restored service after confirming the original controller is stopped. Keep original job identities."""
+        import socket
+        recovery = self.store.setting("recovery", {})
+        require(previous_controller_stopped is True, "先停止原任务服务，再接续恢复目录")
+        if recovery.get("pending") and recovery["source_host"] == socket.gethostname() and Path(recovery["source_home"]) != self.store.home:
+            from .transport import call
+            try:
+                call(recovery["source_home"], "doctor")
+            except Fault as exc:
+                require(exc.code == "service_unavailable", "原服务状态尚未确认，请先核对")
+            else:
+                raise Fault("controller_active", "原任务服务仍在运行", "停止原服务后再接续恢复目录")
+        def apply(db):
+            require(recovery.get("pending"), "当前数据目录没有待接续的恢复")
+            self.store.set_setting(db, "recovery", {**recovery, "pending": False, "activated_at": time.time()})
+            self.store.event(db, None, "recovery_activated", dict(backup_sha256=recovery["backup_sha256"]))
+            return dict(activated=True)
+        return self.store.mutate(op_id, dict(method="recovery_activate", previous_controller_stopped=True), apply)
+
+    @public
     def environment_verify(self, run_id: str, evidence_path: str, expected_text: str, op_id: str) -> dict:
         """Verify a completed environment_check run using collected engine output and a scientific verification marker."""
         run = self.run_get(run_id)
