@@ -262,6 +262,15 @@ class Service:
         return dict(records=records, next_offset=offset+len(records), more=len(rows)>len(records))
 
     @public
+    def project_optimize(self, task_id: str, revision: int, op_id: str, token: str | None = None) -> dict:
+        """Queue storage sharing with existing verified snapshots on clone-capable volumes. Every project path, byte content, permission, modification time and attempt remains; original external files and archives stay in place. Files without snapshots or cloning support are skipped. Release the task lease before polling operation_get; the receipt records each path and observed free space."""
+        def apply(db):
+            self.store.task(db, task_id, revision, token)
+            self.store.bump(db, task_id)
+            return self.store.queue(db, task_id, "optimize", {})
+        return self.store.mutate(op_id, dict(method="project_optimize", task_id=task_id, revision=revision, token=token), apply)
+
+    @public
     def task_claim(self, task_id: str, owner: str, seconds: int = 300, token: str | None = None) -> dict:
         """Acquire or renew the single writer lease. An expired token can never write."""
         require(30 <= seconds <= 900 and owner.strip(), "操作权需要执行者名称与 30–900 秒有效期")
@@ -586,25 +595,42 @@ class Service:
         return self.store.mutate(op_id, dict(method="run_action", run_id=run_id, action=action, revision=revision), apply)
 
     @public
-    def analysis_submit(self, task_id: str, revision: int, script: str, inputs: list[str], outputs: list[str], op_id: str, token: str | None = None) -> dict:
+    def analysis_submit(self, task_id: str, revision: int, script: str, inputs: list[str], outputs: list[str], op_id: str, token: str | None = None, input_bindings: dict[str, str] | None = None) -> dict:
         """Run a native Python script against existing data in a persistent analysis queue.
 
         script and inputs are project-relative files. They are copied, with subdirectories preserved, into analysis/<operation_id>/.
         Python's working directory is that analysis directory, so scripts read input paths relative to its root, not their own scripts/ folder.
         outputs are required nonempty paths relative to the analysis directory. The installed analysis environment provides NumPy and Matplotlib.
         Example: script='scripts/plot.py', inputs=['data.csv'], outputs=['plot.png','statistics.csv'].
+        Reuse previous results without editing script paths: input_bindings={'data.csv':'analysis/<prior-operation>/data.csv'} maps workspace paths to project source files. inputs may be [] when bindings are provided. The receipt retains source paths, hashes and each independent input copy.
         Returns operation_id; release the task lease before polling. operation_get returns output paths, SHA-256 values and analysis.log.
         Use file_read for logs, artifact_preview for the actual image, then artifact_register to link each result to requirements.
         Physics evaluations use run_prepare/run_submit on HPC.
         """
-        require(inputs and outputs and script.endswith(".py"), "需要 Python 脚本、输入与输出清单")
-        for name in [script, *inputs, *outputs]:
+        bindings = input_bindings or {}
+        require(isinstance(bindings, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in bindings.items()), "input_bindings 需要工作目录路径到项目文件路径的映射")
+        require((inputs or bindings) and outputs and script.endswith(".py"), "需要 Python 脚本、输入与输出清单")
+        for name in [script, *inputs, *outputs, *bindings, *bindings.values()]:
             self.store.path(task_id, name)
+            require(Path(name).as_posix() != ".", "分析路径必须指向文件")
+        destinations = {Path(name).as_posix() for name in [script, *inputs]}
+        for name in bindings:
+            normalized = Path(name).as_posix()
+            require(normalized not in destinations, f"分析输入路径重复: {name}", "input_collision", "为每个输入选择独立的工作目录路径")
+            destinations.add(normalized)
+        reserved = {"analysis.log", "analysis-receipt.json"}
+        require(not destinations & reserved, "输入路径与分析日志或回执冲突", "input_collision")
+        for name in destinations:
+            require(not any(parent.as_posix() in destinations for parent in Path(name).parents), f"分析输入目录与文件冲突: {name}", "input_collision")
+        require(not {Path(name).as_posix() for name in bindings} & {Path(name).as_posix() for name in outputs}, "绑定输入与输出路径冲突", "input_collision")
         def apply(db):
             self.store.task(db, task_id, revision, token)
             self.store.bump(db, task_id)
-            return self.store.queue(db, task_id, "analysis", dict(script=script, inputs=inputs, outputs=outputs))
-        return self.store.mutate(op_id, dict(method="analysis_submit", task_id=task_id, revision=revision, script=script, inputs=inputs, outputs=outputs, token=token), apply)
+            return self.store.queue(db, task_id, "analysis", dict(script=script, inputs=inputs, outputs=outputs, input_bindings=bindings))
+        arguments = dict(method="analysis_submit", task_id=task_id, revision=revision, script=script, inputs=inputs, outputs=outputs, token=token)
+        if input_bindings is not None:
+            arguments["input_bindings"] = input_bindings
+        return self.store.mutate(op_id, arguments, apply)
 
     @public
     def artifact_register(self, task_id: str, revision: int, path: str, sources: list[str], requirement_ids: list[str], checks: list[dict], op_id: str, token: str | None = None) -> dict:

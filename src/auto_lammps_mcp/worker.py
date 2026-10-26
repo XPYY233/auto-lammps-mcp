@@ -36,7 +36,7 @@ class Worker:
         with self.store.transaction() as db:
             self.store.event(db, None, "service_started", dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at))
             db.execute("UPDATE runs SET state='unknown' WHERE state='dispatching'")
-            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','collect','reconcile','cancel','connection_check','log_read')")
+            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','optimize','collect','reconcile','cancel','connection_check','log_read')")
             rows = db.execute("SELECT id,task_id,kind FROM queue WHERE state='running'").fetchall()
             for row in rows:
                 db.execute("UPDATE queue SET state='interrupted',updated=? WHERE id=?", (time.time(), row["id"]))
@@ -360,7 +360,7 @@ class Worker:
                 return
             token = identifier("worker")
             work["token"] = token
-            work["owns_lease"] = work["task_id"] is not None and work["kind"] in ("snapshot", "import", "analysis", "export")
+            work["owns_lease"] = work["task_id"] is not None and work["kind"] in ("snapshot", "import", "analysis", "export", "optimize")
             if work["owns_lease"]:
                 db.execute("INSERT OR REPLACE INTO leases VALUES(?,?,?,?)", (work["task_id"], "worker:" + work["id"], token, time.time() + 120))
             db.execute("UPDATE queue SET state='running',token=?,lease_until=?,updated=? WHERE id=?", (token, time.time() + 120, time.time(), work["id"]))
@@ -400,6 +400,9 @@ class Worker:
         from .records import restored_paths
         payload = restored_paths(self.store, json.loads(work["payload"]))
         kind, task_id = work["kind"], work["task_id"]
+        if kind == "optimize":
+            from .files import optimize_storage
+            return optimize_storage(self.store, task_id, work["token"])
         if kind == "backup":
             from .backup import create_backup
             return create_backup(self.store, payload["destination"])
@@ -479,21 +482,23 @@ class Worker:
                 path = result_root / name
                 if path.is_file():
                     files[name] = dict(path=str(path), sha256=file_hash(path), size=path.stat().st_size)
-            return dict(status=status, sources=sources, input_copies=input_copies, outputs=files, script=payload["script"],
+            return dict(status=status, sources=sources, input_copies=input_copies, input_bindings=payload.get("input_bindings", {}), outputs=files, script=payload["script"],
                         directory=str(result_root), log=str(output) if output.exists() else None,
                         log_path=relative_root + "/analysis.log" if output.exists() else None,
                         receipt_path=receipt_path, exit_code=returncode,
                         missing_outputs=[name for name in payload["outputs"] if name not in files or not files[name]["size"]])
 
         try:
-            for name in [payload["script"], *payload["inputs"]]:
-                original = self.store.path(task_id, name)
-                require(original.is_file(), f"分析输入缺失: {name}")
+            staged = {name: name for name in [payload["script"], *payload["inputs"]]}
+            staged.update(payload.get("input_bindings", {}))
+            for name, source in staged.items():
+                original = self.store.path(task_id, source)
+                require(original.is_file(), f"分析输入缺失: {source}")
                 destination = result_root / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 mode = copy_independent(original, destination)
-                input_copies[name] = dict(method=mode, bytes=destination.stat().st_size)
-                sources[name] = file_hash(destination)
+                input_copies[name] = dict(source=source, method=mode, bytes=destination.stat().st_size)
+                sources[source] = file_hash(destination)
             environment = {**os.environ, "MPLBACKEND": "Agg", "PYTHONUNBUFFERED": "1"}
             with output.open("wb") as log:
                 started = True

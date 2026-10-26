@@ -210,3 +210,11 @@ The installed large-file isolation probe correctly preserved the read-only sourc
 The resumed host assumed three values on each box-bound line and compared atom arrays in file order. The real output has orthogonal two-value bounds and reorders atom rows. Its retained failures and checks led to source-based parsing and ID-keyed comparisons; the next extraction preserved identities across all frames. Derive column and box formats from real headers and compare identity mappings, not row positions.
 
 A read-only audit guessed that a failed plotting preparation had analysis.log. Its receipt correctly reported log_path=null and a missing staged input. Read the actual receipt before selecting a log; preparation and executed-script failures have different evidence. Subsequent plotting reached the native layout checks, whose failed plots and overlap measurements remain available.
+
+## 2026-10-27 — Native analysis input reuse and storage
+
+A read-only lookup assumed a private helper subdirectory and used a shell glob for a nonexistent installed-test module. Neither lookup changed research state. Locate helper and test files from the existing inventories, then inspect the analysis staging contract. The current scientific continuation ended after its driver's 30-minute limit with the report written but final registration and export unfinished; keep its operation history and resume from those saved steps.
+
+A second read-only lookup repeated an unmatched shell glob for copy tests. Subsequent inspection searches the tests directory directly. Review of storage metadata handling also found that ordinary Python metadata copying does not retain macOS extended access rules; keep such files untouched and report the skipped path. Normal mode, modification time and extended attributes are checked on replacement files.
+
+The second scientific report improved frame identity and temperature scope but introduced an incorrect covariance unit and treated agreement with one instantaneous sample as verification of an averaged quantity. Record these findings in the same scientific task, revise the native analysis/report, and verify the corrected deliverables before registering completion.

@@ -2,7 +2,7 @@
 
 在 Codex 或 DSH 中描述材料模拟需求，Agent 编写原生科研脚本；Auto-LAMMPS 保存项目、执行计算、持续监视、恢复失败、分析和交接结果。
 
-开发版本：`0.1.0a5`。固定安装包及对应源码见发布记录，进度与完整研究验收见 [交付记录](docs/PROGRESS.md)。
+开发版本：`0.1.0a6`。固定安装包及对应源码见发布记录，进度与完整研究验收见 [交付记录](docs/PROGRESS.md)。
 
 [安装包与校验摘要](https://github.com/XPYY233/auto-lammps-mcp/releases) · [开发与交付手册 PDF](docs/manual/main.pdf) · [可编辑源稿](docs/manual/main.tex)
 
