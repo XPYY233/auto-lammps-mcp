@@ -31,6 +31,9 @@ def parser():
     install = sub.add_parser("install")
     install.add_argument("--host", choices=["codex", "dsh", "none"], default="none")
     install.add_argument("--no-launchd", action="store_true")
+    install.add_argument("--dsh-runtime", help="Existing official dsh executable or built source directory")
+    install.add_argument("--dsh-profile", default="web")
+    install.add_argument("--dsh-home")
     return p
 
 
@@ -47,7 +50,8 @@ def main():
             return
         if args.command == "install":
             from .installation import install
-            result = install(Store(home), args.host, managed=not args.no_launchd)
+            result = install(Store(home), args.host, managed=not args.no_launchd,
+                             dsh_runtime=args.dsh_runtime, dsh_profile=args.dsh_profile, dsh_home=args.dsh_home)
         elif args.command == "start":
             try:
                 result = call(home, "doctor")

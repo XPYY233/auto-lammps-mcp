@@ -77,7 +77,7 @@ def doctor(store):
     return receipt
 
 
-def install(store, host="none", managed=True):
+def install(store, host="none", managed=True, dsh_runtime=None, dsh_profile="web", dsh_home=None):
     require(host in ("codex", "dsh", "none"), "选择 codex、dsh 或 none")
     binary = str(Path(sys.executable).parent / "alm")
     require(Path(binary).is_file(), "命令行入口尚未安装", "missing_installation", "先安装当前版本 Python 包")
@@ -100,19 +100,37 @@ def install(store, host="none", managed=True):
         existing = subprocess.run([codex, "mcp", "get", "auto-lammps", "--json"], capture_output=True, text=True, timeout=20)
         if existing.returncode == 0:
             current = json.loads(existing.stdout).get("transport", {})
-            require(current.get("command") == binary and current.get("args") == connection["args"], "已有 Auto-LAMMPS 连接指向另一安装", "host_connection_conflict", "核对原安装并通过平台设置选择要使用的版本")
+            if current.get("command") != binary or current.get("args") != connection["args"]:
+                previous = store.setting("hosts", {}).get("codex", {}).get("connection", {})
+                require(current.get("command") == previous.get("command") and current.get("args") == previous.get("args")
+                        and not current.get("env") and not current.get("env_vars") and not current.get("cwd"),
+                        "已有 Auto-LAMMPS 连接包含其他安装或自定义设置", "host_connection_conflict", "核对平台中的已有连接")
+                with store.transaction() as db:
+                    store.set_setting(db, "previous_codex_connection", previous)
+                removed = subprocess.run([codex, "mcp", "remove", "auto-lammps"], capture_output=True, text=True, timeout=20)
+                require(removed.returncode == 0, "未能更新原工具连接", "host_configuration_failed", "检查平台配置权限")
+                added = subprocess.run([codex, "mcp", "add", "auto-lammps", "--", binary, *connection["args"]], capture_output=True, text=True, timeout=20)
+                if added.returncode != 0:
+                    subprocess.run([codex, "mcp", "add", "auto-lammps", "--", previous["command"], *previous["args"]], capture_output=True, text=True, timeout=20)
+                    raise Fault("host_configuration_failed", "新版连接写入失败，已尝试恢复原连接", "检查平台配置权限和原连接")
         else:
             result = subprocess.run([codex, "mcp", "add", "auto-lammps", "--", binary, *connection["args"]], capture_output=True, text=True, timeout=20)
             require(result.returncode == 0, result.stderr, "host_configuration_failed", "检查平台的 MCP 配置权限")
+    dsh_receipt = None
     if host == "dsh":
         atomic_write(store.home / "dsh-mcp.json", encode({"mcpServers": {"auto-lammps": connection}}).encode())
         native = dict(id="mcp-auto-lammps", name="@deepseek-ai/dsh-mcp-client",
                       config=dict(serverName="auto-lammps", transport="stdio", **connection, failOnStartupError=True))
         atomic_write(store.home / "dsh-harness-entry.json", encode(native).encode())
+        if dsh_runtime:
+            from .dsh import connect
+            dsh_receipt = connect(store, connection, dsh_runtime, dsh_profile, dsh_home)
     with store.transaction() as db:
         hosts = store.setting("hosts", {})
         hosts[host] = dict(connection=connection, version=__version__, configured_at=time.time(), skill=str(skill_dest),
                            next_action="在 DSH 的 MCP 设置中添加 stdio 连接，并使用回执中的 command 和 args" if host == "dsh" else "重新加载会话后调用 doctor")
+        if dsh_receipt:
+            hosts[host].update(dsh_receipt)
         store.set_setting(db, "hosts", hosts)
         store.event(db, None, "installation_progress", dict(host=host, stage="host_configuration", version=__version__))
     if managed:
@@ -123,15 +141,46 @@ def install(store, host="none", managed=True):
                      RunAtLoad=True, KeepAlive=True, ThrottleInterval=10,
                      StandardOutPath=str(store.home / "logs/service.out"), StandardErrorPath=str(store.home / "logs/service.err"),
                      EnvironmentVariables={"PATH": str(Path(sys.executable).parent) + ":/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"})
+        old_plist = destination.read_bytes() if destination.exists() else None
+        old_values = plistlib.loads(old_plist) if old_plist else {}
         atomic_write(destination, plistlib.dumps(plist))
         domain = f"gui/{os.getuid()}"
         status = subprocess.run(["launchctl", "print", domain + "/" + label], capture_output=True)
+        changed = old_values.get("ProgramArguments") != plist["ProgramArguments"]
+        if not status.returncode and changed:
+            with store.connect() as db:
+                busy = db.execute("SELECT count(*) FROM queue WHERE state='running'").fetchone()[0]
+            if busy:
+                if old_plist:
+                    atomic_write(destination, old_plist)
+                raise Fault("service_busy", "后台正在处理任务，安装进度已保存", "等待当前处理结束后重试安装")
+            stopped = subprocess.run(["launchctl", "bootout", domain + "/" + label], capture_output=True, text=True)
+            require(stopped.returncode == 0, "旧后台未能退出", "service_upgrade_failed", "检查现有后台状态后继续安装")
+            status = stopped
+            status.returncode = 1
         if status.returncode:
             result = subprocess.run(["launchctl", "bootstrap", domain, str(destination)], capture_output=True, text=True)
-            require(result.returncode == 0, result.stderr, "service_install_failed", "检查 launchctl 的当前用户登录会话")
+            if result.returncode:
+                if old_plist:
+                    atomic_write(destination, old_plist)
+                    subprocess.run(["launchctl", "bootstrap", domain, str(destination)], capture_output=True)
+                raise Fault("service_install_failed", "后台启动失败，已保留原版本和安装进度", "检查当前用户服务日志")
         with store.transaction() as db:
             store.set_setting(db, "launchd", dict(label=label, path=str(destination), version=__version__))
+        from .transport import call
+        for _ in range(60):
+            try:
+                live = call(store.home, "doctor")
+                if Path(live["python"]) == Path(sys.executable):
+                    break
+            except Fault:
+                pass
+            time.sleep(0.1)
+        else:
+            raise Fault("service_start_failed", "安装后的后台未返回对应版本回执", "读取服务日志，从安装进度接续")
     receipt = doctor(store)
+    if managed:
+        receipt["daemon"]["responding"] = True
     atomic_write(store.home / "installation-receipt.json", encode(receipt).encode())
     return receipt
 

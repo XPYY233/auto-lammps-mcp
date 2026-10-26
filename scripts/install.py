@@ -21,6 +21,9 @@ def main():
     parser.add_argument("--prefix", type=Path, default=Path.home() / ".local/share/auto-lammps-mcp-install")
     parser.add_argument("--home", type=Path, default=Path.home() / ".local/share/auto-lammps-mcp")
     parser.add_argument("--no-launchd", action="store_true")
+    parser.add_argument("--dsh-runtime")
+    parser.add_argument("--dsh-profile", default="web")
+    parser.add_argument("--dsh-home")
     args = parser.parse_args()
     args.prefix.mkdir(parents=True, exist_ok=True)
     progress_path = args.prefix / "installation-progress.json"
@@ -65,6 +68,10 @@ def main():
     install = [str(binary), "--home", str(args.home.resolve()), "install", "--host", args.host]
     if args.no_launchd:
         install.append("--no-launchd")
+    if args.dsh_runtime:
+        install.extend(["--dsh-runtime", args.dsh_runtime, "--dsh-profile", args.dsh_profile])
+    if args.dsh_home:
+        install.extend(["--dsh-home", args.dsh_home])
     result = subprocess.run(install, check=True, capture_output=True, text=True)
     receipt = json.loads(result.stdout)
     record("connection", receipt=receipt)

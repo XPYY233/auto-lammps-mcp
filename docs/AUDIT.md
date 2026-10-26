@@ -28,3 +28,9 @@ Verified original signed commit recovered exactly via API. Blob/tree/commit hash
 
 ## 2026-10-27 — installed DSH workspace selection
 - The installed DSH desktop opened with a missing previous workspace. Its directory picker kept Open disabled even after selecting the existing new project directory. No DSH configuration was changed. The picker was cancelled; native Harness configuration is prepared separately while Codex installation proceeds.
+
+## 2026-10-27 — DSH runtime selection and documentation paths
+
+The user identified the old native desktop as retired and selected the existing DeepSeek Harness source distribution. Its CLI reports 0.1.7-rc.2. Read attempts using guessed package locations failed; the package inventory identifies `packages/bundle/headless` and `packages/util/home-paths`. Continue against these exact paths and the official CLI. No retired desktop source or configuration is changed.
+
+DSH configuration inspection: the source-root Node resolver could not import `yaml`; the installed profile dependency tree contains the parser. Use that existing parser for selected non-secret configuration fields. No dependency installation or model configuration change was made.

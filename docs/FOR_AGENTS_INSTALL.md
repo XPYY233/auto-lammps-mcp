@@ -25,9 +25,9 @@
 
 Codex：安装器通过现有 `codex mcp add` 注册 auto-lammps，并安装 skill。当前会话清单未刷新时，新建工作对话并粘贴：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”实际调用 MCP doctor 与 task_list，再核对 host_calls。
 
-DSH：安装器生成 dsh-mcp.json。在 DSH 的 MCP 连接配置中创建 stdio 服务 auto-lammps，command 和 args 使用生成文件中的实际值。加载后实际调用 doctor 与 task_list。工具帮助通过 MCP 提供，skill 同时安装到 `.agents/skills/auto-lammps-mcp`。
+DSH 使用官方 DeepSeek Harness 的现有安装。运行 `python3 scripts/install.py --source . --host dsh --dsh-runtime /absolute/path/to/deepseek-harness --dsh-profile web`；runtime 也可以是已安装 dsh 命令的绝对路径。安装器检查实际版本，在所选 profile 中添加独立的 MCP 配置块，保留原模型设置，备份原文件并检查组合结果。配置失败会恢复原文件。已有 API 凭据继续由 DSH 管理。
 
-使用 DeepSeek Harness 配置时，安装器另提供 dsh-harness-entry.json：按官方配置将该对象加入插件列表，包含 `@deepseek-ai/dsh-mcp-client`、serverName、transport、command 和 args。平台入口应先能打开有效工作目录，再验证工具加载。
+安装器同时生成 dsh-mcp.json、dsh-harness-entry.json 和可供官方 `--patch` 参数使用的 dsh-auto-lammps.patch.yml。工具帮助通过 MCP 提供，skill 安装到 `.agents/skills/auto-lammps-mcp`。加载后在 DSH 中实际调用 doctor 与 task_list，回执中的 host_calls 记录调用时间与工具名称。
 
 stdio 进程只桥接持久服务。平台探测、重载和多个聊天共享同一服务，退出平台后 macOS 后台继续工作。
 
