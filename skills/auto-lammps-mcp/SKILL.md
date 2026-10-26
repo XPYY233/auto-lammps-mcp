@@ -16,7 +16,7 @@ Read the linked guide before its phase. Resolve paths against this skill's direc
 - Monitoring, controlling or recovering: [recovery](references/recovery.md). Read durable state and evidence; preserve failures and reuse uncertain operation IDs.
 - Analyzing, showing or handing off results: [delivery](references/delivery.md). Link real files to requirements, export the actual package, then run completion_check.
 
-For continuation, start with task_list and task_get. Resolve ambiguous names before writing. Use help(method) for current parameters instead of inspecting implementation files. Acquire task ownership for coordinated mutations and release it while waiting for queued work.
+For continuation, start with task_list and task_get. Resolve ambiguous names before writing. Use help(method) for current parameters instead of inspecting implementation files. help() lists the first catalog page; follow next_offset while more is true to discover further tools. Acquire task ownership for coordinated mutations and release it while waiting for queued work.
 
 ## Read complete results
 

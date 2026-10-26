@@ -80,3 +80,22 @@ def test_work_history_pages_obey_size_and_preserve_every_identity(service, task)
         if not page["more"]:
             break
     assert actual == expected
+def test_generated_help_is_complete_across_bounded_pages(service):
+    import inspect
+    import json
+    expected = {name: fn for name, fn in inspect.getmembers(service, inspect.ismethod) if getattr(fn, "public", False)}
+    seen, offset = {}, 0
+    while True:
+        page = service.help(offset=offset, limit=50)
+        assert len(json.dumps(page, ensure_ascii=False, indent=2)) < 6000
+        assert not set(seen) & page["tools"].keys()
+        seen.update(page["tools"])
+        if not page["more"]:
+            break
+        assert page["next_offset"] > offset
+        offset = page["next"]["arguments"]["offset"]
+    assert seen.keys() == expected.keys()
+    for name, fn in expected.items():
+        detail = service.help(method=name)["tools"][name]
+        assert detail == seen[name]
+        assert detail["signature"] == str(inspect.signature(fn))

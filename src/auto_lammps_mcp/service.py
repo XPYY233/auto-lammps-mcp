@@ -30,14 +30,29 @@ class Service:
         return target(**arguments)
 
     @public
-    def help(self, method: str = "") -> dict:
-        """Return current-version tool signatures and usage, generated from the implementation."""
+    def help(self, method: str = "", offset: int = 0, limit: int = 10) -> dict:
+        """Read one tool's complete signature, or page the generated catalog using next_offset until more is false."""
+        require(0 <= offset and 1 <= limit <= 50, "offset 不能为负，limit 取 1 至 50")
         methods = {}
         for name in dir(self):
             fn = getattr(self, name)
             if getattr(fn, "public", False) and (not method or method == name):
                 methods[name] = dict(signature=str(inspect.signature(fn)), description=inspect.getdoc(fn))
-        return dict(version=__version__, tools=methods)
+        if method:
+            require(bool(methods), "未知工具名称", "unknown_method", "调用 help 分页查找工具名称")
+            return dict(version=__version__, tools=methods)
+        require(offset <= len(methods), "offset 超出工具目录")
+        selected = {}
+        for name, value in list(methods.items())[offset:offset + limit]:
+            candidate = {**selected, name: value}
+            if selected and len(json.dumps(candidate, ensure_ascii=False, indent=2)) > 4500:
+                break
+            selected = candidate
+        next_offset = offset + len(selected)
+        more = next_offset < len(methods)
+        return dict(version=__version__, tools=selected, total=len(methods), offset=offset,
+                    next_offset=next_offset, more=more,
+                    next=dict(method="help", arguments=dict(offset=next_offset, limit=limit)) if more else None)
 
     @public
     def doctor(self) -> dict:
