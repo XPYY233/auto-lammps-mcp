@@ -589,6 +589,8 @@ class Service:
         path, sources and checks[].evidence are project-relative. The service reads their hashes; do not calculate or repeat hashes in the request.
         Each check is {'passed': true/false, 'method': 'what was checked', 'evidence': 'path/to/check-result.json'}.
         Create the evidence file from actual analysis/inspection first. Checks must address the requirement's scientific and file-content criteria.
+        The latest registration for this path supplies its current checks and complete requirement_ids. Earlier verdicts remain in history.
+        A failed current check blocks its linked requirements and reopens a completed task; record corrected evidence before re-reviewing.
         An analysis result path normally starts with analysis/<operation_id>/. Returns the new task revision.
         """
         def apply(db):
@@ -606,6 +608,9 @@ class Service:
             db.execute("INSERT INTO artifacts(id,task_id,path,sha256,sources,requirements,checks,created) VALUES(?,?,?,?,?,?,?,?)", (aid, task_id, path, file_hash(file), encode(source_map), encode(requirement_ids), encode(checks), time.time()))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "artifact_registered", dict(artifact_id=aid, path=path))
+            if requirement_ids and not all(check["passed"] for check in checks):
+                db.execute("UPDATE tasks SET state='active' WHERE id=? AND state='completed'", (task_id,))
+                self.store.event(db, task_id, "artifact_review_failed", dict(artifact_id=aid, path=path, requirements=requirement_ids))
             return dict(artifact_id=aid, path=str(file), revision=revision + 1)
         return self.store.mutate(op_id, dict(method="artifact_register", task_id=task_id, revision=revision, path=path, sources=sources, requirement_ids=requirement_ids, checks=checks, token=token), apply)
 
@@ -616,23 +621,28 @@ class Service:
             task = self.store.task(db, task_id, revision, token)
             current = manifest(self.store, task_id)
             invalidate(self.store, db, task_id, current)
-            satisfied = set()
+            satisfied, failed_reviews = set(), set()
             archive_ids = {item["id"] for item in task["requirements"] if item.get("kind") == "archive"}
-            for row in db.execute("SELECT * FROM artifacts WHERE task_id=? AND stale=0", (task_id,)):
+            latest = {row["path"]: row for row in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid", (task_id,))}
+            for row in latest.values():
+                if row["stale"]:
+                    continue
                 if all(check["passed"] for check in json.loads(row["checks"])):
                     satisfied.update(set(json.loads(row["requirements"])) - archive_ids)
+                else:
+                    failed_reviews.update(json.loads(row["requirements"]))
             for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",)):
                 delivery = json.loads(row[0])
                 archive = self.store.home / "exports" / delivery["filename"]
                 if delivery["manifest_digest"] == digest(encode(current).encode()) and archive.is_file() and file_hash(archive) == delivery["sha256"]:
                     satisfied.update(set(delivery["requirement_ids"]) & archive_ids)
-            missing = [item for item in task["requirements"] if item["id"] not in satisfied]
+            missing = [item for item in task["requirements"] if item["id"] not in satisfied or item["id"] in failed_reviews]
             active = db.execute("SELECT count(*) FROM runs WHERE task_id=? AND state IN ('pending','dispatching','unknown','queued','running','cancelling')", (task_id,)).fetchone()[0]
             active_work = db.execute("SELECT count(*) FROM queue WHERE task_id=? AND state IN ('pending','running') AND kind!='decision'", (task_id,)).fetchone()[0]
             complete = not missing and not active and not active_work
             db.execute("UPDATE tasks SET state=? WHERE id=?", ("completed" if complete else task["state"] if task["state"] != "completed" else "active", task_id))
             self.store.bump(db, task_id)
-            result = dict(complete=complete, missing=missing, active_runs=active, active_work=active_work, revision=revision + 1)
+            result = dict(complete=complete, missing=missing, failed_reviews=sorted(failed_reviews), active_runs=active, active_work=active_work, revision=revision + 1)
             self.store.event(db, task_id, "research_completed" if complete else "deliverables_missing", result)
             return result
         return self.store.mutate(op_id, dict(method="completion_check", task_id=task_id, revision=revision, token=token), apply)
