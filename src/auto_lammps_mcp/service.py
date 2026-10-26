@@ -230,8 +230,9 @@ class Service:
 
     @public
     def project_import(self, task_id: str, revision: int, source: str, op_id: str, token: str | None = None) -> dict:
-        """Queue a complete local directory import, including binary models and helpers. Existing conflicts are preserved."""
-        require(Path(source).expanduser().is_dir(), "源目录不存在")
+        """Queue a complete directory or exported research ZIP import. Verify package hashes and retain original records."""
+        incoming = Path(source).expanduser()
+        require(incoming.is_dir() or incoming.is_file() and incoming.suffix.lower() == ".zip", "请选择项目目录或导出的研究 ZIP 包")
         def apply(db):
             self.store.task(db, task_id, revision, token)
             self.store.bump(db, task_id)
@@ -251,6 +252,26 @@ class Service:
             data = stream.read(limit)
         size = target.stat().st_size
         return dict(path=path, text=data.decode("utf-8", errors="replace"), offset=offset, next_offset=offset + len(data), bytes=size, truncated=offset + len(data) < size, sha256=file_hash(target))
+
+    @public
+    def artifact_preview(self, task_id: str, path: str) -> dict:
+        """Show an existing file with its hash, artifact sources and freshness. MCP embeds supported images directly."""
+        import mimetypes
+        with self.store.connect() as db:
+            self.store.task(db, task_id)
+            registered = db.execute("SELECT * FROM artifacts WHERE task_id=? AND path=? ORDER BY created DESC LIMIT 1", (task_id, path)).fetchone()
+        target = self.store.path(task_id, path)
+        require(target.is_file(), "成果文件不存在", "not_found", "读取任务中的成果路径")
+        result = dict(path=path, absolute_path=str(target), bytes=target.stat().st_size, sha256=file_hash(target),
+                      mime_type=mimetypes.guess_type(path)[0] or "application/octet-stream", registered=registered is not None)
+        if registered:
+            sources = json.loads(registered["sources"])
+            stale = bool(registered["stale"]) or result["sha256"] != registered["sha256"]
+            for name, sha in sources.items():
+                source = self.store.path(task_id, name)
+                stale = stale or not source.is_file() or file_hash(source) != sha
+            result.update(sources=sources, stale=stale, requirements=json.loads(registered["requirements"]))
+        return result
 
     @public
     def file_patch(self, task_id: str, revision: int, path: str, expected_sha256: str | None, old: str, new: str, op_id: str, token: str | None = None) -> dict:

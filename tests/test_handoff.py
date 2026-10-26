@@ -1,0 +1,44 @@
+import json
+from pathlib import Path
+import zipfile
+
+import pytest
+
+from auto_lammps_mcp.core import Fault
+from auto_lammps_mcp.handoff import import_project
+from auto_lammps_mcp.service import Service
+from auto_lammps_mcp.worker import Worker
+
+
+def test_export_import_preserves_native_files_and_research_history(tmp_path):
+    source = Service(tmp_path / "source")
+    task = source.task_create("Ni", "Analyze earlier results and retain the fit", [{"id": "plot", "description": "curve"}], "create")
+    root = source.store.root(task["id"])
+    (root / "analysis.py").write_text("print('analyze existing data')\n")
+    (root / "model.bin").write_bytes(b"\x00\x01\xffbinary")
+    archive = Worker(source).export(task["id"])
+    destination = Service(tmp_path / "destination")
+    next_task = destination.task_create("Continue Ni", "Import and continue analysis", [{"id": "fit", "description": "new fit"}], "create")
+    result = import_project(destination.store, next_task["id"], archive["path"])
+    restored = destination.store.root(next_task["id"])
+    assert (restored / "model.bin").read_bytes() == (root / "model.bin").read_bytes()
+    assert result["original_request"] == task["request"]
+    record = json.loads((restored / result["original_record"]).read_text())
+    assert record["requirements"] == task["requirements"]
+    assert record["policy"] == task["policy"]
+    assert not destination.task_get(next_task["id"])["runs"]
+
+
+def test_corrupt_package_is_rejected_before_project_changes(tmp_path):
+    service = Service(tmp_path / "state")
+    task = service.task_create("Source", "retain data", [{"id": "a", "description": "result"}], "create")
+    (service.store.root(task["id"]) / "data.txt").write_text("original")
+    exported = Worker(service).export(task["id"])
+    corrupt = tmp_path / "corrupt.zip"
+    with zipfile.ZipFile(exported["path"]) as old, zipfile.ZipFile(corrupt, "w") as new:
+        for name in old.namelist():
+            new.writestr(name, b"replaced" if name == "project/data.txt" else old.read(name))
+    other = service.task_create("Destination", "continue", [{"id": "a", "description": "result"}], "new")
+    with pytest.raises(Fault, match="摘要不一致"):
+        import_project(service.store, other["id"], corrupt)
+    assert not list(service.store.root(other["id"]).iterdir())

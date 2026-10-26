@@ -332,7 +332,8 @@ class Worker:
                 self.store.event(db, task_id, "snapshot_created", dict(snapshot_id=sid, files=len(files)))
             return dict(snapshot_id=sid, files=files)
         if kind == "import":
-            result = import_directory(self.store, task_id, payload["source"])
+            from .handoff import import_project
+            result = import_project(self.store, task_id, payload["source"])
             with self.store.transaction() as db:
                 self.store.task(db, task_id, token=work["token"])
                 self.store.bump(db, task_id)
@@ -417,6 +418,7 @@ class Worker:
 
     def background(self, work, payload):
         from .installation import codex_path
+        from .network import background_environment
         config = self.store.setting("background", {})
         require(config.get("enabled"), "后台 Codex 尚未启用，待判断事项已保存", "background_disabled", "配置后台或在前台接续此任务")
         codex = config.get("codex") or codex_path()
@@ -441,7 +443,7 @@ class Worker:
             command.extend(["--profile", config["profile"]])
         command.append(prompt)
         with (output_dir / "events.jsonl").open("wb") as output:
-            returncode = self.process(work, command, output=output, timeout=config.get("timeout_seconds", 900), env={**os.environ, "ALM_HOME": str(self.store.home)})
+            returncode = self.process(work, command, output=output, timeout=config.get("timeout_seconds", 900), env={**background_environment(), "ALM_HOME": str(self.store.home)})
         require(returncode == 0, "后台 Codex 未完成此轮处理", "model_unavailable", "读取后台日志，恢复登录或从前台接续")
         summary = (output_dir / "summary.txt").read_text() if (output_dir / "summary.txt").exists() else ""
         require(summary.strip(), "后台回复为空", "model_truncated", "保留原待办，读取日志后接续")

@@ -72,8 +72,15 @@ def main():
         install.extend(["--dsh-runtime", args.dsh_runtime, "--dsh-profile", args.dsh_profile])
     if args.dsh_home:
         install.extend(["--dsh-home", args.dsh_home])
-    result = subprocess.run(install, check=True, capture_output=True, text=True)
-    receipt = json.loads(result.stdout)
+    result = subprocess.run(install, capture_output=True, text=True)
+    try:
+        receipt = json.loads(result.stdout)
+    except ValueError:
+        receipt = {"error": {"code": "installer_output_invalid", "message": "安装步骤未返回完整回执", "next_action": "使用本次 binary 的 install 命令读取错误并接续"}}
+    if result.returncode or "error" in receipt:
+        record("connection", completed=False, receipt=receipt, binary=str(binary))
+        print(json.dumps(dict(binary=str(binary), receipt=receipt, installation_progress=str(progress_path)), ensure_ascii=False, indent=2))
+        raise SystemExit(result.returncode or 1)
     record("connection", receipt=receipt)
     current = args.prefix / "current"
     previous = os.readlink(current) if current.is_symlink() else None

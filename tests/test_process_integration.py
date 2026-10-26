@@ -53,11 +53,17 @@ async def test_mcp_actual_tools_and_daemon_restart(tmp_path):
                 assert task["request"] == "Analyze existing output"
                 inspected = await client.call_tool("task_get", {"task_id": task["id"]})
                 assert not inspected.isError
+                import base64
+                root = home / "projects" / task["id"]
+                (root / "plot.png").write_bytes(base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg=="))
+                preview = await client.call_tool("artifact_preview", dict(task_id=task["id"], path="plot.png"))
+                assert not preview.isError
+                assert any(item.type == "image" for item in preview.content)
         stop(process)
         process = start(home)
         restored = call(home, "task_get", {"task_id": task["id"]})
         assert restored["request"] == task["request"]
-        assert call(home, "doctor")["host_calls"]["integration-test"]["tool"] == "task_get"
+        assert call(home, "doctor")["host_calls"]["integration-test"]["tool"] == "artifact_preview"
     finally:
         stop(process)
 

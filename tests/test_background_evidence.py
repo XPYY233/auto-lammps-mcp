@@ -28,3 +28,15 @@ def test_old_summary_receipt_is_not_reported_as_verified(tmp_path):
     with service.store.transaction() as db:
         service.store.set_setting(db, "background_receipt", dict(summary="tools denied"))
     assert service.doctor()["background"]["receipt"] is None
+
+
+def test_background_inherits_system_route_without_overwriting_explicit_proxy(monkeypatch):
+    import subprocess
+    from auto_lammps_mcp import network
+    monkeypatch.setattr(network.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(network.os, "environ", {"HTTP_PROXY": "http://explicit.example:3128"})
+    monkeypatch.setattr(network.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess([], 0, "HTTPEnable : 1\nHTTPProxy : localhost\nHTTPPort : 7890\nHTTPSEnable : 1\nHTTPSProxy : localhost\nHTTPSPort : 7890\n", ""))
+    env = network.background_environment()
+    assert env["HTTP_PROXY"] == "http://explicit.example:3128"
+    assert env["HTTPS_PROXY"] == "http://localhost:7890"
+    assert "127.0.0.1" in env["NO_PROXY"]
