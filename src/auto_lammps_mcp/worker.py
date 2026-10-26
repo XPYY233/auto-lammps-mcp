@@ -23,6 +23,7 @@ class Worker:
         self.service, self.store = service, service.store
         self.slurm = slurm or Slurm(self.store)
         self.stopping = threading.Event()
+        self.ready = threading.Event()
         self.last_poll = 0
         self.last_summary = 0
         self.boot_id = identifier("service")
@@ -40,6 +41,11 @@ class Worker:
                 db.execute("UPDATE queue SET state='interrupted',updated=? WHERE id=?", (time.time(), row["id"]))
                 self.store.event(db, row["task_id"], "work_interrupted", dict(operation_id=row["id"], kind=row["kind"], next_action="核对已有产物后接续"))
             db.execute("DELETE FROM leases WHERE owner LIKE 'background:%' OR owner LIKE 'worker:%'")
+            heartbeat = dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at,
+                             observed_at=time.time(), python=sys.executable)
+            self.store.set_setting(db, "service_heartbeat", heartbeat)
+            self.store.event(db, None, "service_heartbeat", heartbeat)
+        self.ready.set()
         threading.Thread(target=self.monitor_loop, daemon=True, name="alm-monitor").start()
         threading.Thread(target=self.decision_loop, daemon=True, name="alm-decisions").start()
         threading.Thread(target=self.dispatch_loop, daemon=True, name="alm-dispatch").start()

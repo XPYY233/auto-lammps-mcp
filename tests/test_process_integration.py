@@ -89,6 +89,40 @@ def test_concurrent_daemon_start_keeps_one_writer(tmp_path):
         stop(process)
 
 
+def test_service_does_not_serve_old_heartbeat_during_slow_recovery(tmp_path):
+    from auto_lammps_mcp.core import Store
+    home = tmp_path / "state"
+    store = Store(home)
+    with store.transaction() as db:
+        store.set_setting(db, "service_heartbeat", dict(boot_id="previous-boot", pid=-1, observed_at=1))
+    code = """import sys,time
+from auto_lammps_mcp.worker import Worker
+from auto_lammps_mcp.transport import serve
+original = Worker.recover_processes
+def slow(self):
+    time.sleep(0.4)
+    original(self)
+Worker.recover_processes = slow
+serve(sys.argv[1])
+"""
+    process = subprocess.Popen([sys.executable, "-c", code, str(home)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                heartbeat = call(home, "doctor")["daemon"]["heartbeat"]
+                assert heartbeat["boot_id"] != "previous-boot"
+                assert heartbeat["pid"] == process.pid
+                break
+            except Fault as exc:
+                assert exc.code == "service_unavailable"
+                time.sleep(0.01)
+        else:
+            raise AssertionError("service recovery did not finish")
+    finally:
+        stop(process)
+
+
 def test_daemon_keeps_monitoring_during_analysis(tmp_path):
     home = tmp_path / "state"
     process = start(home)
