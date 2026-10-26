@@ -26,6 +26,8 @@ def main():
     parser.add_argument("--dsh-profile", default="web")
     parser.add_argument("--dsh-home")
     args = parser.parse_args()
+    args.prefix = args.prefix.expanduser().resolve()
+    args.home = args.home.expanduser().resolve()
     args.prefix.mkdir(parents=True, exist_ok=True)
     progress_path = args.prefix / "installation-progress.json"
     progress = json.loads(progress_path.read_text()) if progress_path.exists() else {"steps": {}}
