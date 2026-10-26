@@ -156,3 +156,7 @@ The external skill validator requires PyYAML, which is absent from the product's
 Manual compilation targeted a directory that had not been created, so XeTeX could not write its log. Use the existing manual output directory and retain the failed build log privately.
 
 The corrected official DSH connection loaded the complete shortened skill and completed the same 500-file export through MCP. Its initial help() call was still truncated because the tool returned every interface signature in one response. Preserve that successful archive and the failed response-budget check. Page the generated help catalog while keeping help(method) complete, then replay the existing task and require every MCP result to fit the host window.
+
+## 2026-10-27 — Upgrade during active upload
+
+A deterministic staging hold reproduced a service replacement while input upload was still active. The installer checked running queue records, but upload uses a separate dispatch thread. Its recorded launch-service sequence reached bootout and bootstrap with staging open. No external scheduler command ran. Coordinate execution and installation with an OS-held activity lock, acquire replacement ownership before changing host configuration, and preserve the busy installation receipt. Check older services separately and replay upload, queued work and interrupted-installer recovery. Tracked in Issue #10.

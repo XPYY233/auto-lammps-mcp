@@ -16,6 +16,7 @@ import zipfile
 from .core import Fault, digest, encode, identifier, require
 from .files import atomic_write, file_hash, import_directory, invalidate, manifest
 from .slurm import ACTIVE, TERMINAL, Slurm
+from .activity import activity_lock
 
 
 class Worker:
@@ -213,6 +214,11 @@ class Worker:
             self.preparation_progress(run, started, "uploading", "staging_progress")
 
     def dispatch_one(self):
+        with activity_lock(self.store.home) as acquired:
+            if acquired:
+                return self._dispatch_one()
+
+    def _dispatch_one(self):
         with self.store.transaction() as db:
             row = db.execute("SELECT r.* FROM runs r JOIN tasks t ON t.id=r.task_id WHERE r.state='pending' AND t.state='active' ORDER BY r.created LIMIT 1").fetchone()
             if not row:
@@ -330,6 +336,11 @@ class Worker:
             self.stopping.wait(1)
 
     def work_one(self, decisions=False):
+        with activity_lock(self.store.home) as acquired:
+            if acquired:
+                return self._work_one(decisions)
+
+    def _work_one(self, decisions=False):
         with self.store.transaction() as db:
             selector = "kind='decision'" if decisions else "kind!='decision'"
             rows = db.execute("SELECT * FROM queue WHERE state='pending' AND " + selector + " ORDER BY created").fetchall()
