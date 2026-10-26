@@ -418,6 +418,13 @@ analysis\_\allowbreak{}submit 的 input\_\allowbreak{}bindings 将工作目录�
 
 project\_\allowbreak{}optimize 通过持久队列整理已存在快照的大文件。支持文件克隆的卷共享未修改的数据块，逐个核对摘要、模式、属性和修改时间后原位替换；扩展访问规则的文件留在原位。任务暂停或操作权变化时保留已完成路径和部分回执。新工具与原生文件、分析、交接使用同一个任务服务。
 
+
+
+\subsection{审核意见与用户验收}
+
+
+45 条审核意见 逐项列出已有结果、证据和下一项用户验收。review-traceability.json 保留原始要求和验收条件；更新后运行 python scripts/\allowbreak{}render\_\allowbreak{}review\_\allowbreak{}traceability.py 生成可读记录。自动检查核对编号、文件引用与两种记录的一致性。软件检查、安装验证和完整研究分别保留实际结果。
+
 \clearpage
 \section{后台与恢复}
 

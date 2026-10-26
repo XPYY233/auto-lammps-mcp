@@ -8,16 +8,21 @@
       "requirement": "由 task_update 登记最小阶段清单：阶段ID、入口/参数、环境引用、输入产物摘要、输出和完成条件；preflight 冻结它。后台只调度已登记依赖，遇新科学判断保存待办。算法继续写原生脚本。",
       "acceptance": "关闭对话后完成计算→分析；分析失败仅重试该阶段；上游产物改变时旧分析失效，模拟次数不被重复消耗。",
       "implementation": [
-        "service.py",
-        "worker.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/service.py",
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
+        "tests/test_workflow.py",
         "tests/test_native_projects.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "阶段依赖、分析失败恢复和输入失效已有软件检查；真实已有数据分析由持久队列完成",
+      "remaining": "安装后的 Ni 计算到分析、关闭对话接续",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R01-F2",
@@ -26,16 +31,21 @@
       "requirement": "保存任务期望状态与控制代次；领取阶段、预留用量和校验代次同事务完成。停止后撤销未派发领取；已进入派发窗口者持续对账并取消。区分暂停后续和终止当前，恢复须显式推进代次。",
       "acceptance": "在领取前后、提交回执丢失时注入停止：停止回执列明在途作业；后台重启不漏掉取消意图，后继阶段不启动。",
       "implementation": [
-        "service.py",
-        "worker.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/service.py",
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
         "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_progress.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 11,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "停止、未知回执、上传中撤销授权和修改规则已有回归检查",
+      "remaining": "真实集群的领取前后停止与重启取消",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/11"
+      ]
     },
     {
       "id": "R01-F3",
@@ -44,16 +54,20 @@
       "requirement": "prepared_run_id 绑定入口、脚本/资源摘要、环境与策略版本，并唯一对应一次执行意图。换键仍返回原 run；同键不同载荷拒绝。科学重试另建准备记录并注明父运行，未知提交先对账。安装源 execution.py:135–148 已有控制器持有键及重试父项约束，应保留。",
       "acceptance": "同时用两个键提交同一准备记录只产生一个运行；预检后替换势文件被拒绝；明确重试产生新记录并累计费用。",
       "implementation": [
-        "service.py",
-        "worker.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/service.py",
+        "src/auto_lammps_mcp/core.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_recovery.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "不同操作键提交同一执行意图只派发一次；丢失回执先核对",
+      "remaining": "安装服务上的真实提交与重试核算",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R01-F4",
@@ -62,16 +76,22 @@
       "requirement": "区分工具契约、任务/事件格式和执行环境版本；doctor 返回兼容范围。变更调用前协商，不支持的版本拒绝写入。运行绑定原环境；升级领取权保持单一写入者，并提供可验证的数据迁移及回退步骤。",
       "acceptance": "旧 MCP/新 worker、新 MCP/旧 worker 均按兼容表接受或明确拒绝；运行中升级后作业ID、执行字节和费用不变，回退后仍可读取任务。",
       "implementation": [
-        "service.py",
-        "worker.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/installation.py",
+        "src/auto_lammps_mcp/identity.py",
+        "src/auto_lammps_mcp/activity.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_process_integration.py",
+        "tests/test_upgrade_coordination.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 11,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "真实后台工作期间升级保留原服务与配置；连接身份可识别旧 MCP",
+      "remaining": "运行中 HPC 环境与费用在升级回退后的完整核对",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/11"
+      ]
     },
     {
       "id": "R01-F5",
@@ -80,16 +100,19 @@
       "requirement": "首版新增接受不可变运行快照的核心入口，沿一条链复用上传、调度、回收、账本；普通科研身份与正式评测策略分开。安装、错误反馈、分析和重启恢复一起交付，避免先完成整库拆分。",
       "acceptance": "独立新环境不生成 generation.json、不调用候选模型，也能从用户文件完成 Ni 计算、修正分析和跨对话交付；旧100例数据与控制器无写入。",
       "implementation": [
-        "service.py",
-        "worker.py",
-        "slurm.py"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_recovery.py",
         "tests/test_native_projects.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "独立新环境不生成 generation.json、不调用候选模型，也能从用户文件完成 Ni 计算、修正分析和跨对话交付；旧100例数据与控制器无写入。",
+      "evidence": []
     },
     {
       "id": "R02-F1",
@@ -98,15 +121,19 @@
       "requirement": "每次切换显示短任务名、关键条件、版本与短编号；修改、停止绑定该对象。多候选时列差异让用户选一次，不能由最近一条消息猜；明确对象后沿已有授权推进。",
       "acceptance": "两份同名任务、两聊天交错修改并含陈旧回执：歧义未消除时零写入；选择后仅目标任务改变，新聊天无需记UUID。",
       "implementation": [
-        "installation.py",
-        "service.py",
-        "skill"
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "tests/test_process_integration.py"
+        "tests/test_native_projects.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "任务查找、原始需求和操作均绑定明确任务编号；skill 给出歧义处理",
+      "remaining": "独立用户面对近似任务名的选择和控制",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R02-F2",
@@ -115,15 +142,19 @@
       "requirement": "先澄清会改变研究问题的分歧，例如单空位机制还是浓度趋势；可推导实施参数由Agent给依据与实际值。固定条件、设计假设、待决定项分列。熟练者直接覆盖具体值，使用相同任务字段与执行能力。",
       "acceptance": "同一需求分别用口语与参数清单输入，得到可核对的科学范围；新手无需选择术语，已回答信息不重问；专家改单值可看到受影响的计算与结果。",
       "implementation": [
-        "installation.py",
-        "service.py",
-        "skill"
+        "src/auto_lammps_mcp/installation.py"
       ],
       "checks": [
-        "tests/test_process_integration.py"
+        "tests/test_installation.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "安装提示词、阶段引导、配置发现与可复制接续入口已交付",
+      "remaining": "零基础用户从公开提示词完成首次研究",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R02-F3",
@@ -132,15 +163,21 @@
       "requirement": "提交回执说明关聊天后能完成到哪一步、是否具备实际通知渠道、谁负责下一动作；返回时先列待处理任务，展示最后证据时间、等待原因与恢复语句。无唤醒能力就给准确的回来查询方式。",
       "acceptance": "关闭聊天后分别注入计算完成、待科学决策、查询失败；再次进入时三者可区分，未配置通知不承诺主动消息，待决策时不显示持续推进。",
       "implementation": [
-        "installation.py",
-        "service.py",
-        "skill"
+        "src/auto_lammps_mcp/service.py",
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
-        "tests/test_process_integration.py"
+        "tests/test_task_background.py",
+        "tests/test_analysis_recovery.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 19,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "安装服务显示执行者、后台轮次和下一步；前台接手只改变本任务设置",
+      "remaining": "七天持续运行与独立用户进展理解",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/19"
+      ]
     },
     {
       "id": "R02-F4",
@@ -149,15 +186,20 @@
       "requirement": "产物清单显示名称、运行、版本、单位和有效状态；比较请求保存所选产物ID及窗口。宿主内提供可读并排图；结构旋转、选帧和选原子复用已验证的现有查看器，并公开宿主能力及回退动作。",
       "acceptance": "用户能选旧新版同轴比较、指出一点的来源、定位指定帧；改参数后旧图显著标记。每个支持宿主实测打开；仅返回文件引用不算浏览完成。",
       "implementation": [
-        "installation.py",
-        "service.py",
-        "skill"
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "tests/test_process_integration.py"
+        "tests/test_process_integration.py",
+        "tests/test_handoff.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 13,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "官方 DSH 真实对话展示 PNG/ZIP 文件卡，图片可预览；安装 MCP 返回图像",
+      "remaining": "材料研究曲线与结构整组浏览及独立用户比较",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/13"
+      ]
     },
     {
       "id": "R02-F5",
@@ -166,15 +208,21 @@
       "requirement": "面向用户分别呈现已确认事实、原因假设、已有成果、下一动作及代价；明确恢复原作业、重做分析与新增计算的区别。修复声明绑定复验结果，“重来”按实际状态和任务策略解释。",
       "acceptance": "对回执丢失、分析失败、引擎失败说同一句“重来”：分别找回原作业、复用原数据、提出绑定新版本的计算动作；无重复提交，无未经复验的成功声明。",
       "implementation": [
-        "installation.py",
-        "service.py",
-        "skill"
+        "src/auto_lammps_mcp/core.py",
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
-        "tests/test_process_integration.py"
+        "tests/test_analysis_recovery.py",
+        "tests/test_host_responses.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 15,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "真实失败保留日志、部分输出和缺项；实际安装流程从失败处修正并导出",
+      "remaining": "12 类故障各三次的完整安装验证",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/15"
+      ]
     },
     {
       "id": "R03-F1",
@@ -183,14 +231,18 @@
       "requirement": "对话给出这些参数、势的短程适用依据、停止条件及区域示意，区分我的固定条件与 Agent 的设计假设。用户确认重要科学歧义；服务绑定方案与脚本版本，常规技术步骤自动推进。",
       "acceptance": "我用自然语言指出热浴区域不符，能看到修订差异；修错不得悄改 PKA 能量或初始缺陷。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "我用自然语言指出热浴区域不符，能看到修订差异；修错不得悄改 PKA 能量或初始缺陷。",
+      "evidence": []
     },
     {
       "id": "R03-F2",
@@ -199,14 +251,18 @@
       "requirement": "绑定完美参考晶格、实际初态、分析帧及晶胞映射；记录空位/间隙原子定义、团簇距离与周期边界规则。依据[OVITO官方说明](https://www.ovito.org/manual/reference/pipelines/modifiers/wigner_seitz_analysis.html)，参考位点与实际原子是不同对象。统计窗口区分峰值损伤与冷却后的残余缺陷。",
       "acceptance": "用已知空位/间隙及跨周期团簇的几何样本核对；从一个缺陷图点能找到帧、位点/原子选择和分析脚本。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "用已知空位/间隙及跨周期团簇的几何样本核对；从一个缺陷图点能找到帧、位点/原子选择和分析脚本。",
+      "evidence": []
     },
     {
       "id": "R03-F3",
@@ -215,14 +271,20 @@
       "requirement": "在任务记录中保存组别、重复编号、热速度与PKA抽样种子、执行尝试及续算来源；统计清单列出计划数、有效数、排除原因与离散程度。改变科学参数生成新分支。",
       "acceptance": "预置一个失败重复及一次续算，汇总不重复计数、不隐去失败；能用一句话定位并恢复指定重复。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "tests/test_science.py"
+        "tests/test_boundaries.py",
+        "tests/test_recovery.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "工况、样本、重试父项和提交规则已有独立记录",
+      "remaining": "缺陷与辐照多重复、续算和失败样本的真实研究",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R03-F4",
@@ -231,14 +293,20 @@
       "requirement": "al_run_get 返回重复编号、科学阶段、实际累计物理时间、末帧与最后证据时间。依据[LAMMPS时间说明](https://docs.lammps.org/stable/reset_timestep.html)读取累计时间。al_artifact_read 支持按时间/帧取预览和下载。预览保留时间、位点/原子身份与图例。",
       "acceptance": "换对话询问某次冷却进度，能获得真实时间并打开对应缺陷帧；旧证据明确标时，下载包可在 OVITO 回放。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "src/auto_lammps_mcp/remote_read.py",
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
-        "tests/test_science.py"
+        "tests/test_progress.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 6,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "输出更新、完整热力学行、步数和调度查询已有检查",
+      "remaining": "实际计算中的物理时间、事件与轨迹接续",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/6"
+      ]
     },
     {
       "id": "R03-F5",
@@ -247,14 +315,20 @@
       "requirement": "区分平均能量与逐原子列。异常缺陷骤增时保留原始帧，检查原子数、能量、边界与分析定义，分别记录软件错误、数据不足或物理解释假设；未判明前不自动改热浴或删异常样本。证据不足时列出最小验证动作及其是否改变科学方案。",
       "acceptance": "仅有总能量必须报局域数据缺项；分别用已知分析口径错误和经核对的结构变化轨迹验收，后者不能因不够平滑而被自动剔除；保留修复前后证据。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "src/auto_lammps_mcp/science.py"
       ],
       "checks": [
+        "tests/test_scientific_review.py",
         "tests/test_science.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 15,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "真实报告把整体温度误作局部量的失败已保留并重新打开成果要求",
+      "remaining": "当前材料报告修正复核及该类科学反例验收",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/15"
+      ]
     },
     {
       "id": "R04-01",
@@ -263,14 +337,18 @@
       "requirement": "生成简短模型说明与三向结构图：晶向到盒轴映射、法向、晶胞矩阵、周期性、界面数和间距；分别标出用户固定值、导入事实、Agent设计值及理由。相干性与失配分配改变研究对象时集中澄清，其余参数由Agent设计并展示。",
       "acceptance": "从生成结构重核取向和周期闭合；注入加载轴交换能被发现。修改匹配方案时，固定晶向与层厚不会悄然改变。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "从生成结构重核取向和周期闭合；注入加载轴交换能被发现。修改匹配方案时，固定晶向与层厚不会悄然改变。",
+      "evidence": []
     },
     {
       "id": "R04-02",
@@ -279,14 +357,20 @@
       "requirement": "随方案保存加载方向、工程/真应变及速率定义、参考长度、横向约束、温控方式；指标保存应力分量、拉伸符号、体积或面积口径、动能项与平均窗口。明确整体轴向应力和界面牵引的选用依据。",
       "acceptance": "用户能从图追溯公式及原始列；改变横向约束、参考长度或归一化会被标为科学条件变化，不能只显示“脚本已修复”。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "src/auto_lammps_mcp/science.py"
       ],
       "checks": [
-        "tests/test_science.py"
+        "tests/test_science.py",
+        "tests/test_scientific_review.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 14,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "独立复核识别了初始体积与当前体积应力混用，修正流程正在推进",
+      "remaining": "修正后的方法、曲线和数据整体核对；跨工况比较",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/14"
+      ]
     },
     {
       "id": "R04-03",
@@ -295,14 +379,18 @@
       "requirement": "保存工况表，逐行绑定母结构、平移态、温度、应变率、平衡态、速度种子、势及分析定义；给图声明比较因素和固定因素。新增温度或速率形成分支，复用有效母输入，失败与缺失行持续可见。",
       "acceptance": "在对比图故意错挂另一初态或温度的运行，检查能定位并拒绝错误标签；复本数量、缺失工况和实际比较范围清楚。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "在对比图故意错挂另一初态或温度的运行，检查能定位并拒绝错误标签；复本数量、缺失工况和实际比较范围清楚。",
+      "evidence": []
     },
     {
       "id": "R04-04",
@@ -311,14 +399,19 @@
       "requirement": "沿用独立诊断产物，展示突降前后的结构、温度、能量、盒尺寸及可用缺陷证据；区分塑性事件、界面张开和数值异常的候选解释。分别说明补分析、数值修订、改变科学条件的动作和影响，保留原曲线。",
       "acceptance": "只有应力表、没有对应结构帧时，结论保留未判定并提出所缺证据；改速率形成新分支，不覆盖原异常或冒充其修复。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "tests/test_science.py"
+        "tests/test_scientific_review.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 14,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "原始应力突降保留；新的科学意见通过任务记录进入后续修正",
+      "remaining": "核对最终解释、原数据和科学异常处置",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/14"
+      ]
     },
     {
       "id": "R04-05",
@@ -327,14 +420,19 @@
       "requirement": "给曲线点绑定运行、时间步、应变和统计窗口；对话同时返回标记曲线及前后结构帧，注明采样偏差、参考构型、周期显示方式和着色量。提供可在OVITO继续查看的轨迹及分析配置。",
       "acceptance": "一句话定位峰前峰后，得到同视角、可对照色标的结构与曲线；缺帧明确说明时间差，错误运行的结构不能配给该曲线。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "src/auto_lammps_mcp/science.py"
       ],
       "checks": [
         "tests/test_science.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 14,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "已从同一原始轨迹取出精确采样帧并生成对应曲线和结构图",
+      "remaining": "最后一轮图表、文字和事件帧交接复核",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/14"
+      ]
     },
     {
       "id": "R05-01",
@@ -343,14 +441,18 @@
       "requirement": "指标绑定粒子集合、参考坐标、展开方式、质心处理、时间原点、方向和归一化；脚本检查实际实现。LAMMPS明确average yes用于不扩散原子的平均位置：[官方说明](https://docs.lammps.org/compute_msd.html)。",
       "acceptance": "给出average yes及错误方向归一化两种反例，检查能指出脚本位置与影响，修订后保留旧定义；报告明确所测是固定空位浓度下的原子扩散。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "给出average yes及错误方向归一化两种反例，检查能指出脚本位置与影响，修订后保留旧定义；报告明确所测是固定空位浓度下的原子扩散。",
+      "evidence": []
     },
     {
       "id": "R05-02",
@@ -359,14 +461,18 @@
       "requirement": "分开生产时间与延迟时间；显示MSD线性/双对数图、选窗阴影、局部斜率、窗口敏感性及各延迟支持数。若选VACF方法，还应显示累计积分和截止区间；两条路径的依据见[官方扩散说明](https://docs.lammps.org/Howto_diffusion.html)。",
       "acceptance": "无稳定拟合区的数据返回“当前无法可靠估计”；改窗口时同图保留旧新估计及原因，不能仅凭高R²通过。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "无稳定拟合区的数据返回“当前无法可靠估计”；改窗口时同图保留旧新估计及原因，不能仅凭高R²通过。",
+      "evidence": []
     },
     {
       "id": "R05-03",
@@ -375,14 +481,18 @@
       "requirement": "保存估计器、相关性处理、区间含义与置信水平；分别报告运行间离散和单轨迹统计误差。采用有依据的分块或协方差方法，公开独立样本依据；[原始研究](https://arxiv.org/abs/2003.09193)明确讨论MSD点间相关性。",
       "acceptance": "同一轨迹提高存储频率或复制分析，不增加独立重复数；样本不足时说明区间不可可靠估计，展示各独立运行的D而非只给均值。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "同一轨迹提高存储频率或复制分析，不增加独立重复数；样本不足时说明区间不可可靠估计，展示各独立运行的D而非只给均值。",
+      "evidence": []
     },
     {
       "id": "R05-04",
@@ -391,14 +501,18 @@
       "requirement": "在已有缺项回执中区分缺分析、缺可恢复原始数据、采样不足；给出证据和可执行动作。重分析绑定原产物；续算引用检查点并检查时间/参考坐标连续性；新增独立重复单列科学运行与费用。",
       "acceptance": "换窗口只新增分析记录；延长采样生成关联科学运行；无法恢复的数据明确说明缺什么。无可辨识扩散区不能写成D=0或科学完成。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "换窗口只新增分析记录；延长采样生成关联科学运行；无法恢复的数据明确说明缺什么。无可辨识扩散区不能写成D=0或科学完成。",
+      "evidence": []
     },
     {
       "id": "R05-05",
@@ -407,14 +521,18 @@
       "requirement": "登记温度×独立重复×时长矩阵和各分支有效性，绑定晶胞、缺陷浓度与估计方法；展示估计随有效时长和重复数的变化。温度拟合说明纳入/排除点、误差传播及适用的浓度条件。",
       "acceptance": "设置缺失或未收敛温度点后，报告保留空缺和理由，不自动补值；按事先约定判据决定能否给温度关系，三次重复本身不触发收敛通过。",
       "implementation": [
-        "science.py",
-        "native analysis"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "tests/test_science.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "设置缺失或未收敛温度点后，报告保留空缺和理由，不自动补值；按事先约定判据决定能否给温度关系，三次重复本身不触发收敛通过。",
+      "evidence": []
     },
     {
       "id": "R06-F1",
@@ -423,15 +541,22 @@
       "requirement": "保留宿主shell /ʃel/及编辑能力；定义目录导入、增量同步、工作目录、命令参数和退出回执。纯文件/统计操作快速执行，物理求值仍走记账HPC；这些细节由Agent办理。",
       "acceptance": "原仓库入口零改写，原始字节和未提交差异可核对；修改解析器、检查样本和读差异无需提交模拟。",
       "implementation": [
-        "files.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/files.py",
+        "src/auto_lammps_mcp/slurm.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_native_projects.py",
+        "tests/test_handoff.py",
+        "tests/test_analysis_bindings.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 23,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "完整原生目录、二进制和辅助文件可导入；安装流程支持既有结果绑定和交接重导入",
+      "remaining": "完整模型项目经 HPC 原生 shell 入口运行",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/23"
+      ]
     },
     {
       "id": "R06-F2",
@@ -440,15 +565,20 @@
       "requirement": "导入环境配方，绑定解释器、扩展、依赖锁定文件和实际可执行文件摘要；明确复用、缺项、准备和切换流程。环境准备与模型求值分阶段记账。",
       "acceptance": "运行一套用户自定义环境；故意缺少扩展时指出具体缺项。修复后冻结新环境，旧运行仍能追溯原环境。",
       "implementation": [
-        "files.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/service.py",
+        "src/auto_lammps_mcp/slurm.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_boundaries.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "环境内容与指纹进入运行记录，已有引擎与势资源已经登记",
+      "remaining": "新装服务在干净计算节点环境中的验证",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R06-F3",
@@ -457,15 +587,20 @@
       "requirement": "在已有追踪关系中加入模型文件组、数据快照、训练/测试划分标识、元素映射和代码补丁；分支各自固定输入，按真实依赖失效，保留共同有效结果。",
       "acceptance": "同名模型替换、数据追加和解析补丁各做一次变更；逐点追溯可核对，只重做受影响部分，旧分支可重读。",
       "implementation": [
-        "files.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/files.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_native_projects.py",
+        "tests/test_handoff.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 6,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "上游变化使关联图表和报告失效；未受影响的结果仍可复用",
+      "remaining": "真实机器学习势多模型、多数据版本比较",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/6"
+      ]
     },
     {
       "id": "R06-F4",
@@ -474,15 +609,21 @@
       "requirement": "分别记录环境/脚本错误、数据对齐错误、指标不合格与原因未定。冻结评测集合和判据；保留逐结构、逐原子残差。外推 /ˌekstræpəˈleɪʃən/ 只能作为有证据的诊断，不能由高误差直接认定。",
       "acceptance": "原子ID置换能定位并修复；对齐正确仍不达标则保留科学失败及待验证假设。新增配位分组脚本无需后端登记新指标。",
       "implementation": [
-        "files.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/worker.py",
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_analysis_recovery.py",
+        "tests/test_scientific_review.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 15,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "程序故障和科学复核分别保留；旧通过不能覆盖新失败",
+      "remaining": "真实数值异常与科学失败路径整体验证",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/15"
+      ]
     },
     {
       "id": "R06-F5",
@@ -491,15 +632,21 @@
       "requirement": "保留同脚本与同需求配对，增加现有项目接续、模型分支比较和临时新分析；分开计首次接入与后续修改成本，固定宿主及可见资源。",
       "acceptance": "已有脚本无需改写；追加分析不重跑模拟；断线恢复减少人工动作。逐项公开新增工具调用、耗时、费用，按事先约定阈值判净收益。",
       "implementation": [
-        "files.py",
-        "slurm.py"
+        "src/auto_lammps_mcp/files.py",
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_analysis_bindings.py",
+        "tests/test_storage_optimization.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 23,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "真实旧研究已导入并追加分析，627 个文件存储整理前后逐项不变",
+      "remaining": "同模型、同需求和同脚本的配对增益比较",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/23"
+      ]
     },
     {
       "id": "R07-F1",
@@ -508,14 +655,20 @@
       "requirement": "沿已有要求编号增加“问题—假设—可观测量定义—对照—结论适用范围”关联，用可读文本和原生检查脚本承载，不另造科学语言。",
       "acceptance": "给出平均量与局域量两个同名请求，系统生成不同数据要求；缺局域数据时能指出无法支持哪条解释，不以文件齐全宣布结论成立。",
       "implementation": [
-        "science.py",
-        "acceptance"
+        "src/auto_lammps_mcp/service.py",
+        "src/auto_lammps_mcp/science.py"
       ],
       "checks": [
-        "docs/ACCEPTANCE.md"
+        "tests/test_scientific_review.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 15,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "真实复核发现平均量、温度和结构解释错误；当前失败阻断完成",
+      "remaining": "最后一轮科学证据复核及八类反例全部验证",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/15"
+      ]
     },
     {
       "id": "R07-F2",
@@ -524,14 +677,18 @@
       "requirement": "已有适用信息需绑定具体性质、结构环境、工况和证据出处，区分已验证、未知、已知失效；未知范围可做探索，但结论必须携带验证缺口。",
       "acceptance": "用同一势配置一个证据覆盖任务和一个范围外任务；后者提出最小验证或缩窄结论，并允许保存探索结果，不因缺固定枚举整体拒绝。",
       "implementation": [
-        "science.py",
-        "acceptance"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "docs/ACCEPTANCE.md"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "用同一势配置一个证据覆盖任务和一个范围外任务；后者提出最小验证或缩窄结论，并允许保存探索结果，不因缺固定枚举整体拒绝。",
+      "evidence": []
     },
     {
       "id": "R07-F3",
@@ -540,14 +697,21 @@
       "requirement": "运行前记录对照、独立重复、统计区间和停止依据；探索中允许修改，保留原因及所有分支，区分新假设与原检验。重复数按问题精度确定，不设全领域统一阈值。",
       "acceptance": "注入一次事后换窗和一组无法分辨差异的数据；报告保留全部结果并给出“不确定”，不得自动补跑到结论转正。",
       "implementation": [
-        "science.py",
-        "acceptance"
+        "src/auto_lammps_mcp/core.py",
+        "src/auto_lammps_mcp/files.py"
       ],
       "checks": [
-        "docs/ACCEPTANCE.md"
+        "tests/test_handoff.py",
+        "tests/test_scientific_review.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 15,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "多轮原生脚本、失败、旧检查和原成果包均保留",
+      "remaining": "验证科学修订不会把固定条件改变或旧失败写成成功",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/15"
+      ]
     },
     {
       "id": "R07-F4",
@@ -556,14 +720,20 @@
       "requirement": "利用已有决策版本保存关键选择、备选解释和证据；研究者确定问题与结论边界，Agent承接参数设计、执行及候选解释。改变核心假设须显式呈现，不给每个工具增加批准。方法经验设维护责任人及复验条件。",
       "acceptance": "未参与开发的同门仅凭任务包指出三项关键假设，完成一次条件变更并解释哪些结论失效；记录研究者与维护者投入时间。",
       "implementation": [
-        "science.py",
-        "acceptance"
+        "src/auto_lammps_mcp/handoff.py",
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
-        "docs/ACCEPTANCE.md"
+        "tests/test_handoff.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 6,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "完整任务、判断、失败和脚本进入研究包，实际包摘要已核对",
+      "remaining": "同门独立打开当前材料研究包并继续分析",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/6"
+      ]
     },
     {
       "id": "R07-F5",
@@ -572,14 +742,18 @@
       "requirement": "保留旧材料作工程回归；另设未用于调试的科研任务，按热力学、缺陷、输运等方法族分层，并含证据不足的反例。首版只承诺已验证范围，后续一次扩一个相邻方法族。",
       "acceptance": "同需求配对比较保留全部失败，由未参与生成者按预定标准判断证据充分性；报告各族表现、错误自信及人工耗时，不只报告总成功率。",
       "implementation": [
-        "science.py",
-        "acceptance"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "docs/ACCEPTANCE.md"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "同需求配对比较保留全部失败，由未参与生成者按预定标准判断证据充分性；报告各族表现、错误自信及人工耗时，不只报告总成功率。",
+      "evidence": []
     },
     {
       "id": "R08-F1",
@@ -588,14 +762,21 @@
       "requirement": "定义版本化恢复包：固定条件、有效计划、未决假设、已否定修复、证据引用及下一步；区分事实与推断，规定恢复时的必读内容和过期决策失效规则，无需保存模型内部思维链。",
       "acceptance": "清空聊天后仅凭任务工具，能引用当前证据，避开已否定修复并继续未完成步骤；旧摘要不能覆盖较新决定。",
       "implementation": [
-        "service.py",
-        "acceptance"
+        "src/auto_lammps_mcp/records.py",
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
-        "docs/ACCEPTANCE.md"
+        "tests/test_handoff.py",
+        "tests/test_background_evidence.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 6,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "官方 DSH 跨会话和后台 Codex 接续已读取原需求与待办并追加分析",
+      "remaining": "真实材料研究的最终跨对话接续",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/6"
+      ]
     },
     {
       "id": "R08-F2",
@@ -604,14 +785,22 @@
       "requirement": "回执标明来源版本、已返回范围、截断与剩余内容、可继续读取入口；模型建议与原始观察分开。恢复包必须携带未读的关键异常，不能让摘要替代原件。",
       "acceptance": "把同一故障证据放在日志不同位置并改变分页，均可读取完整依据；缺页或文件不可访问时明确待证，不宣称已定位原因。",
       "implementation": [
-        "service.py",
-        "acceptance"
+        "src/auto_lammps_mcp/responses.py",
+        "src/auto_lammps_mcp/operation_views.py",
+        "src/auto_lammps_mcp/records.py"
       ],
       "checks": [
-        "docs/ACCEPTANCE.md"
+        "tests/test_host_responses.py",
+        "tests/test_operation_views.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 13,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "大响应持久分页；实际五百文件 DSH 流程及跨连接、重启读取已通过",
+      "remaining": "持续纳入之后的材料研究和版本交付",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/13"
+      ]
     },
     {
       "id": "R08-F3",
@@ -620,14 +809,19 @@
       "requirement": "用户原文与原始交付要求只追加留存；Agent细化要求保留映射和变更来源。task_check区分机器核实、科学待证与失败；验收依据不能只取自执行Agent的声明或其随意改写的检查脚本。",
       "acceptance": "注入“用均值冒充分布”及“删除未完成要求”，即使分析脚本退出成功也不能整体通过；以冻结的小型数据和独立检查核对。",
       "implementation": [
-        "service.py",
-        "acceptance"
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "docs/ACCEPTANCE.md"
+        "tests/test_scientific_review.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 15,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "独立复核否定自检结论时，同一任务重新打开受影响要求，旧检查保留",
+      "remaining": "独立用户、保留任务和最终科学复核",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/15"
+      ]
     },
     {
       "id": "R08-F4",
@@ -636,14 +830,18 @@
       "requirement": "按证据变化、错误签名和修订效果识别无进展循环，转为有明确解除条件的待办；区分信息缺失、模型决策、接口、执行环境和科学失败，允许原因未定。经验须经对应失败条件复验后晋级。",
       "acceptance": "不可修复资源缺口停止重复动作并说明所缺资源；新证据到达可续接。可修复错误推进到验证，不因一次退出成功就标记科学修复。",
       "implementation": [
-        "service.py",
-        "acceptance"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "docs/ACCEPTANCE.md"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "不可修复资源缺口停止重复动作并说明所缺资源；新证据到达可续接。可修复错误推进到验证，不因一次退出成功就标记科学修复。",
+      "evidence": []
     },
     {
       "id": "R08-F5",
@@ -652,14 +850,18 @@
       "requirement": "承接此前同脚本与同需求两类配对，另冻结经验库和工具版本，隔离会话、平衡运行顺序并保留全部尝试；已知故障作回归，另留未用于调参的小型任务集。整套服务比较只宣称产品增益；若归因MCP协议，才增加共享后台CLI对照。",
       "acceptance": "预先登记样本、判据和小规模重复配对，分别报告已知回归与留出任务；任一路不得看到另一侧解法或增量经验，报告失败及波动。",
       "implementation": [
-        "service.py",
-        "acceptance"
+        "skills/auto-lammps-mcp/references/research.md",
+        "skills/auto-lammps-mcp/references/delivery.md",
+        "docs/ACCEPTANCE.md"
       ],
       "checks": [
         "docs/ACCEPTANCE.md"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "workflow_guidance_and_domain_acceptance_pending",
+      "observed": "已进入研究指南与验收要求，按所属研究领域推进",
+      "remaining": "预先登记样本、判据和小规模重复配对，分别报告已知回归与留出任务；任一路不得看到另一侧解法或增量经验，报告失败及波动。",
+      "evidence": []
     },
     {
       "id": "R09-01",
@@ -668,16 +870,21 @@
       "requirement": "先定义运行快照与策略引用的最小契约，新增独立原生入口；复用 submission.py:45–76 的提交协调、ledger.py:787–858 的幂等与提交意图，以及上传、查询、摘要核验。旧候选入口保留为兼容适配器，列明接口与测试归属。",
       "acceptance": "原生脚本到提交记录无需生成candidate或导入模型客户端；同键同输入返回原记录，换输入报冲突；旧入口的冻结策略回归仍通过。",
       "implementation": [
-        "core.py",
-        "worker.py",
-        "installation.py"
+        "src/auto_lammps_mcp/slurm.py",
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
         "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_workflow.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "新原生执行服务与旧数据库分开，完整保留独立意图与核算记录",
+      "remaining": "安装版本的真实 Ni 计算、回收与科学交付",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R09-02",
@@ -686,16 +893,19 @@
       "requirement": "首版只接收一致的只读导出或专门只读读取器。部署清单固定新旧解释器、数据库、服务名、锁目录、远端根目录和辅助程序摘要；安装、升级、卸载均不得覆盖旧项，资源引用固定版本。",
       "acceptance": "以脱敏旧账本副本验证导入零写入、无迁移；新配置误指旧根时启动拒绝；生命周期测试证明新服务不能派发、取消或核算旧run。旧100例保留原控制者。",
       "implementation": [
-        "core.py",
-        "worker.py",
-        "installation.py"
+        "src/auto_lammps_mcp/service.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_boundaries.py"
       ],
       "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "历史数据库只读入口已通过不改变原数据的检查",
+      "remaining": "旧资产迁移的逐项验收与同门接续",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/issues/1"
+      ]
     },
     {
       "id": "R09-03",
@@ -704,16 +914,20 @@
       "requirement": "首条路径只实现计算→分析→交付三阶段，持久保存输入摘要、阶段状态、认领与产物提交记录；把新脚本执行和旧固定分析分开。先保证阶段恢复，不先造通用工作流引擎。",
       "acceptance": "分别在生产完成后、分析执行中、产物写成但状态未提交时终止worker；恢复后不重提生产、不发布半成品，分析重试与费用可追踪；取消任务阻止后继阶段。",
       "implementation": [
-        "core.py",
-        "worker.py",
-        "installation.py"
+        "src/auto_lammps_mcp/worker.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_analysis_recovery.py",
+        "tests/test_process_integration.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 15,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "实际 DSH 多轮分析进入持久队列，失败后复用计算结果",
+      "remaining": "36 次恢复矩阵及重启后的材料研究交付",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/15"
+      ]
     },
     {
       "id": "R09-04",
@@ -722,16 +936,22 @@
       "requirement": "首版固定一个宿主、一种本机系统与一套HPC环境；分别锁定核心、MCP和分析环境。复用已有依赖探测与进程隔离，让缺分析能力返回明确缺项，不阻断读任务和恢复作业。",
       "acceptance": "清洁环境安装后，未安装OVITO仍可管理任务；选择相应分析环境时才检查能力。锁文件、协议版本、升级及回退步骤与安装包一起交付。",
       "implementation": [
-        "core.py",
-        "worker.py",
-        "installation.py"
+        "src/auto_lammps_mcp/activity.py",
+        "src/auto_lammps_mcp/worker.py",
+        "src/auto_lammps_mcp/installation.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_upgrade_coordination.py",
+        "tests/test_installation.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 11,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "真实后台工作期间升级保留服务和十个配置文件，完成后安装接续成功",
+      "remaining": "七天监视、升级回退和最终固定版本",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/11"
+      ]
     },
     {
       "id": "R09-05",
@@ -740,16 +960,23 @@
       "requirement": "把上述切口按单条Ni任务分成可审查变更：隔离安装→快照与策略→可靠提交/对账→分析阶段→产物读取与任务核对。MCP与CLI共用回执测试；优先用伪调度器验证故障，再做独立真实任务。",
       "acceptance": "同一用例覆盖重复调用、回执丢失、重启和一次脚本修订；真实任务交付表、图、结构、脚本、报告且后台补步骤为零。新增分析仅需脚本与证据声明，不增科学方法枚举。",
       "implementation": [
-        "core.py",
-        "worker.py",
-        "installation.py"
+        "src/auto_lammps_mcp/installation.py",
+        "src/auto_lammps_mcp/files.py"
       ],
       "checks": [
-        "tests/test_recovery.py",
-        "tests/test_native_projects.py"
+        "tests/test_installation.py",
+        "tests/test_storage_optimization.py"
       ],
-      "issue": 1,
-      "status": "implementation_and_acceptance_in_progress"
+      "issue": 23,
+      "status": "evidence_recorded_full_flow_pending",
+      "observed": "安装、更新、依赖和重复大文件整理均有可重复入口；真实存储结果已核对",
+      "remaining": "独立用户零补步骤及人工操作、恢复时间的对照指标",
+      "evidence": [
+        "docs/VALIDATION.md",
+        "https://github.com/XPYY233/auto-lammps-mcp/pull/23"
+      ]
     }
-  ]
+  ],
+  "updated": "2026-10-27",
+  "current_installed_candidate": "e819d7cc894d3944913dd88f34a2e6ae8535f340"
 }
