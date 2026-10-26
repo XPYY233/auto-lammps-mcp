@@ -1,0 +1,13 @@
+# Analysis and delivery
+
+Choose analyses from the scientific question and actual files. Separate averages from atom-resolved evidence, independent samples from frames, new samples from retries, program errors from physical anomalies. Preserve definitions, units, statistical windows, sample identities and uncertainty. Keep rejected hypotheses and previous plots.
+
+Use existing plotting and structure/trajectory viewers. Show important plots inline when the host supports them, plus data/script/trajectory links. Register real artifacts and their sources and checks. `completion_check` reports missing requirements; continue those items. Export a package that a colleague can inspect and continue using.
+
+In official DSH, use its present tool with files=[{path: absolute_path, description: short_description}] to give the user a plot and handoff ZIP. Clicking the filename previews a supported image in DSH's side panel; its app button opens the original file in the normal desktop viewer. This works with the existing text model: verify numerical outputs and file content, then present the files. Use image reading when the selected model declares image input. Explain how to open the result directly; model input capabilities and user-visible previews are separate. In Codex, show supported images inline or open the actual file in its preview panel.
+
+For existing-data analysis: import the complete source directory; write a native Python script under the task's project_path; call analysis_submit with project-relative inputs and output names; release the lease while the queue runs. Its working directory is analysis/<operation_id>/ and inputs keep their relative names. Read operation_get for output paths and logs, use artifact_preview for the actual plot, then register checks and requirement links. Use help(method) for these exact contracts before inspecting implementation files. All long-running methods return operation_id; a waiting queue needs its task lease released.
+
+For handoff, project_export returns a ZIP outside the project tree. Give the user that returned path directly; project_import accepts it in a new task and preserves original records. For backup, release leases, call backup_create and retain its SHA-256 receipt. A restored service waits for recovery_activate until the original controller has stopped.
+
+For paper reproduction, determine scope from published results first. Keep author source, reference answers and independent evaluation access separate. Retrieve resources through existing authorized connections.

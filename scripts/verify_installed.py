@@ -80,7 +80,19 @@ async def verify(home, incoming):
                 current = await invoke("task_get", task_id=tid)
                 operation = await invoke("project_snapshot", task_id=tid, revision=current["revision"], op_id="history-" + str(index))
                 snapshots.append(operation["operation_id"])
-                await finished(operation)
+                snapshot = await finished(operation)
+                assert snapshot["snapshot_id"]
+                if index == 0:
+                    entries, offset = {}, 0
+                    while True:
+                        page = await invoke("operation_read", operation_id=operation["operation_id"], path=["result", "files"], offset=offset, limit=50)
+                        assert len(json.dumps(page, ensure_ascii=False, indent=2)) < 6000
+                        entries.update({item["key"]: item["value"] for item in page["items"]})
+                        offset = page["next_offset"]
+                        if not page["more"]:
+                            break
+                    assert len(entries) >= 500
+                    assert all("sha256" in value for value in entries.values())
             current = await invoke("task_get", task_id=tid)
             assert len(current["work"]) == 5 and current["record_counts"]["work"] > 30
             exported = await finished(await invoke("project_export", task_id=tid, revision=current["revision"], op_id="export"))
@@ -99,7 +111,7 @@ async def verify(home, incoming):
             assert imported["original_request"] == task["request"]
             reread = await invoke("file_read", task_id=next_task["id"], path=statistics)
             assert json.loads(reread["text"]) == actual
-            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
+            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
 
 
 def main():
@@ -110,6 +122,9 @@ def main():
         home = Path(temporary) / "state"
         incoming = Path(temporary) / "input"
         incoming.mkdir()
+        (incoming / "assets").mkdir()
+        for index in range(500):
+            (incoming / "assets" / f"input-{index:04}.txt").write_text(str(index))
         (incoming / "analyze.py").write_text(ANALYSIS)
         (incoming / "values.csv").write_text("index,value\n0,2\n1,4\n2,6\n")
         process = subprocess.Popen([sys.executable, "-m", "auto_lammps_mcp.cli", "--home", str(home), "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
