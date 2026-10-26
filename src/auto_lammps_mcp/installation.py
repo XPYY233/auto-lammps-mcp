@@ -16,6 +16,7 @@ from . import __version__
 from .core import Fault, encode, require
 from .files import atomic_write
 from .identity import runtime_identity, connection_status
+from .activity import activity_lock
 
 
 def codex_path():
@@ -67,7 +68,7 @@ def doctor(store):
     from .transport import socket_path
     source_file = Path(sys.executable).parent.parent / "installation-source.json"
     source = json.loads(source_file.read_text()) if source_file.is_file() else None
-    receipt = dict(version=__version__, protocol=1, schema=1, python=sys.executable, package_path=str(Path(__file__).parent),
+    receipt = dict(version=__version__, protocol=1, schema=1, capabilities=dict(coordinated_upgrade=True), python=sys.executable, package_path=str(Path(__file__).parent),
                    installation_source=source,
                    state_directory=str(store.home), platform=platform.system(),
                    daemon=dict(socket_exists=socket_path(store.home).exists(), managed=store.setting("launchd", False), heartbeat=store.setting("service_heartbeat")),
@@ -102,6 +103,31 @@ def doctor(store):
 
 
 def install(store, host="none", managed=True, dsh_runtime=None, dsh_profile="web", dsh_home=None):
+    if not managed:
+        return _install(store, host, managed, dsh_runtime, dsh_profile, dsh_home)
+    with activity_lock(store.home, replacement=True) as acquired:
+        require(acquired, "后台正在上传或处理任务，当前安装保持可用", "service_busy", "等待当前处理结束，使用已保存的安装进度重试")
+        from .transport import call
+        try:
+            live = call(store.home, "doctor")
+        except Fault as exc:
+            if exc.code != "service_unavailable":
+                raise
+            live = None
+        legacy = bool(live and not live.get("capabilities", {}).get("coordinated_upgrade"))
+        if legacy:
+            # Older workers do not acquire activity.lock. Refuse their accepted
+            # local work before copying a guide or changing a host connection.
+            with store.connect() as db:
+                busy = db.execute("SELECT count(*) FROM runs WHERE state IN ('pending','dispatching')").fetchone()[0]
+                busy += db.execute("SELECT count(*) FROM queue WHERE state='running' OR (state='pending' AND kind!='decision')").fetchone()[0]
+                if store.setting("background", {}).get("enabled"):
+                    busy += db.execute("SELECT count(*) FROM queue q JOIN tasks t ON q.task_id=t.id WHERE q.state='pending' AND q.kind='decision' AND t.state NOT IN ('paused','stopping','stopped')").fetchone()[0]
+            require(not busy, "原版本有尚未完成的本地处理，当前安装保持可用", "service_busy", "等待处理结束，再从安装进度接续")
+        return _install(store, host, managed, dsh_runtime, dsh_profile, dsh_home, legacy=legacy)
+
+
+def _install(store, host="none", managed=True, dsh_runtime=None, dsh_profile="web", dsh_home=None, *, legacy=False):
     require(host in ("codex", "dsh", "none"), "选择 codex、dsh 或 none")
     binary = str(Path(sys.executable).parent / "alm")
     require(Path(binary).is_file(), "命令行入口尚未安装", "missing_installation", "先安装当前版本 Python 包")
@@ -178,19 +204,23 @@ def install(store, host="none", managed=True, dsh_runtime=None, dsh_profile="web
             except Fault:
                 changed = True
         if not status.returncode and changed:
-            with store.connect() as db:
+            with store.transaction() as db:
                 busy = db.execute("SELECT count(*) FROM queue WHERE state='running'").fetchone()[0]
-            if busy:
-                if old_plist:
-                    atomic_write(destination, old_plist)
-                raise Fault("service_busy", "后台正在处理任务，安装进度已保存", "等待当前处理结束后重试安装")
-            stopped = subprocess.run(["launchctl", "bootout", domain + "/" + label], capture_output=True, text=True)
-            require(stopped.returncode == 0, "旧后台未能退出", "service_upgrade_failed", "检查现有后台状态后继续安装")
-            for _ in range(100):
-                removed = subprocess.run(["launchctl", "print", domain + "/" + label], capture_output=True)
-                if removed.returncode:
-                    break
-                time.sleep(0.1)
+                if legacy:
+                    busy += db.execute("SELECT count(*) FROM runs WHERE state IN ('pending','dispatching')").fetchone()[0]
+                if busy:
+                    if old_plist:
+                        atomic_write(destination, old_plist)
+                    raise Fault("service_busy", "后台正在处理任务，安装进度已保存", "等待当前处理结束后重试安装")
+                # Keep legacy workers from claiming fresh work between the last
+                # activity check and confirmed process removal.
+                stopped = subprocess.run(["launchctl", "bootout", domain + "/" + label], capture_output=True, text=True)
+                require(stopped.returncode == 0, "旧后台未能退出", "service_upgrade_failed", "检查现有后台状态后继续安装")
+                for _ in range(100):
+                    removed = subprocess.run(["launchctl", "print", domain + "/" + label], capture_output=True)
+                    if removed.returncode:
+                        break
+                    time.sleep(0.1)
             status = stopped
             status.returncode = 1
         if status.returncode:
