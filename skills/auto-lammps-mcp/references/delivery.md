@@ -4,6 +4,8 @@ Choose analyses from the scientific question and actual files. Separate averages
 
 Inspect actual data headers and sample rows before processing a full trajectory; data_inspect exposes thermo blocks and trajectory columns. Resolve fields by column name and check row widths. Match curves and structures through their recorded timestep and atom IDs. Derive averaging windows and normalization from the native definitions: a block average divided by an endpoint value is generally an approximation, so record that approximation when using it. Keep each reported event's exact sampled frames alongside any wider view chosen for visualization.
 
+Read the real box-bound format before parsing it. Compare atom identity and type mappings by ID across frames; output rows may be reordered while every atom is retained.
+
 Use existing plotting and structure/trajectory viewers. Show important plots inline when the host supports them, plus data/script/trajectory links. Register real artifacts and their sources and checks. `completion_check` reports missing requirements; continue those items. Export a package that a colleague can inspect and continue using.
 
 Record a failed scientific review with passed=false and its evidence, using the affected artifact path and full requirement list. The latest registration for that path is current; its failed checks reopen the linked deliverables, while previous verdicts remain readable. Correct the scientific content and register the new review before checking completion. Distinguish a globally averaged temperature from a spatially resolved temperature, box bounds from box lengths, and measured structural changes from proposed mechanisms.
