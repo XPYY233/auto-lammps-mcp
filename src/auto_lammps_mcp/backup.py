@@ -37,6 +37,9 @@ def create_backup(store, destination):
             for directory in [store.home / "projects" / task_id for task_id in ids] + [store.home / name for name in ("blobs", "exports", "logs")]:
                 if directory.exists():
                     paths.extend(p for p in directory.rglob("*") if p.is_file())
+            # Published responses are immutable JSON files; an in-flight atomic
+            # write must not become part of a backup's enumerated file set.
+            paths.extend((store.home / "responses").glob("*.json"))
             files = {"tasks.sqlite3": dict(sha256=file_hash(database), bytes=database.stat().st_size, executable=False)}
             with zipfile.ZipFile(temporary_archive, "w", compression=zipfile.ZIP_DEFLATED) as archive:
                 archive.write(database, "state/tasks.sqlite3")

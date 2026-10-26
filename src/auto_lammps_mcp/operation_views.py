@@ -12,9 +12,9 @@ def kind(value):
     return "object" if isinstance(value, dict) else "array" if isinstance(value, list) else "text" if isinstance(value, str) else "value"
 
 
-def reference(operation_id, path, value):
+def reference(operation_id, path, value, *, method="operation_read", id_key="operation_id"):
     return dict(truncated=True, type=kind(value), count=len(value) if isinstance(value, (dict, list, str)) else 1,
-                read=dict(method="operation_read", operation_id=operation_id, path=path))
+                read={"method": method, id_key: operation_id, "path": path})
 
 
 def operation_summary(record):
@@ -41,7 +41,7 @@ def operation_summary(record):
     return result
 
 
-def operation_page(record, path, offset, limit, text_limit):
+def operation_page(record, path, offset, limit, text_limit, *, record_id=None, read_method="operation_read", id_key="operation_id"):
     require(isinstance(path, list) and all(isinstance(part, str) for part in path), "path 使用字段名称或数组下标字符串列表")
     require(0 <= offset and 1 <= limit <= 50 and 1 <= text_limit <= 4096, "分页范围无效")
     value = record
@@ -54,7 +54,8 @@ def operation_page(record, path, offset, limit, text_limit):
             value = value[int(part)]
         else:
             require(False, "该记录路径没有下一级", "not_found", "读取上一级记录页面")
-    result = dict(operation_id=record["id"], path=path, type=kind(value), offset=offset)
+    record_id = record_id or record["id"]
+    result = {id_key: record_id, "path": path, "type": kind(value), "offset": offset}
     if isinstance(value, (dict, list, str)):
         require(offset <= len(value), "offset 超出记录范围")
     if isinstance(value, str):
@@ -73,7 +74,7 @@ def operation_page(record, path, offset, limit, text_limit):
         if size(child) <= 1000:
             entry["value"] = child
         else:
-            entry["details"] = reference(record["id"], entry["path"], child)
+            entry["details"] = reference(record_id, entry["path"], child, method=read_method, id_key=id_key)
         if items and size(dict(result, items=items + [entry])) > 5000:
             break
         items.append(entry)

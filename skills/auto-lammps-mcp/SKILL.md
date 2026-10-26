@@ -22,6 +22,8 @@ For continuation, start with task_list and task_get. Resolve ambiguous names bef
 
 task_get gives compact progress and the original request. Page through task_records for run, artifact, work and stage history. operation_get returns one operation; large results preserve identifiers and supply operation_read links. Follow path and next_offset until more is false. Paths contain literal field names or array-index strings; snapshot files use ['result','files']. Text offsets count characters. Complete records remain in exports.
 
+Any oversized MCP reply, including an explicit full-detail read, keeps the complete response in the service and returns response_read links. Follow response_id, literal path and next_offset to read missing fields or text; these links survive a new conversation and service restart. A summary is not a complete dataset. Long errors also link to their original diagnostic and recovery text.
+
 ## Execution and feedback
 
 All physical evaluations, including run 0 and engine checks, use accounted HPC through run_prepare/run_submit. Read the task's current policy and authorization; diagnostics, edits and existing-data analysis are separate from calculation submissions. Ordinary research, reference runs and formal B keep their own rules. Preserve stopped historical campaigns.

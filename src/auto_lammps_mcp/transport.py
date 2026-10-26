@@ -52,6 +52,7 @@ def serve(home):
     from .service import Service
     from .worker import Worker
     from .identity import runtime_identity, connection_status
+    from .responses import bound_response, bound_error
     service = Service(home)
     identity = runtime_identity()
     lock = (service.store.home / "service.lock").open("a+")
@@ -65,6 +66,7 @@ def serve(home):
     class Handler(socketserver.StreamRequestHandler):
         def handle(self):
             self.connection.settimeout(30)
+            request = {}
             try:
                 line = self.rfile.readline(MAX_MESSAGE + 1)
                 if len(line) > MAX_MESSAGE:
@@ -89,6 +91,7 @@ def serve(home):
                     if request["method"] == "doctor":
                         result = service.doctor()
                         result["current_connection"] = dict(host=host, **connection_status(receipt, identity))
+                    result = bound_response(service.store, request["method"], result)
                 response = dict(ok=True, result=result)
             except Fault as exc:
                 response = dict(ok=False, error=exc.as_dict())
@@ -96,6 +99,8 @@ def serve(home):
                 with service.store.transaction() as db:
                     service.store.event(db, None, "service_error", dict(type=type(exc).__name__, message=str(exc)))
                 response = dict(ok=False, error=Fault("internal_error", str(exc), "读取事件后使用同一操作编号核对", "unknown").as_dict())
+            if not response["ok"] and isinstance(request, dict) and request.get("host"):
+                response["error"] = bound_error(service.store, request.get("method", "unknown"), response["error"])
             try:
                 self.wfile.write((encode(response) + "\n").encode())
             except BrokenPipeError:
