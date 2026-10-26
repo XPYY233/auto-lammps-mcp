@@ -56,6 +56,14 @@ def doctor(store):
     background_receipt = store.setting("background_receipt")
     if background_receipt and not background_receipt.get("verified"):
         background_receipt = None
+    background_status = "not_verified"
+    if background_receipt:
+        background_status = "current" if background_receipt.get("runtime_fingerprint") == runtime_identity()["fingerprint"] else "previous_candidate"
+        evidence = background_receipt.get("evidence", {})
+        background_receipt = {key: background_receipt.get(key) for key in ("work_id", "task_id", "runtime_fingerprint", "completed_at", "verified")}
+        background_receipt["evidence"] = dict(task_read=evidence.get("task_read", False),
+                                              tool_calls=len(evidence.get("tools", [])), outputs=len(evidence.get("outputs", {})))
+        background_receipt["details"] = dict(method="operation_get", operation_id=background_receipt["work_id"])
     from .transport import socket_path
     source_file = Path(sys.executable).parent.parent / "installation-source.json"
     source = json.loads(source_file.read_text()) if source_file.is_file() else None
@@ -67,7 +75,7 @@ def doctor(store):
                    host_calls={host: connection_status(record) for host, record in store.setting("host_calls", {}).items()}, recovery=store.setting("recovery"),
                    cluster_configured=bool(cluster), cluster_receipt=store.setting("cluster_receipt"),
                    environment_receipts=store.setting("environment_receipts", []),
-                   background=dict(configured=background, executable=codex_path(), receipt=background_receipt),
+                   background=dict(configured=background, executable=codex_path(), receipt=background_receipt, verification_state=background_status),
                    available_ssh_aliases=sorted(set(aliases)))
     next_actions = []
     if not receipt["host_calls"]:
@@ -86,6 +94,8 @@ def doctor(store):
         next_actions.append("确认首次计算内容与资源，完成计算节点环境验证")
     if not receipt["background"]["receipt"]:
         next_actions.append("检查 Codex 登录并完成后台接续验证")
+    elif background_status != "current":
+        next_actions.append("历史后台接续记录已保留；用当前安装版本完成一次后台接续验证")
     receipt["next_actions"] = next_actions
     receipt["resume_prompt"] = "继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。"
     return receipt

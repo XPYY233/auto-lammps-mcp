@@ -517,7 +517,9 @@ class Worker:
         summary = (output_dir / "summary.txt").read_text() if (output_dir / "summary.txt").exists() else ""
         require(summary.strip(), "后台回复为空", "model_truncated", "保留原待办，读取日志后接续")
         calls = self.verify_background_output(task_id, output_dir / "events.jsonl", payload.get("expected_outputs", []))
-        receipt = dict(work_id=work["id"], completed_at=time.time(), summary=summary, verified=True, evidence=calls)
+        from .identity import runtime_identity
+        receipt = dict(work_id=work["id"], task_id=task_id, runtime_fingerprint=runtime_identity()["fingerprint"],
+                       completed_at=time.time(), summary=summary, verified=True, evidence=calls)
         with self.store.transaction() as db:
             self.store.set_setting(db, "background_receipt", receipt)
         return receipt
