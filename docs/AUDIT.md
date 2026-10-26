@@ -72,3 +72,7 @@ The test and CI lookups used nonexistent filenames. Use the file inventory first
 A focused continuation test failed: the background decision occupied the only queue consumer while waiting for its own analysis operation. Earlier tool-read and file-write checks did not exercise this dependency. Run model decisions in a separate serial consumer, retain task leases for mutations, and keep ordinary import, analysis and export work advancing. Verify the original failure and a real installed background handoff.
 
 Wheel installation review found that the source path installed locked analysis libraries while the wheel path installed only base dependencies. Package the same dependency lock inside the verified wheel and request the analysis feature for both routes. Verify an installation into a clean environment before publishing the package.
+
+## 2026-10-27 — Installer receipt with pip
+
+The new installed-package CI failed on both macOS and Linux: pip wrote dependency progress to stdout before the installer's JSON receipt, causing JSONDecodeError. Local verification had used uv, whose progress goes to stderr. Route dependency installer output to stderr and verify the pip-only path as well as the built package before retrying CI.

@@ -86,7 +86,9 @@ class Slurm:
         require(all(re.fullmatch(r"[0-9]+", x) for x in ids), "作业编号无效")
         if not ids:
             return {}
-        output = self.ssh.command(alias, "sacct -n -P -X -j " + ",".join(ids) + " --format=JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,JobName%100,Submit\n")
+        requests = [dict(run_id=r["id"], root=r["remote_dir"], paths=["log.lammps", ".alm-slurm-" + r["job_id"] + ".out"]) for r in runs if r["job_id"]]
+        output = self.ssh.command(alias, "sacct -n -P -X -j " + ",".join(ids) + " --format=JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,JobName%100,Submit\n" + self.output_script(requests))
+        progress = self.output_records(output)
         found = {}
         expected = {r["job_id"]: r["id"] for r in runs}
         for line in output.splitlines():
@@ -99,7 +101,31 @@ class Slurm:
             found[job_id] = dict(state=state, scheduler_state=rawstate, exit_code=exitcode,
                 elapsed_seconds=int(elapsed or 0), allocated_cores=int(cpus or 0),
                 core_seconds=int(elapsed or 0) * int(cpus or 0), submitted=submitted)
+            if name in progress:
+                found[job_id]["output_progress"] = progress[name]
         return found
+
+    @staticmethod
+    def output_script(requests):
+        source = Path(__file__).with_name("remote_read.py").read_text()
+        return ("if command -v python3 >/dev/null 2>&1; then\npython3 - " + shlex.quote(json.dumps(requests)) +
+                " <<'ALM_OUTPUT_READER'\n" + source + "\nALM_OUTPUT_READER\nelse\necho 'ALM_READER_UNAVAILABLE'\nfi\n")
+
+    @staticmethod
+    def output_records(output):
+        records = {}
+        for line in output.splitlines():
+            if line.startswith("ALM_OUTPUT\t"):
+                value = json.loads(line.split("\t", 1)[1])
+                records[value["run_id"]] = value
+        return records
+
+    def read_log(self, run, path, offset=None, limit=65536):
+        request = dict(run_id=run["id"], root=run["remote_dir"], paths=[path], offset=offset, limit=limit)
+        output = self.ssh.command(run["cluster"], self.output_script([request]))
+        records = self.output_records(output)
+        require(run["id"] in records, "远端日志读取器未返回数据", "log_reader_unavailable", "检查远端 Python 3，或回收指定输出后读取")
+        return records[run["id"]]
 
     def reconcile(self, run):
         start = datetime.fromtimestamp(run["created"] - 86400, timezone.utc).strftime("%Y-%m-%d")

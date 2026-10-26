@@ -39,11 +39,11 @@ def run(home, host="unknown"):
                     raise ToolError(encode(exc.as_dict())) from exc
             tool.__signature__ = signature
             return tool
-        read_only = name in {"help", "doctor", "task_list", "task_get", "events", "file_read", "artifact_preview", "operation_get", "run_get", "units_convert", "data_inspect", "resource_search", "legacy_inspect"}
+        read_only = name in {"help", "doctor", "task_list", "task_get", "events", "file_read", "artifact_preview", "operation_get", "run_get", "run_log", "units_convert", "data_inspect", "resource_search", "legacy_inspect"}
         app.add_tool(build(name, fn), name=name, description=inspect.getdoc(fn),
                      annotations=ToolAnnotations(readOnlyHint=read_only, destructiveHint=not read_only,
                                                  idempotentHint=read_only or "op_id" in inspect.signature(fn).parameters,
-                                                 openWorldHint=name in {"connection_check", "run_submit", "run_action", "background_request"}),
+                                                 openWorldHint=name in {"connection_check", "run_submit", "run_action", "run_log", "background_request"}),
                      structured_output=False if name == "artifact_preview" else None)
     app.run(transport="stdio")
 

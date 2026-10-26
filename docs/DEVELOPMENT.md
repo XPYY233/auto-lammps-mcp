@@ -8,6 +8,7 @@
 | service.py | 任务、文件、资源、执行、分析和成果公共接口 |
 | files.py | 项目导入、局部修改、摘要、快照与来源失效传播 |
 | slurm.py | SSH、上传、一次提交、核对、核算与回收 |
+| remote_read.py | 有界日志读取、实际输出时间与热力学进展 |
 | worker.py | 持久阶段链、分析队列、监视线程、Codex 接续与通知 |
 | transport.py | 私有本机连接、单一后台进程、协议核对 |
 | mcp_server.py / cli.py | 同一服务的 MCP 与命令行入口 |

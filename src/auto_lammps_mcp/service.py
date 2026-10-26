@@ -435,6 +435,22 @@ class Service:
         return result
 
     @public
+    def run_log(self, run_id: str, op_id: str, path: str = "log.lammps", offset: int | None = None, limit: int = 65536) -> dict:
+        """Read a bounded remote job log through the persistent queue; no full trajectory download.
+
+        path is relative to the run directory. offset=None reads the current tail; an explicit byte offset reads a page.
+        Returns operation_id; operation_get returns text, byte range, file size, modification time and complete thermo rows when their header is present.
+        Continue from next_offset. Read physical time units from the native input. A log observation does not declare scientific completion.
+        """
+        require(not Path(path).is_absolute() and ".." not in Path(path).parts and path, "日志路径应位于原作业目录中")
+        require((offset is None or offset >= 0) and 1 <= limit <= 262144, "日志读取范围无效")
+        def apply(db):
+            run = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+            require(run, "找不到执行记录")
+            return self.store.queue(db, run["task_id"], "log_read", dict(run_id=run_id, path=path, offset=offset, limit=limit))
+        return self.store.mutate(op_id, dict(method="run_log", run_id=run_id, path=path, offset=offset, limit=limit), apply)
+
+    @public
     def run_action(self, run_id: str, action: str, revision: int, op_id: str) -> dict:
         """Queue reconcile, collect or cancel for one run. These actions do not consume submission attempts."""
         require(action in ("reconcile", "collect", "cancel", "retry_staging"), "执行动作无效")

@@ -21,6 +21,8 @@
 
 安装器在独立版本目录建立环境，保存 installation-progress.json。重复执行复用已完成环境，包与连接成功后再切换 current。后续命令使用返回的绝对 binary 路径。
 
+安装包包含固定依赖清单，普通 Python 与 uv 路径均安装分析环境。安装器的标准输出为 JSON 回执，安装日志写入错误输出。需要回退时使用同一安装器的 `--rollback`，恢复上一软件版本并核对原任务。
+
 ## 平台内接入
 
 Codex：安装器通过现有 `codex mcp add` 注册 auto-lammps，并安装 skill。当前会话清单未刷新时，新建工作对话并粘贴：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”实际调用 MCP doctor 与 task_list，再核对 host_calls。

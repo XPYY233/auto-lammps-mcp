@@ -28,6 +28,8 @@ macOS LaunchAgent 运行独立任务服务。MCP 与 CLI 连接同一服务，�
 
 保留固定版本环境和安装回执。升级前读取协议与数据库版本，备份数据库与项目；升级后验证工具调用、已有作业、后台恢复和文件完整性。协议不一致拒绝写入并提示接入同一版本。
 
+回退命令为 `python3 scripts/install.py --rollback --host codex`，使用保留的上一版本重新连接服务，并切换 current。DSH 回退时选择 `--host dsh`，带上已有 runtime 和 profile。完成后读取 doctor 中的 installation_source、实际 Python 路径与任务记录。重复安装同一版本保留上一版本入口；安装器同时只允许一个流程修改连接。
+
 回退使用保留的环境和兼容数据，核对原作业与费用。软件、用户数据和凭据分别管理。卸载先停止本项目 LaunchAgent，移除本项目 MCP 连接与 skill，研究目录由用户选择保留或迁移。
 
 备份包含数据库一致性副本、内容文件、快照、项目、安装回执和导出包。恢复到独立目录后校验摘要，用当前对话读取历史任务，再核对远端作业。
@@ -37,5 +39,7 @@ macOS LaunchAgent 运行独立任务服务。MCP 与 CLI 连接同一服务，�
 恢复使用 `alm --home /new/state restore /backup/archive.zip --sha256 RECEIPT_SHA256`。新目录恢复后可启动服务读取任务，执行队列保持等待。确认原控制服务停止后，调用 `recovery_activate(previous_controller_stopped=true, op_id=...)`；本机原服务仍在响应时不会接续。原作业编号、失败、费用与需求都保留，工具连接按新目录重新安装。
 
 ## 共同问题
+
+运行进度由同一次远端查询读取调度状态与默认日志的末尾片段，包含文件大小、修改时间、读取范围和完整热力学行。自定义日志用 `run_log` 分页读取。LAMMPS 的 Step、Time 与单位对应关系由原生输入及实际列名确定，参考 [thermo_style](https://docs.lammps.org/thermo_style.html) 和 [log](https://docs.lammps.org/log.html)。
 
 确认公共环境或模板缺陷后，暂停受影响的新派发。修复重放最小失败输入、原失败样本与完整研究流程。两次修复没有新证据或一小时未定位时，转入共同原因与替代路径分析。每次失败、处理和验证写入审计记录。

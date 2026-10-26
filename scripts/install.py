@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install a pinned source checkout or verified wheel in a versioned environment."""
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -17,6 +18,7 @@ def main():
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--source", type=Path)
     source.add_argument("--wheel", type=Path)
+    source.add_argument("--rollback", action="store_true", help="Reconnect the previous installed version while preserving research data")
     parser.add_argument("--sha256")
     parser.add_argument("--host", choices=["codex", "dsh", "none"], default="none")
     parser.add_argument("--prefix", type=Path, default=Path.home() / ".local/share/auto-lammps-mcp-install")
@@ -29,6 +31,11 @@ def main():
     args.prefix = args.prefix.expanduser().resolve()
     args.home = args.home.expanduser().resolve()
     args.prefix.mkdir(parents=True, exist_ok=True)
+    install_lock = (args.prefix / "installation.lock").open("a+")
+    try:
+        fcntl.flock(install_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        raise ValueError("另一安装流程正在运行，请读取安装进度后接续") from exc
     progress_path = args.prefix / "installation-progress.json"
     progress = json.loads(progress_path.read_text()) if progress_path.exists() else {"steps": {}}
 
@@ -38,38 +45,48 @@ def main():
         temporary.write_text(json.dumps(progress, ensure_ascii=False, indent=2))
         os.replace(temporary, progress_path)
 
-    target = (args.source or args.wheel).expanduser().resolve()
-    if args.wheel:
-        actual = hashlib.sha256(target.read_bytes()).hexdigest()
-        if not args.sha256 or actual != args.sha256:
-            raise ValueError("安装包摘要与发布记录不一致")
-        identity = actual[:16]
+    if args.rollback:
+        previous = progress["steps"].get("complete", {}).get("previous")
+        if not previous:
+            raise ValueError("没有保留的上一安装版本")
+        environment = Path(previous).resolve()
+        if environment.parent != args.prefix / "versions" or not (environment / "bin/alm").is_file():
+            raise ValueError("上一安装版本目录不可用，请从固定源码或安装包恢复")
+        record("rollback", environment=str(environment))
     else:
-        actual = subprocess.check_output(["git", "-C", str(target), "rev-parse", "HEAD"], text=True).strip()
-        dirty = subprocess.check_output(["git", "-C", str(target), "status", "--porcelain"], text=True)
-        if dirty:
-            raise ValueError("请先固定源代码提交，再从该版本安装")
-        identity = actual[:16]
-    record("source", identity=actual, path=str(target))
-    environment = args.prefix / "versions" / identity
-    python = environment / "bin/python"
-    if not python.exists():
-        if shutil.which("uv"):
-            subprocess.run(["uv", "venv", "--python", "3.13", str(environment)], check=True)
+        target = (args.source or args.wheel).expanduser().resolve()
+        if args.wheel:
+            actual = hashlib.sha256(target.read_bytes()).hexdigest()
+            if not args.sha256 or actual != args.sha256:
+                raise ValueError("安装包摘要与发布记录不一致")
+            identity = actual[:16]
         else:
-            if sys.version_info < (3, 11):
-                raise ValueError("需要 Python 3.11 或更新版本；可安装 uv 后重试")
-            subprocess.run([sys.executable, "-m", "venv", str(environment)], check=True)
-    record("environment", python=str(python))
-    command = ["uv", "pip", "install", "--python", str(python)] if shutil.which("uv") else [str(python), "-m", "pip", "install"]
-    lock = target / "requirements.lock.txt" if args.source else environment / "requirements.lock.txt"
-    if args.wheel:
-        with zipfile.ZipFile(target) as archive:
-            lock.write_bytes(archive.read("auto_lammps_mcp/data/requirements.lock.txt"))
-    if lock and lock.exists():
-        subprocess.run([*command, "-r", str(lock)], check=True)
-    subprocess.run([*command, str(target) + "[analysis]"], check=True)
-    record("package", completed=True)
+            actual = subprocess.check_output(["git", "-C", str(target), "rev-parse", "HEAD"], text=True).strip()
+            dirty = subprocess.check_output(["git", "-C", str(target), "status", "--porcelain"], text=True)
+            if dirty:
+                raise ValueError("请先固定源代码提交，再从该版本安装")
+            identity = actual[:16]
+        record("source", identity=actual, path=str(target))
+        environment = args.prefix / "versions" / identity
+        python = environment / "bin/python"
+        if not python.exists():
+            if shutil.which("uv"):
+                subprocess.run(["uv", "venv", "--python", "3.13", str(environment)], check=True, stdout=sys.stderr)
+            else:
+                if sys.version_info < (3, 11):
+                    raise ValueError("需要 Python 3.11 或更新版本；可安装 uv 后重试")
+                subprocess.run([sys.executable, "-m", "venv", str(environment)], check=True, stdout=sys.stderr)
+        record("environment", python=str(python))
+        command = ["uv", "pip", "install", "--python", str(python)] if shutil.which("uv") else [str(python), "-m", "pip", "install"]
+        lock = target / "requirements.lock.txt" if args.source else environment / "requirements.lock.txt"
+        if args.wheel:
+            with zipfile.ZipFile(target) as archive:
+                lock.write_bytes(archive.read("auto_lammps_mcp/data/requirements.lock.txt"))
+        if lock and lock.exists():
+            subprocess.run([*command, "-r", str(lock)], check=True, stdout=sys.stderr)
+        subprocess.run([*command, str(target) + "[analysis]"], check=True, stdout=sys.stderr)
+        (environment / "installation-source.json").write_text(json.dumps(dict(identity=actual, kind="wheel" if args.wheel else "source", installed_at=time.time())))
+        record("package", completed=True)
     binary = environment / "bin/alm"
     install = [str(binary), "--home", str(args.home.resolve()), "install", "--host", args.host]
     if args.no_launchd:
@@ -90,6 +107,8 @@ def main():
     record("connection", receipt=receipt)
     current = args.prefix / "current"
     previous = os.readlink(current) if current.is_symlink() else None
+    if previous and Path(previous).resolve() == environment:
+        previous = progress["steps"].get("complete", {}).get("previous")
     replacement = args.prefix / "current.next"
     replacement.unlink(missing_ok=True)
     replacement.symlink_to(environment)
@@ -99,4 +118,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError, subprocess.CalledProcessError, zipfile.BadZipFile, KeyError) as exc:
+        print(json.dumps(dict(error=dict(code="installation_failed", message=str(exc), effect="已完成的步骤与研究数据保留", next_action="读取 installation-progress.json，从失败步骤继续")), ensure_ascii=False))
+        raise SystemExit(1)

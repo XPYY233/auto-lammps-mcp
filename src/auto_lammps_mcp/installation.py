@@ -56,7 +56,10 @@ def doctor(store):
     if background_receipt and not background_receipt.get("verified"):
         background_receipt = None
     from .transport import socket_path
+    source_file = Path(sys.executable).parent.parent / "installation-source.json"
+    source = json.loads(source_file.read_text()) if source_file.is_file() else None
     receipt = dict(version=__version__, protocol=1, schema=1, python=sys.executable, package_path=str(Path(__file__).parent),
+                   installation_source=source,
                    state_directory=str(store.home), platform=platform.system(),
                    daemon=dict(socket_exists=socket_path(store.home).exists(), managed=store.setting("launchd", False), heartbeat=store.setting("service_heartbeat")),
                    hosts=store.setting("hosts", {}), host_calls=store.setting("host_calls", {}), recovery=store.setting("recovery"),

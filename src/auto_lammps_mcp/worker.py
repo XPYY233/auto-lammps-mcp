@@ -34,7 +34,7 @@ class Worker:
         with self.store.transaction() as db:
             self.store.event(db, None, "service_started", dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at))
             db.execute("UPDATE runs SET state='unknown' WHERE state='dispatching'")
-            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','collect','reconcile','cancel','connection_check')")
+            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','collect','reconcile','cancel','connection_check','log_read')")
             rows = db.execute("SELECT id,task_id,kind FROM queue WHERE state='running'").fetchall()
             for row in rows:
                 db.execute("UPDATE queue SET state='interrupted',updated=? WHERE id=?", (time.time(), row["id"]))
@@ -375,6 +375,10 @@ class Worker:
             with self.store.transaction() as db:
                 self.store.set_setting(db, "cluster_receipt", result)
             return result
+        if kind == "log_read":
+            with self.store.connect() as db:
+                run = dict(db.execute("SELECT * FROM runs WHERE id=?", (payload["run_id"],)).fetchone())
+            return self.slurm.read_log(run, payload["path"], payload.get("offset"), payload.get("limit", 65536))
         if kind in ("collect", "reconcile", "cancel"):
             with self.store.connect() as db:
                 if payload.get("run_id"):
