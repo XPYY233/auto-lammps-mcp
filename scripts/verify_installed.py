@@ -93,6 +93,17 @@ async def verify(home, incoming):
                             break
                     assert len(entries) >= 500
                     assert all("sha256" in value for value in entries.values())
+                    complete = await invoke("operation_get", operation_id=operation["operation_id"], include_details=True)
+                    assert len(json.dumps(complete, ensure_ascii=False, indent=2)) < 6000
+                    assert complete["result"]["snapshot_id"] == snapshot["snapshot_id"]
+                    stored, offset = {}, 0
+                    while True:
+                        page = await invoke("response_read", response_id=complete["response_id"], path=["result", "files"], offset=offset, limit=50)
+                        stored.update({item["key"]: item["value"] for item in page["items"]})
+                        if not page["more"]:
+                            break
+                        offset = page["next_offset"]
+                    assert stored == entries
             current = await invoke("task_get", task_id=tid)
             assert len(current["work"]) == 5 and current["record_counts"]["work"] > 30
             exported = await finished(await invoke("project_export", task_id=tid, revision=current["revision"], op_id="export"))
@@ -111,7 +122,7 @@ async def verify(home, incoming):
             assert imported["original_request"] == task["request"]
             reread = await invoke("file_read", task_id=next_task["id"], path=statistics)
             assert json.loads(reread["text"]) == actual
-            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
+            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
 
 
 def main():

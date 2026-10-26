@@ -160,3 +160,9 @@ The corrected official DSH connection loaded the complete shortened skill and co
 ## 2026-10-27 — Upgrade during active upload
 
 A deterministic staging hold reproduced a service replacement while input upload was still active. The installer checked running queue records, but upload uses a separate dispatch thread. Its recorded launch-service sequence reached bootout and bootstrap with staging open. No external scheduler command ran. Coordinate execution and installation with an OS-held activity lock, acquire replacement ownership before changing host configuration, and preserve the busy installation receipt. Check older services separately and replay upload, queued work and interrupted-installer recovery. Tracked in Issue #10.
+
+## 2026-10-27 — Explicit full reads bypass host response limits
+
+The official DSH replay explicitly called operation_get(include_details=true), bypassing its bounded default and producing an 8,192-character truncated host result. Skill loading, default operation reads and help pagination had passed. Preserve the archive and failed acceptance transcript. Move the final size check to the host transport boundary, store the full response with a content identity, and return persistent detail links for all oversized host replies. Keep raw local reads available and verify full-detail requests across conversation and service restarts. Tracked in Issue #12.
+
+The new restart regression initially read project_path from task_create; that path belongs to task_get. Read the public task record before populating its native files, then replay the intended full-response check.

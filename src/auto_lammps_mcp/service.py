@@ -61,6 +61,12 @@ class Service:
         return doctor(self.store)
 
     @public
+    def response_read(self, response_id: str, path: list[str] | None = None, offset: int = 0, limit: int = 20, text_limit: int = 4096) -> dict:
+        """Read a stored complete host response by literal field path and next_offset; available across conversations and restarts."""
+        from .responses import read_response
+        return read_response(self.store, response_id, path or [], offset, limit, text_limit)
+
+    @public
     def setup_configure(self, section: str, values: dict, op_id: str) -> dict:
         """Save setup progress. Sections: cluster, background, notifications. Store SSH aliases, never passwords."""
         from .installation import validate_config

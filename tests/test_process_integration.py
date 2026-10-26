@@ -34,6 +34,64 @@ def stop(process):
 
 
 @pytest.mark.asyncio
+async def test_full_mcp_operation_and_request_can_be_read_after_restart(tmp_path):
+    home = tmp_path / "state"
+    process = start(home)
+    request = "保留完整的原始研究需求和单位 Å³。\n" * 1000
+    try:
+        task = call(home, "task_create", dict(title="Full native project", request=request, requirements=[dict(id="bundle", description="handoff")], op_id="create"))
+        task = call(home, "task_get", dict(task_id=task["id"]))
+        for i in range(500):
+            (Path(task["project_path"]) / f"input-{i:04}.txt").write_text(str(i))
+        snapshot = call(home, "project_snapshot", dict(task_id=task["id"], revision=task["revision"], op_id="snapshot"))
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            operation = call(home, "operation_get", dict(operation_id=snapshot["operation_id"]))
+            if operation["state"] == "completed":
+                break
+            await asyncio.sleep(.1)
+        assert operation["state"] == "completed"
+        params = StdioServerParameters(command=sys.executable, args=["-m", "auto_lammps_mcp.cli", "--home", str(home), "mcp", "--host", "large-response-first"])
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as client:
+                await client.initialize()
+                response = await client.call_tool("operation_get", dict(operation_id=snapshot["operation_id"], include_details=True))
+                assert not response.isError and len(response.content[0].text) < 6000
+                result = json.loads(response.content[0].text)
+                response_id = result["response_id"]
+                assert result["result"]["snapshot_id"] == operation["result"]["snapshot_id"]
+                task_response = await client.call_tool("task_get", dict(task_id=task["id"], include_details=True))
+                assert not task_response.isError and len(task_response.content[0].text) < 6000
+                request_response_id = json.loads(task_response.content[0].text)["response_id"]
+        stop(process)
+        process = start(home)
+        params = StdioServerParameters(command=sys.executable, args=["-m", "auto_lammps_mcp.cli", "--home", str(home), "mcp", "--host", "large-response-second"])
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as client:
+                await client.initialize()
+                async def read_all(identity, path):
+                    offset, pages = 0, []
+                    while True:
+                        response = await client.call_tool("response_read", dict(response_id=identity, path=path, offset=offset, limit=50))
+                        assert not response.isError and len(response.content[0].text) < 6000
+                        page = json.loads(response.content[0].text)
+                        pages.append(page)
+                        if not page["more"]:
+                            return pages
+                        assert page["next_offset"] > offset
+                        offset = page["next_offset"]
+                pages = await read_all(response_id, ["result", "files"])
+                files = {item["key"]: item["value"] for page in pages for item in page["items"]}
+                original = call(home, "operation_get", dict(operation_id=snapshot["operation_id"], include_details=True))
+                assert files == original["result"]["files"] and len(files) == 500
+                pages = await read_all(request_response_id, ["request"])
+                assert "".join(page["text"] for page in pages) == request
+        assert call(home, "task_get", dict(task_id=task["id"], include_details=True))["request"] == request
+    finally:
+        stop(process)
+
+
+@pytest.mark.asyncio
 async def test_mcp_actual_tools_and_daemon_restart(tmp_path):
     home = tmp_path / "state"
     process = start(home)
