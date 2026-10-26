@@ -150,6 +150,12 @@ def install(store, host="none", managed=True, dsh_runtime=None, dsh_profile="web
         domain = f"gui/{os.getuid()}"
         status = subprocess.run(["launchctl", "print", domain + "/" + label], capture_output=True)
         changed = old_values.get("ProgramArguments") != plist["ProgramArguments"]
+        if not status.returncode:
+            from .transport import call
+            try:
+                changed = changed or call(store.home, "doctor")["python"] != sys.executable
+            except Fault:
+                changed = True
         if not status.returncode and changed:
             with store.connect() as db:
                 busy = db.execute("SELECT count(*) FROM queue WHERE state='running'").fetchone()[0]
@@ -159,15 +165,22 @@ def install(store, host="none", managed=True, dsh_runtime=None, dsh_profile="web
                 raise Fault("service_busy", "后台正在处理任务，安装进度已保存", "等待当前处理结束后重试安装")
             stopped = subprocess.run(["launchctl", "bootout", domain + "/" + label], capture_output=True, text=True)
             require(stopped.returncode == 0, "旧后台未能退出", "service_upgrade_failed", "检查现有后台状态后继续安装")
+            for _ in range(100):
+                removed = subprocess.run(["launchctl", "print", domain + "/" + label], capture_output=True)
+                if removed.returncode:
+                    break
+                time.sleep(0.1)
             status = stopped
             status.returncode = 1
         if status.returncode:
             result = subprocess.run(["launchctl", "bootstrap", domain, str(destination)], capture_output=True, text=True)
             if result.returncode:
+                with store.transaction() as db:
+                    store.event(db, None, "service_install_failed", dict(returncode=result.returncode, stderr=result.stderr, target=binary))
                 if old_plist:
                     atomic_write(destination, old_plist)
                     subprocess.run(["launchctl", "bootstrap", domain, str(destination)], capture_output=True)
-                raise Fault("service_install_failed", "后台启动失败，已保留原版本和安装进度", "检查当前用户服务日志")
+                raise Fault("service_install_failed", "后台启动失败，已保留原版本和安装进度: " + result.stderr.strip()[:300], "读取 service_install_failed 事件后接续")
         with store.transaction() as db:
             store.set_setting(db, "launchd", dict(label=label, path=str(destination), version=__version__))
         from .transport import call

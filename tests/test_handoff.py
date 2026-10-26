@@ -64,3 +64,17 @@ def test_handoff_document_does_not_complete_archive_requirement(tmp_path):
     Path(receipt["path"]).write_bytes(b"damaged archive")
     invalid = service.completion_check(task["id"], after["revision"], "damaged-export")
     assert not invalid["complete"]
+
+
+def test_new_delivery_requirement_keeps_existing_plot_valid(tmp_path):
+    service = Service(tmp_path / "state")
+    requirements = [{"id": "plot", "description": "curve"}]
+    task = service.task_create("Research", "make curve", requirements, "create")
+    root = service.store.root(task["id"])
+    (root / "curve.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    (root / "check.txt").write_text("verified curve data")
+    result = service.artifact_register(task["id"], 1, "curve.svg", [], ["plot"], [{"passed": True, "method": "verify", "evidence": "check.txt"}], "register")
+    updated = service.task_update(task["id"], result["revision"], {"requirements": requirements + [{"id": "zip", "description": "archive", "kind": "archive"}]}, "also export", "add-requirement")
+    assert not service.task_get(task["id"])["artifacts"][0]["stale"]
+    check = service.completion_check(task["id"], updated["revision"], "check")
+    assert [r["id"] for r in check["missing"]] == ["zip"]

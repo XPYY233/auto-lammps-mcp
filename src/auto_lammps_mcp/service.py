@@ -214,9 +214,16 @@ class Service:
                     require(all(current.get(key) == text for key, text in previous.items()), "原始成果要求需要保留；补充要求可追加新编号", "requirement_preservation", "保留原要求并登记新的研究范围")
                 db.execute(f"UPDATE tasks SET {column}=? WHERE id=?", (value if name == "title" else encode(value), task_id))
             self.store.bump(db, task_id)
-            if "constraints" in changes or "requirements" in changes:
+            if "constraints" in changes and changes["constraints"] != task["constraints_json"]:
                 db.execute("UPDATE artifacts SET stale=1 WHERE task_id=?", (task_id,))
                 db.execute("UPDATE runs SET state='cancelled_before_dispatch' WHERE task_id=? AND state IN ('prepared','pending')", (task_id,))
+            elif "requirements" in changes:
+                old = {r["id"]: r for r in task["requirements"]}
+                changed_ids = {r["id"] for r in changes["requirements"] if old.get(r["id"]) != r}
+                for artifact in db.execute("SELECT id,requirements FROM artifacts WHERE task_id=?", (task_id,)):
+                    if changed_ids & set(json.loads(artifact["requirements"])):
+                        db.execute("UPDATE artifacts SET stale=1 WHERE id=?", (artifact["id"],))
+            if "constraints" in changes or "requirements" in changes:
                 db.execute("UPDATE tasks SET state='draft' WHERE id=? AND state='completed'", (task_id,))
             self.store.event(db, task_id, "task_updated", dict(changes=changes, reason=reason, previous_revision=revision))
             return self.store.task(db, task_id)

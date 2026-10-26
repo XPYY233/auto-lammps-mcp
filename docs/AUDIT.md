@@ -56,3 +56,7 @@ The second installed background attempt passed MCP approval and released task ow
 The installed DSH analysis flow delivered its plot, statistics and ZIP, but completion_check returned complete before project_export ran: a HANDOFF.md artifact had been linked to the package requirement. Add an explicit archive requirement kind and validate the produced ZIP and current source manifest before satisfying it. Also keep pending analysis/export work visible in completion checks. Replay this observed sequence and the installed handoff flow.
 
 The requirement patch included an unrelated earlier context after a later section, so atomic verification rejected it. Apply the requirement and delivery changes in file order.
+
+## 2026-10-27 — Repeated macOS service replacement failure
+
+A second installed upgrade returned service_install_failed and restored the previous daemon. The wrapper now preserved that failure, but launchctl stderr was still missing. Two failures require a common-cause check: preserve launchctl diagnostics, wait for service removal before registering the replacement, and compare the live interpreter with the target, rather than only comparing plist contents. Also found that adding archive metadata invalidated unrelated plots; scope requirement invalidation to affected requirement IDs and retain calculations when scientific constraints are unchanged.
