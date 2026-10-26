@@ -32,6 +32,11 @@ fig.savefig('plot.png', dpi=100)
 plt.close(fig)
 """
 
+FAILED_ANALYSIS = """from pathlib import Path
+Path('partial.csv').write_text('index,value\\n')
+raise ValueError('incomplete column mapping')
+"""
+
 
 async def verify(home, incoming):
     params = StdioServerParameters(command=sys.executable, args=["-m", "auto_lammps_mcp.cli", "--home", str(home), "mcp", "--host", "installed-package-check"])
@@ -45,12 +50,17 @@ async def verify(home, incoming):
                 assert not response.isError, (method, response.content)
                 return json.loads(response.content[0].text)
 
-            async def finished(operation):
+            async def finished(operation, expected="completed"):
                 deadline = time.monotonic() + 30
                 while time.monotonic() < deadline:
                     result = await invoke("operation_get", operation_id=operation["operation_id"])
                     if result["state"] in ("completed", "failed", "interrupted"):
-                        assert result["state"] == "completed", result
+                        if result["state"] != expected:
+                            evidence = (result.get("result") or {}).get("error", {}).get("evidence", {})
+                            if evidence.get("log_path"):
+                                diagnostic = await invoke("file_read", task_id=result["task_id"], path=evidence["log_path"])
+                                print(json.dumps(dict(operation_id=operation["operation_id"], diagnostic=diagnostic), ensure_ascii=False), file=sys.stderr)
+                        assert result["state"] == expected, result
                         return result["result"]
                     await asyncio.sleep(0.1)
                 raise AssertionError("installed queue operation did not finish")
@@ -60,6 +70,15 @@ async def verify(home, incoming):
             task = await invoke("task_create", title="Installed package check", request="Analyze existing values and export the plot with its sources", requirements=[dict(id="plot", description="plot and statistics"), dict(id="bundle", description="complete handoff", kind="archive")], op_id="create")
             tid = task["id"]
             await finished(await invoke("project_import", task_id=tid, revision=task["revision"], source=str(incoming), op_id="import"))
+            task = await invoke("task_get", task_id=tid)
+            failed = await finished(await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=["values.csv"], outputs=["partial.csv", "plot.png"], op_id="failed-analysis"), expected="failed")
+            assert failed["error"]["effect"] == "partial"
+            evidence = failed["error"]["evidence"]
+            diagnostic = await invoke("file_read", task_id=tid, path=evidence["log_path"])
+            assert "incomplete column mapping" in diagnostic["text"]
+            assert evidence["missing_outputs"] == ["plot.png"]
+            task = await invoke("task_get", task_id=tid)
+            await invoke("file_patch", task_id=tid, revision=task["revision"], path="analyze.py", expected_sha256=evidence["sources"]["analyze.py"], old=FAILED_ANALYSIS, new=ANALYSIS, op_id="repair-analysis")
             task = await invoke("task_get", task_id=tid)
             analysis = await finished(await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=["values.csv"], outputs=["statistics.json", "plot.png"], op_id="analysis"))
             root = Path(task["project_path"])
@@ -122,7 +141,7 @@ async def verify(home, incoming):
             assert imported["original_request"] == task["request"]
             reread = await invoke("file_read", task_id=next_task["id"], path=statistics)
             assert json.loads(reread["text"]) == actual
-            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
+            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "failed_analysis_evidence", "native_analysis", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
 
 
 def main():
@@ -136,7 +155,7 @@ def main():
         (incoming / "assets").mkdir()
         for index in range(500):
             (incoming / "assets" / f"input-{index:04}.txt").write_text(str(index))
-        (incoming / "analyze.py").write_text(ANALYSIS)
+        (incoming / "analyze.py").write_text(FAILED_ANALYSIS)
         (incoming / "values.csv").write_text("index,value\n0,2\n1,4\n2,6\n")
         process = subprocess.Popen([sys.executable, "-m", "auto_lammps_mcp.cli", "--home", str(home), "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:

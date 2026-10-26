@@ -40,12 +40,12 @@
 | R07-F4 | 交接科研判断，才能形成课题组能力 | science.py, acceptance | 实现与完整流程验收进行中 |
 | R07-F5 | 验证集按科学推理类型留出，避免在历史故障上自证 | science.py, acceptance | 实现与完整流程验收进行中 |
 | R08-F1 | 任务恢复缺少必须重建的决策状态 | service.py, acceptance | 实现与完整流程验收进行中 |
-| R08-F2 | 短反馈缺少完整性与可读取性保证 | service.py, acceptance | 实现与完整流程验收进行中 |
+| R08-F2 | 短反馈缺少完整性与可读取性保证 | responses.py, operation_views.py, records.py | alpha.3 已通过五百文件实际 DSH 流程、完整响应分页、跨连接及重启读取；科学交付继续验证 |
 | R08-F3 | 目标与检查同源，可能形成自我证明 | service.py, acceptance | 实现与完整流程验收进行中 |
 | R08-F4 | 有预算约束仍缺少无进展停止与归因 | service.py, acceptance | 实现与完整流程验收进行中 |
 | R08-F5 | 回归样本与经验回流会污染增益判断 | service.py, acceptance | 实现与完整流程验收进行中 |
 | R09-01 | 复用应切在提交服务，不能把候选入口直接改名 | core.py, worker.py, installation.py | 实现与完整流程验收进行中 |
 | R09-02 | 只读导入必须绕开会写数据库的构造器 | core.py, worker.py, installation.py | 实现与完整流程验收进行中 |
 | R09-03 | 现有跟进器不是可恢复的分析任务队列 | core.py, worker.py, installation.py | 实现与完整流程验收进行中 |
-| R09-04 | 依赖升级不能持续挤占科研时间 | core.py, worker.py, installation.py | 实现与完整流程验收进行中 |
+| R09-04 | 依赖升级不能持续挤占科研时间 | activity.py, worker.py, installation.py | alpha.3 实际后台工作期间升级保持原服务与十个配置文件；后台完成后继续安装成功 |
 | R09-05 | 首个完成条件应约束维护成本，而非工具数量 | core.py, worker.py, installation.py | 实现与完整流程验收进行中 |
