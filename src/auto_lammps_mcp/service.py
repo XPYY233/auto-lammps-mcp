@@ -192,6 +192,10 @@ class Service:
             work_columns = "*" if include_details else "id,kind,state,result,updated"
             recent_limit = "" if include_details else " LIMIT 5"
             result["work"] = [dict(row) for row in db.execute("SELECT " + work_columns + " FROM queue WHERE task_id=? ORDER BY created DESC" + recent_limit, (task_id,))]
+            for work in result["work"]:
+                progress = db.execute("SELECT value FROM settings WHERE key=?", ("operation_progress:" + work["id"],)).fetchone()
+                if progress:
+                    work["progress"] = json.loads(progress[0])
             result["events"] = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq DESC" + recent_limit, (task_id,))]
             result["stages"] = [dict(row) for row in db.execute("SELECT * FROM stages WHERE task_id=? ORDER BY created,id", (task_id,))]
             result["deliveries"] = [json.loads(row[0]) for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",))]
@@ -249,6 +253,11 @@ class Service:
             rows = db.execute("SELECT * FROM " + tables[kind] + " WHERE task_id=? ORDER BY created,id LIMIT ? OFFSET ?", (task_id, limit+1, offset)).fetchall()
         from .records import restored_paths, decoded_record
         records = [decoded_record(row) for row in rows[:limit]]
+        if kind == "work":
+            for record in records:
+                progress = self.store.setting("operation_progress:" + record["id"])
+                if progress:
+                    record["progress"] = progress
         records = restored_paths(self.store, records)
         if kind == "work":
             from .operation_views import operation_summary, size
@@ -451,11 +460,14 @@ class Service:
 
     @public
     def operation_get(self, operation_id: str, include_details: bool = False) -> dict:
-        """Read work progress/result after any conversation. Large results preserve IDs and link to operation_read; follow its paths and cursors for every detail. include_details=True returns the full record for local consumers."""
+        """Read work progress/result after any conversation. Export progress reports phase, processed files/input bytes, written archive bytes and observation time; these measure that phase, not scientific completion. Large results preserve IDs and link to operation_read; follow its paths and cursors for every detail. include_details=True returns the full record for local consumers."""
         with self.store.connect() as db:
             row = db.execute("SELECT * FROM queue WHERE id=?", (operation_id,)).fetchone()
             require(row, "没有找到后台操作", "not_found", "读取任务记录")
         result = dict(row)
+        progress = self.store.setting("operation_progress:" + operation_id)
+        if progress:
+            result["progress"] = progress
         for field in ("payload", "result"):
             result[field] = json.loads(result[field]) if result[field] else None
         from .records import restored_paths

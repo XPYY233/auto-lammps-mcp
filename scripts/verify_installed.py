@@ -131,7 +131,12 @@ async def verify(home, incoming):
             optimized = await finished(await invoke("project_optimize", task_id=tid, revision=current["revision"], op_id="optimize-storage"))
             assert optimized["files_preserved"]
             current = await invoke("task_get", task_id=tid)
-            exported = await finished(await invoke("project_export", task_id=tid, revision=current["revision"], op_id="export"))
+            export_operation = await invoke("project_export", task_id=tid, revision=current["revision"], op_id="export")
+            exported = await finished(export_operation)
+            export_progress = (await invoke("operation_get", operation_id=export_operation["operation_id"]))["progress"]
+            assert export_progress["phase"] == "completed"
+            assert export_progress["files_done"] == export_progress["files_total"] == exported["files"]
+            assert export_progress["input_bytes_done"] == export_progress["input_bytes_total"]
             with zipfile.ZipFile(exported["path"]) as archive:
                 assert "project/" + plot in archive.namelist()
                 record = json.loads(archive.read("research-record.json"))

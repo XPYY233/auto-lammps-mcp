@@ -463,7 +463,7 @@ class Worker:
         if kind == "decision":
             return self.background(work, payload)
         if kind == "export":
-            return self.export(task_id, payload.get("requirement_ids", []), work["token"])
+            return self.export(task_id, payload.get("requirement_ids", []), work["token"], work["id"])
         raise Fault("unknown_work", kind, "检查当前版本工作类型")
 
     def analysis(self, work, payload):
@@ -591,24 +591,68 @@ class Worker:
             outputs[name] = dict(sha256=file_hash(path), bytes=path.stat().st_size)
         return dict(task_read=True, tools=[c["tool"] for c in successful], outputs=outputs)
 
-    def export(self, task_id, requirement_ids=None, token=None):
+    def export(self, task_id, requirement_ids=None, token=None, operation_id=None):
         task = self.service.task_get(task_id, include_details=True)
-        files = manifest(self.store, task_id)
         key = identifier("export")
         archive = self.store.home / "exports" / (key + ".zip")
-        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as package:
-            for name, info in files.items():
-                package.write(self.store.home / "blobs" / info["sha256"], "project/" + name)
-            package.writestr("project-manifest.json", encode(files))
-            package.writestr("research-record.json", encode(task))
-            package.writestr("events.json", encode(sorted(task["events"], key=lambda event: event["seq"])))
-            package.writestr("README.txt", "Auto-LAMMPS 研究交接\n打开 research-record.json 读取原始需求、规则、执行与成果。\nproject/ 保存原生脚本、输入、数据和图表。project-manifest.json 保存 SHA-256。\n在新对话中说：使用 Auto-LAMMPS 导入这个研究结果包，说明已完成内容和剩余成果，然后继续分析。\n")
-        receipt = dict(path=str(archive), filename=archive.name, sha256=file_hash(archive), files=len(files),
-                       manifest_digest=digest(encode(files).encode()), requirement_ids=requirement_ids or [])
-        with self.store.transaction() as db:
-            self.store.task(db, task_id, token=token)
-            self.store.set_setting(db, "delivery:" + task_id + ":" + key, receipt)
-            self.store.event(db, task_id, "project_exported", receipt)
+        progress = dict(phase="reading_sources", files_done=0, files_total=None, input_bytes_done=0,
+                        input_bytes_total=None, archive_bytes=0, archive_path=str(archive))
+        last_update = 0.0
+
+        def publish(force=False, **changes):
+            nonlocal last_update
+            progress.update(changes)
+            now = time.monotonic()
+            if not force and now - last_update < 5:
+                return
+            progress.update(observed_at=time.time(), archive_bytes=archive.stat().st_size if archive.exists() else 0)
+            if operation_id:
+                with self.store.transaction() as db:
+                    self.store.set_setting(db, "operation_progress:" + operation_id, progress)
+                    self.store.event(db, task_id, "export_progress", dict(operation_id=operation_id, **progress))
+            last_update = now
+
+        def ownership():
+            if token is not None:
+                with self.store.connect() as db:
+                    self.store.task(db, task_id, token=token)
+
+        try:
+            publish(force=True)
+            files = manifest(self.store, task_id)
+            publish(force=True, phase="packing", files_total=len(files), input_bytes_total=sum(x["bytes"] for x in files.values()))
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as package:
+                for name, info in files.items():
+                    ownership()
+                    blob = self.store.home / "blobs" / info["sha256"]
+                    member = zipfile.ZipInfo.from_file(blob, "project/" + name)
+                    member.compress_type = package.compression
+                    progress["current_file"] = name
+                    with blob.open("rb") as source, package.open(member, "w", force_zip64=True) as destination:
+                        while chunk := source.read(1024 * 1024):
+                            ownership()
+                            destination.write(chunk)
+                            progress["input_bytes_done"] += len(chunk)
+                            publish()
+                    progress["files_done"] += 1
+                    publish()
+                package.writestr("project-manifest.json", encode(files))
+                package.writestr("research-record.json", encode(task))
+                package.writestr("events.json", encode(sorted(task["events"], key=lambda event: event["seq"])))
+                package.writestr("README.txt", "Auto-LAMMPS 研究交接\n打开 research-record.json 读取原始需求、规则、执行与成果。\nproject/ 保存原生脚本、输入、数据和图表。project-manifest.json 保存 SHA-256。\n在新对话中说：使用 Auto-LAMMPS 导入这个研究结果包，说明已完成内容和剩余成果，然后继续分析。\n")
+            publish(force=True, phase="checking_archive", current_file=None)
+            receipt = dict(path=str(archive), filename=archive.name, sha256=file_hash(archive), files=len(files),
+                           manifest_digest=digest(encode(files).encode()), requirement_ids=requirement_ids or [])
+            with self.store.transaction() as db:
+                self.store.task(db, task_id, token=token)
+                self.store.set_setting(db, "delivery:" + task_id + ":" + key, receipt)
+                self.store.event(db, task_id, "project_exported", receipt)
+        except Exception as exc:
+            publish(force=True, phase="interrupted" if isinstance(exc, Fault) and exc.code == "lease_expired" else "failed")
+            error = exc if isinstance(exc, Fault) else Fault("export_failed", str(exc), "核对已保留的归档和原始文件后重试导出")
+            raise Fault(error.code, str(error), error.next_action, "partial" if archive.exists() else "saved_needs_correction",
+                        dict(progress=progress, path=str(archive) if archive.exists() else None)) from exc
+        publish(force=True, phase="completed")
         return receipt
 
     def notifications(self):
