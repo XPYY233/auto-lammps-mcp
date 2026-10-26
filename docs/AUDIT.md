@@ -226,3 +226,9 @@ A read-only documentation lookup used a guessed traceability filename; the inven
 The next official DSH continuation called task_records(kind='artifact') instead of the documented plural and corrected it after the error. Its direct editor also requested broader filesystem permission, which the headless host could not approve. It continued through the authorized project file tools and workspace imports, preserving the existing host permissions. Keep both rejected calls in the acceptance transcript.
 
 A workflow inspection initially assumed ci.yml; the actual file is checks.yml. The current inventory now supplies that path for adding the review-register consistency check. No execution state changed.
+
+## 2026-10-27 — Visible progress for large handoffs
+
+The real DSH export wrote a multi-gigabyte archive while the operation exposed a running state and heartbeat. The host repeatedly inspected file size through its shell. Persist export phase, processed files, input bytes, written archive bytes and the observation time; return the same evidence in operation and task reads. Stream file members so a changed task owner stops further chunks and retains a partial archive path. The original long export remains running on its fixed installed candidate while the repair is developed separately.
+
+The resumed DSH task completed another archive and passed its own checks. Independent data verification matched 144,000 atomic rows and 50 average rows, while visual/report review still found an omitted conversion factor in a legend, a covariance magnitude inconsistent with the CSV, and an old frame-table entry. Preserve the completed archive and register those specific findings before handing the same task to background Codex. The headless DSH profile also lacked the present tool; its Markdown links are retained separately from the earlier real web-preview evidence.

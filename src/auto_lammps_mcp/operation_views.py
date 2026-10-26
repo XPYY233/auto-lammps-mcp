@@ -23,7 +23,9 @@ def operation_summary(record):
     operation_id = record["id"]
     result = {key: record[key] for key in ("id", "task_id", "kind", "state", "created", "updated") if key in record}
     result.update(truncated=True, details=reference(operation_id, [], record))
-    for section in ("payload", "result"):
+    for section in ("payload", "result", "progress"):
+        if section == "progress" and section not in record:
+            continue
         value = record.get(section)
         if size(value) <= 1800:
             result[section] = value
