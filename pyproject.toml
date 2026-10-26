@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "auto-lammps-mcp"
 version = "0.1.0a1"
 description = "Native scientific projects, durable Slurm jobs and agent tools"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "Apache-2.0"
 dependencies = ["mcp>=1.12,<2", "pint>=0.24,<0.26"]
 

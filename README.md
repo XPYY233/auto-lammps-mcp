@@ -4,6 +4,8 @@
 
 当前开发版本：`0.1.0a1`。进度与完整研究验收见 [交付记录](docs/PROGRESS.md)。
 
+[安装包与校验摘要](https://github.com/XPYY233/auto-lammps-mcp/releases/tag/v0.1.0-alpha.1) · [开发与交付手册 PDF](docs/manual/main.pdf) · [可编辑源稿](docs/manual/main.tex)
+
 ## 复制给 Agent 的安装提示词
 
 ```text

@@ -73,8 +73,8 @@ def main():
             if shutil.which("uv"):
                 subprocess.run(["uv", "venv", "--python", "3.13", str(environment)], check=True, stdout=sys.stderr)
             else:
-                if sys.version_info < (3, 11):
-                    raise ValueError("需要 Python 3.11 或更新版本；可安装 uv 后重试")
+                if sys.version_info < (3, 12):
+                    raise ValueError("固定分析环境需要 Python 3.12 或更新版本；使用 uv 可自动选择已验证的 Python 3.13")
                 subprocess.run([sys.executable, "-m", "venv", str(environment)], check=True, stdout=sys.stderr)
         record("environment", python=str(python))
         command = ["uv", "pip", "install", "--python", str(python)] if shutil.which("uv") else [str(python), "-m", "pip", "install"]

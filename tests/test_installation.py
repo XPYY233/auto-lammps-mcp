@@ -7,6 +7,7 @@ import pytest
 
 from auto_lammps_mcp.core import Fault, Store
 from auto_lammps_mcp.dsh import connect, update_patch
+from auto_lammps_mcp.installation import install
 
 
 def test_dsh_upgrade_preserves_model_and_other_tools():
@@ -93,3 +94,19 @@ def test_installer_failure_returns_parseable_recovery_receipt(tmp_path):
     assert error["code"] == "installation_failed"
     assert "没有保留" in error["message"]
     assert error["next_action"]
+
+
+def test_install_without_host_preserves_global_skills(tmp_path, monkeypatch):
+    user = tmp_path / "user"
+    existing = user / ".agents/skills/auto-lammps-mcp/SKILL.md"
+    existing.parent.mkdir(parents=True)
+    existing.write_text("existing selected host version")
+    binary = tmp_path / "version/bin/alm"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("installed entry")
+    monkeypatch.setattr(Path, "home", lambda: user)
+    monkeypatch.setattr(sys, "executable", str(binary.with_name("python")))
+    receipt = install(Store(tmp_path / "state"), host="none", managed=False)
+    assert existing.read_text() == "existing selected host version"
+    assert Path(receipt["hosts"]["none"]["skill"]) != existing.parent
+    assert (Path(receipt["hosts"]["none"]["skill"]) / "SKILL.md").is_file()

@@ -98,3 +98,13 @@ The first local suite invocation used the historical unittest runner and discove
 A read used a nonexistent client.py filename; the RPC client is in transport.py. Review found that staging/upload shares the serial concrete-work consumer, so a long upload can delay queued analysis and has no per-run progress record. The initial reproduction omitted the required analysis input list and was rejected before reaching that condition; supply an existing input to reproduce queue behavior, then keep dispatch independent and record upload progress.
 
 The corrected reproduction confirmed that an analysis remained pending while upload was blocked. The same dispatch review found that a policy update could leave an accepted-but-undispatched run using old rules. Return pending runs to preparation when policy changes and compare uploaded rules before actual dispatch, while preserving previous request events.
+
+## 2026-10-27 — Candidate packaging
+
+The local packaging invocation found that the development environment does not include the optional build frontend. Use the available uv builder against an archive of the fixed Git commit, keeping the candidate independent of subsequent audit edits. The installed source candidate remains available.
+
+## 2026-10-27 — Isolated installation preserves host settings
+
+A focused check confirmed that `--host none` still overwrote the global DSH skill. Independent package validation must retain the user's selected host version. Keep the packaged skill available in that environment and write global host skills only when Codex or DSH is selected.
+
+Installed dependency metadata shows NumPy 2.5.4 requires Python 3.12 while the installer advertised 3.11. Align the package and fallback installer minimum with the locked analysis environment; uv continues selecting the tested Python 3.13 runtime.

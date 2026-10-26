@@ -93,8 +93,8 @@ def install(store, host="none", managed=True, dsh_runtime=None, dsh_profile="web
     if not source.exists():
         source = Path(__file__).resolve().parents[2] / "skills/auto-lammps-mcp"
     require((source / "SKILL.md").is_file(), "安装包缺少科研工作指南", "package_incomplete", "安装包含 skill 的完整发布包")
-    skill_dest = Path.home() / (".codex/skills" if host == "codex" else ".agents/skills") / "auto-lammps-mcp"
-    if source.exists():
+    skill_dest = source if host == "none" else Path.home() / (".codex/skills" if host == "codex" else ".agents/skills") / "auto-lammps-mcp"
+    if host != "none" and source.exists():
         skill_dest.mkdir(parents=True, exist_ok=True)
         for item in source.rglob("*"):
             if item.is_file():
