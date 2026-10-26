@@ -1,0 +1,508 @@
+\documentclass[11pt,a4paper]{ctexart}
+\usepackage[margin=22mm]{geometry}
+\usepackage{longtable,booktabs,array,xcolor,hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,pdftitle={Auto-LAMMPS MCP 项目开发与交付手册},pdfauthor={Auto-LAMMPS}}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+\emergencystretch=3em
+\begin{document}
+\title{Auto-LAMMPS MCP\\项目开发与交付手册}
+\author{Auto-LAMMPS}
+\date{2026年10月27日}
+\maketitle
+从安装提示词进入现有 Agent 平台，完成科研执行、持续监视、分析和交接。
+\tableofcontents
+\clearpage
+\section{Auto-LAMMPS MCP}
+
+
+在 Codex 或 DSH 中描述材料模拟需求，Agent 编写原生科研脚本；Auto-LAMMPS 保存项目、执行计算、持续监视、恢复失败、分析和交接结果。
+
+
+
+当前开发版本：0.1.0a1。进度与完整研究验收见 交付记录。
+
+
+
+\subsection{复制给 Agent 的安装提示词}
+
+
+\begin{quote}\small
+请帮我安装和配置 Auto-LAMMPS，让我可以直接在当前对话中提出材料模拟需求，由你调用软件完成计算、监视、分析和结果展示。\par
+
+
+项目仓库：https:/\allowbreak{}/\allowbreak{}github.com/\allowbreak{}XPYY233/\allowbreak{}auto-lammps-mcp\par
+
+
+请先读取仓库首页指向的“给 Agent 的安装指南”，按发布版本对应的说明完成以下工作。\par
+
+
+1. 判断当前环境\par
+识别操作系统、当前 Agent 平台，以及你是否能够执行本机命令、安装插件和调用 MCP。\par
+能安装插件时，优先安装包含工作指南和工具配置的插件。\par
+有本机执行能力时，完成本地安装。已经接入服务时，先检查已有连接。\par
+需要我切换会话或操作平台设置时，告诉我具体打开哪里、填写什么，并保存接续信息。\par
+
+
+2. 检查已有安装\par
+检查软件版本、真实安装位置、后台服务和平台连接。\par
+区分尚未安装、命令路径未生效、版本需要更新和执行权限不足，分别处理。\par
+复用已有可用安装，保留研究数据和其他软件配置。\par
+
+
+3. 完成安装与平台接入\par
+安装当前发布版本、科研工作指南、命令行、MCP 连接和持久后台。\par
+使用安装器返回的真实路径继续工作。\par
+安装后运行环境检查，并从当前 Agent 会话实际调用软件工具，确认我已经可以在这里使用它。\par
+
+
+4. 引导我完成基本配置\par
+先发现已有配置，再集中询问仍然缺少的内容：研究项目保存位置；超算连接、账号和计算队列；远端工作目录和已有 LAMMPS 环境；任务资源设置；后台自动接续和通知偏好。\par
+提供推荐值，并用简短中文解释用途。已有配置让我直接选择；密码、密钥和验证码通过本机凭据入口或登录窗口填写。\par
+
+
+5. 验证后台与恢复\par
+检查后台服务、任务保存、通知和后台 Codex 接续能力。\par
+保存配置进度，让我关闭对话后能够继续。\par
+需要重新打开会话时，给我一句可以直接复制的接续提示词。\par
+
+
+6. 带我完成第一次使用\par
+配置完成后展示实际配置摘要，让我选择：新建研究、继续已有项目、分析已有结果。\par
+如果我选择首次计算验证，先展示计算内容和资源设置。我说“开始”后，完成提交、进度反馈、数据回收、图表和结果文件。\par
+
+
+7. 出错时继续处理\par
+根据当前版本的帮助和检查结果定位问题。\par
+告诉我已经完成什么、卡在哪里、下一步是什么。\par
+保留有效配置和已有成果，从失败处恢复。\par
+
+
+整个过程使用简短中文。每完成一个阶段告诉我结果；需要我操作时，一次只给当前必需的步骤。\par
+完成后告诉我如何开始任务、查看进度、暂停或停止、查看结果，以及换一个对话继续研究。\par
+\end{quote}
+
+
+给 Agent 的安装指南 · 用户操作 · 后台与恢复 · 开发与交付 · 验收指标
+
+
+
+\subsection{从源代码安装}
+
+
+选择固定提交，在干净仓库目录运行：
+
+
+
+\begin{quote}\small
+python3 scripts/\allowbreak{}install.py --source . --host codex\par
+\end{quote}
+
+
+DSH 使用 --host dsh。安装器返回实际命令路径、连接参数、安装进度与接续提示。macOS 后台由系统服务管理，研究数据与软件版本分开保存。
+
+
+
+\subsection{使用}
+
+
+\noindent\textbullet\quad “比较完整晶体与含空位晶体的拉伸响应，给我曲线和结构演化。”
+
+
+\noindent\textbullet\quad “继续最近的 Ni 研究，告诉我完成了什么、现在到哪里、还有什么没交付。”
+
+
+\noindent\textbullet\quad “暂停后续计算，说明当前作业是否还在运行。”
+
+
+\noindent\textbullet\quad “重新选择拟合区间，保留原结果。”
+
+
+\noindent\textbullet\quad “导出给同门继续使用。”
+
+
+
+
+MCP 与 alm call 操作同一任务服务。alm help 返回当前版本接口。科研文件可以用普通编辑器、Python、LAMMPS 和 OVITO 继续使用。
+
+
+
+\subsection{开发检查}
+
+
+\begin{quote}\small
+uv venv --python 3.13\par
+uv pip install -r requirements.lock.txt\par
+uv pip install -e .\par
+.venv/\allowbreak{}bin/\allowbreak{}pytest -q\par
+.venv/\allowbreak{}bin/\allowbreak{}python scripts/\allowbreak{}check\_\allowbreak{}public\_\allowbreak{}tree.py\par
+\end{quote}
+
+
+完整交付在同一安装版本中走完自然语言需求、集群执行、后台接续、结果展示与交接。验收分别记录软件检查、真实研究、独立使用和七天监视。
+
+\clearpage
+\section{给 Agent 的安装指南}
+
+
+目标是让用户在当前对话里完成研究。识别可用能力，推进当前能完成的步骤，持续保存进度。
+
+
+
+\subsection{环境选择}
+
+
+\begin{longtable}{p{4.67cm}p{4.67cm}p{4.67cm}}
+\toprule
+当前能力 & 操作 & 回执 \\
+\midrule\endhead
+已有 MCP & 调用 doctor，核对版本与连接 & 实际工具回执 \\
+有本机命令 & 检查已有安装，使用固定版本安装器 & 真实程序路径 \\
+只有 MCP 且无已部署连接 & 引导进入能访问用户电脑的工作对话 & 保存进度与接续句 \\
+支持本项目插件包 & 安装对应版本插件并执行工具检查 & 插件、skill 与服务版本 \\
+\bottomrule
+\end{longtable}
+
+
+当前仓库提供 Python 安装器、Codex 注册入口、DSH stdio 连接配置和 skill；插件分发包在交付记录中单列。
+
+
+
+检查 alm --version、真实路径与 alm doctor。找不到命令时，使用安装回执中的 binary 完整路径。权限问题通过平台正常入口处理。同名连接指向其他安装时，核对原环境和数据目录再选择使用版本。
+
+
+
+\subsection{安装固定版本}
+
+
+在干净源代码目录运行 python3 scripts/\allowbreak{}install.py --source . --host codex。已下载安装包使用 --wheel /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}package.whl --sha256 RELEASE\_\allowbreak{}SHA256。
+
+
+
+安装器在独立版本目录建立环境，保存 installation-progress.json。重复执行复用已完成环境，包与连接成功后再切换 current。后续命令使用返回的绝对 binary 路径。
+
+
+
+\subsection{平台内接入}
+
+
+Codex：安装器通过现有 codex mcp add 注册 auto-lammps，并安装 skill。当前会话清单未刷新时，新建工作对话并粘贴：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”实际调用 MCP doctor 与 task\_\allowbreak{}list，再核对 host\_\allowbreak{}calls。
+
+
+
+DSH：安装器生成 dsh-mcp.json。在 DSH 的 MCP 连接配置中创建 stdio 服务 auto-lammps，command 和 args 使用生成文件中的实际值。加载后实际调用 doctor 与 task\_\allowbreak{}list。工具帮助通过 MCP 提供，skill 同时安装到 .agents/\allowbreak{}skills/\allowbreak{}auto-lammps-mcp。
+
+
+
+使用 DeepSeek Harness 配置时，安装器另提供 dsh-harness-entry.json：按官方配置将该对象加入插件列表，包含 @deepseek-ai/\allowbreak{}dsh-mcp-client、serverName、transport、command 和 args。平台入口应先能打开有效工作目录，再验证工具加载。
+
+
+
+stdio 进程只桥接持久服务。平台探测、重载和多个聊天共享同一服务，退出平台后 macOS 后台继续工作。
+
+
+
+\subsection{基础配置}
+
+
+先查已有 SSH 连接、项目和验证环境。集中询问仍缺的信息：研究目录、连接、账号、队列、远端目录、环境初始化、自动接续与通知。
+
+
+
+cluster 配置需要 ssh\_\allowbreak{}alias、remote\_\allowbreak{}root、account、partition、environment\_\allowbreak{}script。用实际已有软件的环境初始化命令，随后通过 connection\_\allowbreak{}check 检查连接、Slurm 和目录。物理运行还要完成计算节点验证。凭据通过 SSH、系统或平台登录入口管理。
+
+
+
+后台检查 Codex 实际路径与 codex login status。保存 background 的 enabled、codex、timeout\_\allowbreak{}seconds；通过 background\_\allowbreak{}request 验证能够读取任务并产生实际结果。notifications 的 enabled、desktop 控制桌面提醒。
+
+
+
+\subsection{完成回执与首用}
+
+
+分别展示安装包、当前对话工具调用、集群连接、计算节点环境、后台服务、后台 Agent、通知与下一步。配置完成后提供“新建研究、继续已有项目、分析已有结果”。
+
+
+
+首次 Ni 计算展示工况、结构、势、输出、32 核/\allowbreak{}8 GiB/\allowbreak{}具体时限及复用资源。用户说“开始”后保存授权原话，再提交并持续跟进。最终交付温度、体积、总能、逐原子势能、轨迹与交接包。
+
+
+
+安装中断从回执继续，已成功配置保留。重新打开会话时使用：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”
+
+\clearpage
+\section{在对话中使用}
+
+
+第一次把 README 安装提示词交给 Codex 或 DSH。安装引导完成后，科研工作围绕同一个持久项目展开。
+
+
+
+\begin{longtable}{p{4.67cm}p{4.67cm}p{4.67cm}}
+\toprule
+阶段 & 用户操作 & 应看到的反馈 \\
+\midrule\endhead
+开始 & “比较完整晶体与含空位晶体的拉伸响应” & 目标、固定条件、必要补充信息和成果清单 \\
+提供材料 & 选择已有目录、结构、势或模型 & 完整目录关系、来源与资源可用情况 \\
+调整方案 & “保留加载方向，增加两个温度” & 具体变化、新增计算与受影响图表 \\
+确认执行 & “按这个方案开始” & 实际执行记录、资源与任务编号 \\
+看进度 & “现在到哪一步了” & 阶段、最新证据时间、完成项、下一步 \\
+暂停 & “暂停后续计算” & 新派发停止，现有作业实际状态 \\
+停止一组 & “停止 600 K 这组，其他继续” & 选中的工况、取消回执与其他任务状态 \\
+查异常 & “这一组为什么没有进展” & 日志依据、最后确认状态和恢复动作 \\
+看结果 & “展示应力突降前后的结构” & 曲线、对应帧时间、结构预览与文件入口 \\
+追加分析 & “换拟合区间，保留旧结果” & 新版本、旧新对比与方法差异 \\
+换对话 & “继续最近的 Ni 研究” & 原需求、已完成内容、离开期间进展和缺项 \\
+交接 & “导出给同门继续使用” & 数据、脚本、图表、轨迹、检查与说明包 \\
+\bottomrule
+\end{longtable}
+
+
+任务重名时按材料、创建时间与当前阶段选择。选择之后，操作绑定明确任务。
+
+
+
+进展格式：“任务名称｜已完成内容｜当前阶段｜最近证据时间｜下一步｜需要决定的事项”。完成、异常和需要决定时通知；回来后说“查看未读进展”。
+
+
+
+机器休眠或断网时，远端作业继续；本机恢复后先核对，再接续回收和分析。改图、改统计窗口和追加分析复用已有结果。
+
+
+
+每幅图能追到数据、单位、工况、独立样本与分析脚本。结构和轨迹通过平台预览或 OVITO 等工具打开；交接包包含原生项目与文件摘要。
+
+\clearpage
+\section{项目开发与交付}
+
+
+已有 Agent 直接写科研脚本并根据反馈修正；服务承担持久执行、监视、恢复、分析和交接。
+
+
+
+\begin{longtable}{p{7.25cm}p{7.25cm}}
+\toprule
+模块 & 职责 \\
+\midrule\endhead
+core.py & 事务、任务版本、单执行者操作权、事件、操作回执 \\
+service.py & 任务、文件、资源、执行、分析和成果公共接口 \\
+files.py & 项目导入、局部修改、摘要、快照与来源失效传播 \\
+slurm.py & SSH、上传、一次提交、核对、核算与回收 \\
+worker.py & 持久阶段链、分析队列、监视线程、Codex 接续与通知 \\
+transport.py & 私有本机连接、单一后台进程、协议核对 \\
+mcp\_\allowbreak{}server.py /\allowbreak{} cli.py & 同一服务的 MCP 与命令行入口 \\
+installation.py & 自检、连接、skill 与 macOS 后台安装 \\
+science.py & 单位、热力学列、逐原子轨迹检查 \\
+\bottomrule
+\end{longtable}
+
+
+原生项目入口接受快照和 shell 脚本。工况、独立样本、重试、续算和分析各有身份。运行绑定环境与输入；更新环境产生新指纹。
+
+
+
+alm help 和 MCP help 从代码生成工具说明和参数。任务变更检查版本，可重试操作携带 op\_\allowbreak{}id；同编号同输入返回原回执，不同输入返回冲突。耗时操作返回 operation\_\allowbreak{}id，随后读取结果。文件分页返回范围、摘要、截断与下一个偏移。错误提供原因、已发生影响和恢复动作。
+
+
+
+\subsection{开发流程}
+
+
+每项工作从用户成果出发，记录当前断点与安装版本验证方式。Issue 关联审核及复盘要求，独立分支提交 PR，自动检查和评审形成候选版本。修复回到原失败输入与完整流程。
+
+
+
+新分析方法由原生 Python 实现，框架维护入口、输入、输出和依赖。软件检查、集群运行、独立用户流程、科学验收和七天监视分别记录。里程碑汇报：“用户新增完成了什么｜还有什么未交付｜证据在哪里｜下一步是什么”。
+
+
+
+\subsection{资产复用}
+
+
+旧账本、Slurm 查询、传输和分析进程代码已经审阅。旧候选入口按原生文件重新组织，保留一次执行意图、未知提交先核对和独立核算规则。当前核心是新模块；依赖由锁文件固定。复制旧代码前逐文件登记来源版本、许可、修改和验证。
+
+
+
+NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保留原数据和费用。论文身份与条件沿用文献工作台，资源优先查现有库。旧数据库通过只读连接访问，新服务使用独立目录与新身份。
+
+
+
+\subsection{交付物}
+
+
+固定源码与安装包、安装提示词和安装器、Codex/\allowbreak{}DSH 连接、skill、任务服务、后台接续、执行/\allowbreak{}分析/\allowbreak{}可视化/\allowbreak{}导出能力，以及用户、开发、恢复、迁移和验收文档。手册交付 PDF 与可编辑 TeX。
+
+\clearpage
+\section{后台与恢复}
+
+
+macOS LaunchAgent 运行独立任务服务。MCP 与 CLI 连接同一服务，聊天退出后后台继续。数据库保存任务、事件、操作回执、执行意图、队列与阶段关系；普通目录保存科研文件，文件摘要对应输入快照。
+
+
+
+\begin{longtable}{p{4.67cm}p{4.67cm}p{4.67cm}}
+\toprule
+状态或问题 & 处理 & 保留事实 \\
+\midrule\endhead
+prepared & 已固定输入和环境，等待提交 & 快照、工况、样本和规则 \\
+pending & 已接收要求，等待派发 & 授权和实际规则 \\
+dispatching /\allowbreak{} unknown & 先按原名称核对远端 & 一次提交标记、原执行意图 \\
+queued /\allowbreak{} running & 每 60 秒按集群合并查询 & 作业身份、证据时间、核算 \\
+completed /\allowbreak{} failed & 回收文件并检查成果或诊断 & 原失败、输出、费用 \\
+连续两次查询失败 & 显示连接异常和最后确认时间 & 已确认状态 \\
+分析失败 & 修改脚本，建立新分析尝试 & 原计算结果与各次日志 \\
+Agent 中断 & 保存待办与证据，重新接续 & 原目标、已否定修复、版本 \\
+服务重启 & 核对在途派发，接续可重复数据操作 & 作业身份和已完成结果 \\
+\bottomrule
+\end{longtable}
+
+
+操作权有到期时间，旧 token 不能写入。暂停、恢复和停止检查任务版本。停止先保存意图，再取消远端作业；未知作业找回后继续取消。诊断、修改、分析与正式提交分别记录。SSH 凭据变化不改变任务保存的作业身份。
+
+
+
+\subsection{升级与恢复}
+
+
+保留固定版本环境和安装回执。升级前读取协议与数据库版本，备份数据库与项目；升级后验证工具调用、已有作业、后台恢复和文件完整性。协议不一致拒绝写入并提示接入同一版本。
+
+
+
+回退使用保留的环境和兼容数据，核对原作业与费用。软件、用户数据和凭据分别管理。卸载先停止本项目 LaunchAgent，移除本项目 MCP 连接与 skill，研究目录由用户选择保留或迁移。
+
+
+
+备份包含数据库一致性副本、内容文件、快照、项目、安装回执和导出包。恢复到独立目录后校验摘要，用当前对话读取历史任务，再核对远端作业。
+
+
+
+\subsection{共同问题}
+
+
+确认公共环境或模板缺陷后，暂停受影响的新派发。修复重放最小失败输入、原失败样本与完整研究流程。两次修复没有新证据或一小时未定位时，转入共同原因与替代路径分析。每次失败、处理和验证写入审计记录。
+
+\clearpage
+\section{验收指标}
+
+
+先贯通一项 Ni 研究：安装提示词、实际工具接入、配置、需求、资源、原生脚本、HPC、一次恢复、图表与结构、追加分析、换对话、交接。独立使用者根据公开指南完成新任务后再扩展领域。
+
+
+
+\begin{longtable}{p{7.25cm}p{7.25cm}}
+\toprule
+指标 & 发布要求 \\
+\midrule\endhead
+安装与首用 & 提示词到首项研究，开发者补步骤为零 \\
+目标保真 & 原始要求全部对应成果，错误宣告完成为零 \\
+完整研究 & 24 项至少 22 项，四类各至少 5/\allowbreak{}6 \\
+保留任务 & 12 项至少 11 项，独立管理 \\
+故障恢复 & 12 类各三次，36 次达到预定结果 \\
+科学错误 & 八类反例全部识别并正确处理 \\
+反馈 & 本地回执 p95$\leq$2 秒；活跃操作 60 秒内更新，长任务每 5 分钟摘要 \\
+后台 & 连续七天，通过退出、重启、断线和接续 \\
+双平台 & Codex、DSH 均完成创建、执行、监视、控制、分析、导出 \\
+增益 & 同模型完成率不下降；人工操作中位数减少 30\%，恢复时间减少 50\% \\
+版本 & 源码、包、后台、skill、文档和验收对应同一版本 \\
+\bottomrule
+\end{longtable}
+
+
+四类研究：缺陷与辐照、界面与力学、输运、机器学习势验证。每类六项覆盖新建、导入、多工况和独立重复、恢复、跨对话、追加分析。保留案例用于开发后转入开发集，并补入新任务。
+
+
+
+12 类故障：连接中断、凭据更新、上传中断、提交回执丢失、调度查询失联、服务重启、Agent 中断、模型截断、环境失效、引擎报错、分析失败、输出缺失或损坏。
+
+
+
+八类科学反例：平均量冒充局域量、参考晶格错误、元素或原子身份错配、工况错挂、重复样本重计、统计窗口错误、采样不足、真实异常被错误修正。
+
+
+
+安装检查包括首次与已有安装、路径未生效、权限不足、中断、会话重载、重复配置、升级回退和仅 MCP 能力。
+
+
+
+对照实验分同脚本和同需求两条路径。对齐模型、工具、资源、上下文、输出长度和迭代规则，平衡顺序，隔离上下文。计划任务、已开始、模型调用、正式提交、正常结束、完整交付分别计数，各比例标明分母。人工操作基线为零时保持零。
+
+
+
+运行前固定容差、采样要求和预期恢复结果。记录排队、运行、模型、人工与维护投入，保留失败。完整交付要求成果齐全、科学检查通过、文件可打开、来源可追溯且能够继续分析。
+
+\clearpage
+\section{资产来源与复用}
+
+
+\begin{longtable}{p{3.38cm}p{3.38cm}p{3.38cm}p{3.38cm}}
+\toprule
+资产 & 来源 & 使用方式 & 验证 \\
+\midrule\endhead
+原提交与记账设计 & auto-lammps-run，源码版本 7dfead36\allowbreak{}15875223\allowbreak{}5a41fd2d\allowbreak{}680e962a\allowbreak{}4c570d8e，Apache-2.0 & 审阅账本、执行入口与分析流程，保留执行意图、核对和历史规则；新核心独立实现 & 重复提交与未知回执测试 \\
+MCP Python SDK & modelcon\allowbreak{}textprot\allowbreak{}ocol/\allowbreak{}python-sdk，MIT & 标准 stdio 协议与工具 schema & 实际 MCP 客户端集成检查 \\
+Pint & hgrecco/\allowbreak{}pint，BSD-3-Clause & 单位解析与量纲换算 & 四种立方埃表达和不兼容量纲 \\
+NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} Matplotlib license & 原生科学统计与绘图环境 & 独立安装与分析检查 \\
+九视角 45 条意见 & 用户组织的四轮审核 & 逐项写入 review-traceability.json & 对应用户验收要求 \\
+历史研究结果与资源 & 原项目私有研究记录 & 只读检索和导入新结果项目 & 摘要与来源核对、原记录保留 \\
+\bottomrule
+\end{longtable}
+
+
+旧科研数据、作者源码、论文附件、执行日志和答案保持在研究目录。每个新复制代码文件单列原始路径、版本、许可、修改与验证。依赖版本记录于 requirements.lock.txt。
+
+\clearpage
+\section{当前交付记录}
+
+
+日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a1。
+
+
+
+\subsection{用户新增能够完成什么}
+
+
+\noindent\textbullet\quad 通过同一个 MCP/\allowbreak{}CLI 服务创建、查找和跨对话恢复任务，保存原话、成果要求与规则。
+
+
+\noindent\textbullet\quad 导入原生目录，局部修改文件，建立输入快照，追踪来源变化，导出研究包。
+
+
+\noindent\textbullet\quad 登记 Slurm 执行意图、查询、回收与取消；回执丢失先核对，重复调用复用原记录。
+
+
+\noindent\textbullet\quad 登记运行与分析阶段链；持久分析队列、独立监视线程、Codex 后台接续与桌面通知已有实现。
+
+
+\noindent\textbullet\quad 使用安装提示词、版本环境安装器、Codex 注册和 DSH 连接配置进入软件。
+
+
+
+
+\subsection{已有证据}
+
+
+35 项本地软件检查通过，包括实际 stdio MCP 工具调用、独立服务进程、服务重启后接续、重复派发、丢失回执、停止、规则、分析失败与结果保留。后续新增检查与安装验证继续记录。
+
+
+
+集群现有 SSH 连接可读取队列，既有环境加载顺序与势资源已找到。Ni 输入和 32 核、8 GiB、30 分钟资源回执已准备；用户要求先完成软件与安装，暂不计算。旧实验保持停止。
+
+
+
+\subsection{尚未交付}
+
+
+安装后的 Ni 完整研究、独立使用者验收、DSH 内完整操作、后台 Codex 实际接续、科学反例全覆盖、36 次故障恢复、24 项研究和七天监视。固定版本包、PDF 手册及源码 PR 正在形成。
+
+
+
+正式 B 的独立身份、文件/\allowbreak{}工具/\allowbreak{}网络隔离执行器仍需实现和验收；当前接口保留模式与两次提交规则，并返回所需配置。
+
+
+
+\subsection{下一步}
+
+
+固定候选版本，安装并验证平台工具连接与后台；完成软件恢复、分析、可视化和交接验证。每轮先通读 APPROVED\_\allowbreak{}PLAN.md，再核对 PLAN\_\allowbreak{}AMENDMENTS.md。Ni 计算保留为后续获开始指令后的验证。
+
+\end{document}
