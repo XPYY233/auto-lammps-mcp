@@ -55,6 +55,8 @@ async def verify(home, incoming):
                     await asyncio.sleep(0.1)
                 raise AssertionError("installed queue operation did not finish")
 
+            connection = await invoke("doctor")
+            assert connection["current_connection"]["state"] == "current", connection
             task = await invoke("task_create", title="Installed package check", request="Analyze existing values and export the plot with its sources", requirements=[dict(id="plot", description="plot and statistics"), dict(id="bundle", description="complete handoff", kind="archive")], op_id="create")
             tid = task["id"]
             await finished(await invoke("project_import", task_id=tid, revision=task["revision"], source=str(incoming), op_id="import"))

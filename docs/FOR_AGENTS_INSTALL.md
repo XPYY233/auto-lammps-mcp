@@ -35,6 +35,8 @@ DSH 使用官方 DeepSeek Harness 的现有安装。运行 `python3 scripts/inst
 
 stdio 进程只桥接持久服务。平台探测、重载和多个聊天共享同一服务，退出平台后 macOS 后台继续工作。
 
+升级后检查当前 MCP doctor 返回的 current_connection：current 表示本对话工具与后台版本一致；reload_required 表示本对话仍保留旧工具，需要重新加载连接；unverified_client 表示旧连接没有提供版本记录。重新加载后再次调用 doctor，保留原任务继续工作。host_calls 展示各平台最近一次调用；当前对话的结果以 current_connection 为准。
+
 ## 基础配置
 
 先查已有 SSH 连接、项目和验证环境。集中询问仍缺的信息：研究目录、连接、账号、队列、远端目录、环境初始化、自动接续与通知。

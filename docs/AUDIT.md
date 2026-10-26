@@ -114,3 +114,15 @@ Installed dependency metadata shows NumPy 2.5.4 requires Python 3.12 while the i
 The final official DSH turn still marked task_get truncated. Its actual compact response was 9,444 characters: 20 recent events contributed 4,281 and seven artifacts 2,353. The earlier large-snapshot test covered repeated payloads but not realistic multi-stage history. Bound the default recent lists to five entries, retain counts and explicit pagination, and replay the same installed task through DSH before publication. A Harness search included a nonexistent package/agent directory; further searches use its package inventory.
 
 The multi-stage regression reproduced a 10,205-character formatted summary, confirming that bounded recent-list length is needed in addition to removing repeated payloads.
+
+## 2026-10-27 — CLI inspection syntax
+
+A read-only operation query supplied its JSON as a positional argument; argparse rejected it without contacting the service. The documented CLI accepts `--json`. Continue the same operation query with that option; no task or execution state changed.
+
+Release staging detected two manual filenames retained from an earlier candidate and stopped before generating checksums. Build a new staging directory with an explicit asset list tied to the verified source revision. Keep the previous staging records intact.
+
+## 2026-10-27 — Active conversation after upgrade
+
+Review of the real installation receipt found that host_calls contained only a platform name, time and tool, even when the service had been replaced. That could treat an older open MCP process as a verified new installation. Record the process's loaded code/guide identity and session, compare it with the service, and return the current conversation receipt from its first doctor call. Historical clients remain readable and are marked as awaiting verification. A separate observation found completed tasks still instructed the Agent to check missing deliverables; choose next steps from the task's actual state.
+
+PDF inspection showed TeX joining the two hyphens in command options into a dash. Keep option hyphens separate in the generated source and verify extracted PDF text before packaging the updated manual.

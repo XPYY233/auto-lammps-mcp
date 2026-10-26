@@ -43,6 +43,10 @@ async def test_mcp_actual_tools_and_daemon_restart(tmp_path):
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as client:
                 await client.initialize()
+                connected = await client.call_tool("doctor", {})
+                current = json.loads(connected.content[0].text)
+                assert current["current_connection"]["state"] == "current"
+                assert current["current_connection"]["session_id"]
                 tools = await client.list_tools()
                 assert "task_create" in {t.name for t in tools.tools}
                 annotations = {t.name: t.annotations for t in tools.tools}
@@ -109,3 +113,49 @@ def test_daemon_keeps_monitoring_during_analysis(tmp_path):
     finally:
         stop(process)
 
+
+
+def test_active_client_identity_survives_restart_and_detects_upgrade(tmp_path):
+    from auto_lammps_mcp.identity import runtime_identity
+    home = tmp_path / "state"
+    process = start(home)
+    client = {**runtime_identity(), "session_id": "old-conversation"}
+    try:
+        first = call(home, "doctor", host="codex", client=client)
+        assert first["current_connection"]["state"] == "current"
+        stop(process)
+        process = start(home)
+        assert call(home, "doctor", host="codex", client=client)["current_connection"]["state"] == "current"
+        changed = {**client, "fingerprint": "previous-candidate", "version": "previous", "session_id": "still-open"}
+        old = call(home, "doctor", host="codex", client=changed)
+        assert old["current_connection"]["state"] == "reload_required"
+        assert "重新加载" in old["current_connection"]["next_action"]
+        assert any("codex" in item for item in old["next_actions"])
+        fresh = call(home, "doctor", host="codex", client={**client, "session_id": "new-conversation"})
+        assert fresh["current_connection"]["state"] == "current"
+        assert fresh["host_calls"]["codex"]["session_id"] == "new-conversation"
+        legacy = call(home, "doctor", host="legacy")
+        assert legacy["current_connection"]["state"] == "unverified_client"
+        assert legacy["host_calls"]["codex"]["state"] == "current"
+    finally:
+        stop(process)
+
+
+def test_doctor_detects_old_package_against_running_service(tmp_path):
+    import shutil
+    import auto_lammps_mcp
+    home = tmp_path / "state"
+    process = start(home)
+    old_root = tmp_path / "old-package"
+    shutil.copytree(Path(auto_lammps_mcp.__file__).parent, old_root / "auto_lammps_mcp", ignore=shutil.ignore_patterns("__pycache__"))
+    source = old_root / "auto_lammps_mcp/__init__.py"
+    source.write_text(source.read_text().replace(auto_lammps_mcp.__version__, "0.0.1"))
+    try:
+        code = "from auto_lammps_mcp.transport import call; from auto_lammps_mcp.identity import runtime_identity; import json,sys; print(json.dumps(call(sys.argv[1], 'doctor', host='older-package', client={**runtime_identity(), 'session_id':'old'})))"
+        result = subprocess.run([sys.executable, "-c", code, str(home)], cwd=old_root, capture_output=True, text=True, check=True)
+        receipt = json.loads(result.stdout)
+        assert receipt["current_connection"]["client_version"] == "0.0.1"
+        assert receipt["current_connection"]["state"] == "reload_required"
+        assert receipt["version"] == auto_lammps_mcp.__version__
+    finally:
+        stop(process)

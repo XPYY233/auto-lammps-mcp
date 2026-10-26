@@ -15,6 +15,7 @@ import time
 from . import __version__
 from .core import Fault, encode, require
 from .files import atomic_write
+from .identity import runtime_identity, connection_status
 
 
 def codex_path():
@@ -62,7 +63,8 @@ def doctor(store):
                    installation_source=source,
                    state_directory=str(store.home), platform=platform.system(),
                    daemon=dict(socket_exists=socket_path(store.home).exists(), managed=store.setting("launchd", False), heartbeat=store.setting("service_heartbeat")),
-                   hosts=store.setting("hosts", {}), host_calls=store.setting("host_calls", {}), recovery=store.setting("recovery"),
+                   runtime=runtime_identity(), hosts=store.setting("hosts", {}),
+                   host_calls={host: connection_status(record) for host, record in store.setting("host_calls", {}).items()}, recovery=store.setting("recovery"),
                    cluster_configured=bool(cluster), cluster_receipt=store.setting("cluster_receipt"),
                    environment_receipts=store.setting("environment_receipts", []),
                    background=dict(configured=background, executable=codex_path(), receipt=background_receipt),
@@ -70,6 +72,12 @@ def doctor(store):
     next_actions = []
     if not receipt["host_calls"]:
         next_actions.append("在当前 Agent 平台实际调用 doctor；配置文件存在还需要会话加载")
+    for host in set(receipt["hosts"]) | set(receipt["host_calls"]):
+        if host == "none":
+            continue
+        status = receipt["host_calls"].get(host) or connection_status({})
+        if status["state"] != "current":
+            next_actions.append(host + ": " + status["next_action"])
     if not cluster:
         next_actions.append("选择 SSH 连接、账号、队列、远端目录和已有环境")
     elif not receipt["cluster_receipt"]:

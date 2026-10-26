@@ -11,7 +11,7 @@ def tex(text):
     result = "".join(replacements.get(c, c) for c in text)
     result = re.sub(r"[a-f0-9]{24,}", lambda m: r"\allowbreak{}".join(m.group()[i:i+8] for i in range(0,len(m.group()),8)), result)
     result = re.sub(r"[A-Za-z][A-Za-z0-9]{17,}", lambda m: r"\allowbreak{}".join(m.group()[i:i+8] for i in range(0,len(m.group()),8)), result)
-    return result.replace(r"\_", r"\_\allowbreak{}").replace("/", r"/\allowbreak{}")
+    return result.replace("--", "-{}-").replace(r"\_", r"\_\allowbreak{}").replace("/", r"/\allowbreak{}")
 
 
 def render(markdown):
