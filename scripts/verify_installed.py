@@ -55,6 +55,11 @@ async def verify(home, incoming):
                 while time.monotonic() < deadline:
                     result = await invoke("operation_get", operation_id=operation["operation_id"])
                     if result["state"] in ("completed", "failed", "interrupted"):
+                        if result["state"] != expected:
+                            evidence = (result.get("result") or {}).get("error", {}).get("evidence", {})
+                            if evidence.get("log_path"):
+                                diagnostic = await invoke("file_read", task_id=result["task_id"], path=evidence["log_path"])
+                                print(json.dumps(dict(operation_id=operation["operation_id"], diagnostic=diagnostic), ensure_ascii=False), file=sys.stderr)
                         assert result["state"] == expected, result
                         return result["result"]
                     await asyncio.sleep(0.1)
