@@ -26,13 +26,13 @@ def socket_path(home):
     return root / "service.sock"
 
 
-def call(home, method, arguments=None, host=None):
+def call(home, method, arguments=None, host=None, client=None):
     path = socket_path(home)
     try:
         with socket.socket(socket.AF_UNIX) as connection:
             connection.settimeout(30)
             connection.connect(str(path))
-            connection.sendall((encode(dict(protocol=1, method=method, arguments=arguments or {}, host=host)) + "\n").encode())
+            connection.sendall((encode(dict(protocol=1, method=method, arguments=arguments or {}, host=host, client=client)) + "\n").encode())
             with connection.makefile("rb") as reader:
                 line = reader.readline(MAX_MESSAGE + 1)
         if len(line) > MAX_MESSAGE:
@@ -51,7 +51,9 @@ def call(home, method, arguments=None, host=None):
 def serve(home):
     from .service import Service
     from .worker import Worker
+    from .identity import runtime_identity, connection_status
     service = Service(home)
+    identity = runtime_identity()
     lock = (service.store.home / "service.lock").open("a+")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -73,10 +75,20 @@ def serve(home):
                 result = service.invoke(request["method"], request.get("arguments", {}))
                 host = request.get("host")
                 if host:
+                    host = str(host)[:60]
+                    client = request.get("client")
+                    client = {key: str(client[key])[:128] for key in ("session_id", "version", "fingerprint") if key in client} if isinstance(client, dict) else None
+                    receipt = dict(last_call=time.time(), tool=request["method"], client=client)
                     with service.store.transaction() as db:
                         calls = service.store.setting("host_calls", {})
-                        calls[str(host)[:60]] = dict(last_call=time.time(), tool=request["method"])
+                        previous = calls.get(host, {}).get("client")
+                        if client and client != previous:
+                            service.store.event(db, None, "host_session_connected", dict(host=host, **connection_status(receipt, identity)))
+                        calls[host] = receipt
                         service.store.set_setting(db, "host_calls", calls)
+                    if request["method"] == "doctor":
+                        result = service.doctor()
+                        result["current_connection"] = dict(host=host, **connection_status(receipt, identity))
                 response = dict(ok=True, result=result)
             except Fault as exc:
                 response = dict(ok=False, error=exc.as_dict())

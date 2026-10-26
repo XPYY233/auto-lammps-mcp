@@ -32,6 +32,23 @@ def test_old_summary_receipt_is_not_reported_as_verified(tmp_path):
     assert service.doctor()["background"]["receipt"] is None
 
 
+def test_background_receipt_is_bound_to_candidate_and_keeps_details_accessible(tmp_path):
+    from auto_lammps_mcp.identity import runtime_identity
+    service = Service(tmp_path / "state")
+    receipt = dict(work_id="work-retained", verified=True, summary="old summary", evidence=dict(task_read=True, tools=["task_get"] * 100, outputs={"result.txt": {"bytes": 10}}))
+    with service.store.transaction() as db:
+        service.store.set_setting(db, "background_receipt", receipt)
+    old = service.doctor()["background"]
+    assert old["verification_state"] == "previous_candidate"
+    assert old["receipt"]["details"]["operation_id"] == "work-retained"
+    assert old["receipt"]["evidence"]["tool_calls"] == 100
+    receipt["runtime_fingerprint"] = runtime_identity()["fingerprint"]
+    with service.store.transaction() as db:
+        service.store.set_setting(db, "background_receipt", receipt)
+    assert service.doctor()["background"]["verification_state"] == "current"
+    assert service.store.setting("background_receipt")["summary"] == "old summary"
+
+
 def test_background_inherits_system_route_without_overwriting_explicit_proxy(monkeypatch):
     import subprocess
     from auto_lammps_mcp import network

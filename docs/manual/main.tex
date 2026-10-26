@@ -20,7 +20,7 @@
 
 
 
-当前开发版本：0.1.0a1。进度与完整研究验收见 交付记录。
+当前版本：0.1.0a2。固定安装包及对应源码见发布记录，进度与完整研究验收见 交付记录。
 
 
 
@@ -99,11 +99,11 @@
 
 
 \begin{quote}\small
-python3 scripts/\allowbreak{}install.py --source . --host codex\par
+python3 scripts/\allowbreak{}install.py -{}-source . -{}-host codex\par
 \end{quote}
 
 
-DSH 使用 --host dsh。安装器返回实际命令路径、连接参数、安装进度与接续提示。macOS 后台由系统服务管理，研究数据与软件版本分开保存。
+DSH 使用 -{}-host dsh。安装器返回实际命令路径、连接参数、安装进度与接续提示。macOS 后台由系统服务管理，研究数据与软件版本分开保存。
 
 
 
@@ -135,7 +135,7 @@ MCP 与 alm call 操作同一任务服务。alm help 返回当前版本接口。
 
 
 \begin{quote}\small
-uv venv --python 3.13\par
+uv venv -{}-python 3.13\par
 uv pip install -r requirements.lock.txt\par
 uv pip install -e .\par
 .venv/\allowbreak{}bin/\allowbreak{}pytest -q\par
@@ -172,14 +172,14 @@ uv pip install -e .\par
 
 
 
-检查 alm --version、真实路径与 alm doctor。找不到命令时，使用安装回执中的 binary 完整路径。权限问题通过平台正常入口处理。同名连接指向其他安装时，核对原环境和数据目录再选择使用版本。
+检查 alm -{}-version、真实路径与 alm doctor。找不到命令时，使用安装回执中的 binary 完整路径。权限问题通过平台正常入口处理。同名连接指向其他安装时，核对原环境和数据目录再选择使用版本。
 
 
 
 \subsection{安装固定版本}
 
 
-在干净源代码目录运行 python3 scripts/\allowbreak{}install.py --source . --host codex。已下载安装包使用 --wheel /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}package.whl --sha256 RELEASE\_\allowbreak{}SHA256。
+在干净源代码目录运行 python3 scripts/\allowbreak{}install.py -{}-source . -{}-host codex。已下载安装包使用 -{}-wheel /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}package.whl -{}-sha256 RELEASE\_\allowbreak{}SHA256。
 
 
 
@@ -187,7 +187,7 @@ uv pip install -e .\par
 
 
 
-安装包包含固定依赖清单，普通 Python 与 uv 路径均安装分析环境。优先使用 uv 创建已验证的 Python 3.13 环境；已有 Python 需为 3.12 或更新版本。安装器的标准输出为 JSON 回执，安装日志写入错误输出。需要回退时使用同一安装器的 --rollback，恢复上一软件版本并核对原任务。
+安装包包含固定依赖清单，普通 Python 与 uv 路径均安装分析环境。优先使用 uv 创建已验证的 Python 3.13 环境；已有 Python 需为 3.12 或更新版本。安装器的标准输出为 JSON 回执，安装日志写入错误输出。需要回退时使用同一安装器的 -{}-rollback，恢复上一软件版本并核对原任务。
 
 
 
@@ -198,19 +198,27 @@ Codex：安装器通过现有 codex mcp add 注册 auto-lammps，并安装 skill
 
 
 
-DSH 使用官方 DeepSeek Harness 的现有安装。运行 python3 scripts/\allowbreak{}install.py --source . --host dsh --dsh-runtime /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}to/\allowbreak{}deepseek-harness --dsh-profile web；runtime 也可以是已安装 dsh 命令的绝对路径。安装器检查实际版本，在所选 profile 中添加独立的 MCP 配置块，保留原模型设置，备份原文件并检查组合结果。配置失败会恢复原文件。已有 API 凭据继续由 DSH 管理。
+DSH 使用官方 DeepSeek Harness 的现有安装。运行 python3 scripts/\allowbreak{}install.py -{}-source . -{}-host dsh -{}-dsh-runtime /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}to/\allowbreak{}deepseek-harness -{}-dsh-profile web；runtime 也可以是已安装 dsh 命令的绝对路径。安装器检查实际版本，在所选 profile 中添加独立的 MCP 配置块，保留原模型设置，备份原文件并检查组合结果。配置失败会恢复原文件。已有 API 凭据继续由 DSH 管理。
 
 
 
-安装器同时生成 dsh-mcp.json、dsh-harness-entry.json 和可供官方 --patch 参数使用的 dsh-auto-lammps.patch.yml。工具帮助通过 MCP 提供，skill 安装到 .agents/\allowbreak{}skills/\allowbreak{}auto-lammps-mcp。加载后在 DSH 中实际调用 doctor 与 task\_\allowbreak{}list，回执中的 host\_\allowbreak{}calls 记录调用时间与工具名称。
+安装器同时生成 dsh-mcp.json、dsh-harness-entry.json 和可供官方 -{}-patch 参数使用的 dsh-auto-lammps.patch.yml。工具帮助通过 MCP 提供，skill 安装到 .agents/\allowbreak{}skills/\allowbreak{}auto-lammps-mcp。加载后在 DSH 中实际调用 doctor 与 task\_\allowbreak{}list，回执中的 host\_\allowbreak{}calls 记录调用时间与工具名称。
 
 
 
-使用安装回执中的 runtime 启动官方 --profile web。它会打开带有现有模型配置的对话页面。选择工作区，在输入框粘贴接续提示词即可使用。默认端口被占用时，先识别已有服务；需要独立验证时，选用空闲端口，例如 --port 3081。保留启动时的登录链接在本机，接入后浏览器显示普通本地地址。
+使用安装回执中的 runtime 启动官方 -{}-profile web。它会打开带有现有模型配置的对话页面。选择工作区，在输入框粘贴接续提示词即可使用。默认端口被占用时，先识别已有服务；需要独立验证时，选用空闲端口，例如 -{}-port 3081。保留启动时的登录链接在本机，接入后浏览器显示普通本地地址。
 
 
 
 stdio 进程只桥接持久服务。平台探测、重载和多个聊天共享同一服务，退出平台后 macOS 后台继续工作。
+
+
+
+升级后检查当前 MCP doctor 返回的 current\_\allowbreak{}connection：current 表示本对话工具与后台版本一致；reload\_\allowbreak{}required 表示本对话仍保留旧工具，需要重新加载连接；unverified\_\allowbreak{}client 表示旧连接没有提供版本记录。重新加载后再次调用 doctor，保留原任务继续工作。host\_\allowbreak{}calls 展示各平台最近一次调用；当前对话的结果以 current\_\allowbreak{}connection 为准。
+
+
+
+background.verification\_\allowbreak{}state 显示后台接续是否由当前安装版本完成。previous\_\allowbreak{}candidate 保留旧版成功记录；通过一次当前版本的接续后更新为 current。完整证据从回执指向的 operation\_\allowbreak{}get 读取。
 
 
 
@@ -426,7 +434,7 @@ Agent 中断 & 保存待办与证据，重新接续 & 原目标、已否定修�
 
 
 
-回退命令为 python3 scripts/\allowbreak{}install.py --rollback --host codex，使用保留的上一版本重新连接服务，并切换 current。DSH 回退时选择 --host dsh，带上已有 runtime 和 profile。完成后读取 doctor 中的 installation\_\allowbreak{}source、实际 Python 路径与任务记录。重复安装同一版本保留上一版本入口；安装器同时只允许一个流程修改连接。
+回退命令为 python3 scripts/\allowbreak{}install.py -{}-rollback -{}-host codex，使用保留的上一版本重新连接服务，并切换 current。DSH 回退时选择 -{}-host dsh，带上已有 runtime 和 profile。完成后读取 doctor 中的 installation\_\allowbreak{}source、实际 Python 路径与任务记录。重复安装同一版本保留上一版本入口；安装器同时只允许一个流程修改连接。
 
 
 
@@ -442,7 +450,7 @@ Agent 中断 & 保存待办与证据，重新接续 & 原目标、已否定修�
 
 
 
-恢复使用 alm --home /\allowbreak{}new/\allowbreak{}state restore /\allowbreak{}backup/\allowbreak{}archive.zip --sha256 RECEIPT\_\allowbreak{}SHA256。新目录恢复后可启动服务读取任务，执行队列保持等待。确认原控制服务停止后，调用 recovery\_\allowbreak{}activate(previous\_\allowbreak{}controller\_\allowbreak{}stopped=true, op\_\allowbreak{}id=...)；本机原服务仍在响应时不会接续。原作业编号、失败、费用与需求都保留，工具连接按新目录重新安装。
+恢复使用 alm -{}-home /\allowbreak{}new/\allowbreak{}state restore /\allowbreak{}backup/\allowbreak{}archive.zip -{}-sha256 RECEIPT\_\allowbreak{}SHA256。新目录恢复后可启动服务读取任务，执行队列保持等待。确认原控制服务停止后，调用 recovery\_\allowbreak{}activate(previous\_\allowbreak{}controller\_\allowbreak{}stopped=true, op\_\allowbreak{}id=...)；本机原服务仍在响应时不会接续。原作业编号、失败、费用与需求都保留，工具连接按新目录重新安装。
 
 
 
@@ -528,7 +536,7 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \section{当前交付记录}
 
 
-日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a1。
+日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a2，已发布版本：0.1.0a1。
 
 
 
@@ -605,7 +613,7 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \subsection{下一步}
 
 
-固定候选版本，安装并验证平台工具连接与后台；完成软件恢复、分析、可视化和交接验证。每轮先通读 APPROVED\_\allowbreak{}PLAN.md，再核对 PLAN\_\allowbreak{}AMENDMENTS.md。Ni 计算保留为后续获开始指令后的验证。
+首个软件安装包与手册已公开发布，PR \#2 已合并。Issue \#3 补齐升级后的当前会话身份检查与任务下一步提示，再通过安装包流程核验。每轮先通读 APPROVED\_\allowbreak{}PLAN.md，再核对 PLAN\_\allowbreak{}AMENDMENTS.md。Ni 计算保留为后续获开始指令后的验证。
 
 \clearpage
 \section{验证记录}
@@ -639,6 +647,10 @@ DSH 实测运行时为官方 DeepSeek Harness 0.1.7-rc.2，沿用用户既有模
 
 
 上述现有数据流程使用本地服务的实际响应记录，保留 50 个观测值、分析方法、原生脚本、图表和成果包。材料研究的 Ni 输入已经准备，计算尚未提交。
+
+
+
+首个公开包 v0.1.0-alpha.1 固定在提交 ebc7e9b3\allowbreak{}32ce6129\allowbreak{}9c9f62a2\allowbreak{}fe6ea93b\allowbreak{}e1dfc0c2。该安装包完成 64 项软件检查、独立 MCP 安装流程、官方 DSH 三个实际工具调用及后台 Codex 现有数据全流程。后台用时 273 秒，13 个项目文件与成果包摘要逐项核对，50 个观测值的中位数和 p95 另行重算一致。DSH 返回内容完整。包、安装器和手册摘要见发布附件 release.json 与 SHA256SUMS。
 
 
 

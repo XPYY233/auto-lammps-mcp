@@ -166,7 +166,12 @@ class Service:
         for artifact in result["artifacts"]:
             for key in ("sources", "requirements", "checks"):
                 artifact[key] = json.loads(artifact[key])
-        result["next_action"] = "检查未交付成果，继续相关阶段"
+        result["next_action"] = {
+            "completed": "查看已登记成果，或提出追加分析",
+            "paused": "后续派发已暂停；查看当前作业，准备继续时恢复任务",
+            "stopping": "停止意图已保存，正在取消当前作业；读取进展核对结果",
+            "stopped": "停止意图已保存；核对作业取消结果，可继续读取和整理已有数据",
+        }.get(result["state"], "检查当前阶段与未交付成果，继续相关工作")
         from .records import restored_paths, task_summary
         return restored_paths(self.store, result if include_details else task_summary(result))
 
