@@ -138,3 +138,7 @@ The first failure-and-recovery regression expected 37 operations but found 38: t
 One macOS CI job failed in pytest while the other macOS run of the same revision passed. The workflow-level log command initially waited for the remaining job, and the completed-job endpoint then required explicit handling of terminal escapes. Save that job's log privately, strip control sequences for reading, and identify the failing check before rerunning CI.
 
 The failed assertion read the previous boot's heartbeat immediately after a daemon restart. The socket accepted requests before the worker had restored state and replaced the persisted heartbeat. Publish the new boot receipt during recovery and open the request listener only after that initialization finishes. Add a deterministic slow-recovery check with an old stored heartbeat; keep the original failure evidence.
+
+## 2026-10-27 — Large native project operation results
+
+A real 500-file snapshot returned 87,904 formatted characters; its snapshot_id appeared at character 87,712, beyond the previously observed host response window. Compact task progress alone did not make the individual operation readable. Return bounded operation summaries with identifiers and explicit detail links, provide lossless pages for structured data and text, and use those summaries for operation history. Preserve full stored and exported records. Tracked in Issue #8.

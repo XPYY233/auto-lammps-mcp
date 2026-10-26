@@ -182,7 +182,7 @@ class Service:
 
     @public
     def task_records(self, task_id: str, kind: str, offset: int = 0, limit: int = 10) -> dict:
-        """Read a page of full runs, artifacts, work or stages without repeating the whole project. Use next_offset when more is true."""
+        """Read runs, artifacts, work or stages without repeating the project. Large work records link to operation_read for full details. Follow next_offset when more is true."""
         tables = {"runs": "runs", "artifacts": "artifacts", "work": "queue", "stages": "stages"}
         require(kind in tables and offset >= 0 and 1 <= limit <= 50, "请选择 runs、artifacts、work 或 stages，以及有效分页范围")
         with self.store.connect() as db:
@@ -190,7 +190,17 @@ class Service:
             rows = db.execute("SELECT * FROM " + tables[kind] + " WHERE task_id=? ORDER BY created,id LIMIT ? OFFSET ?", (task_id, limit+1, offset)).fetchall()
         from .records import restored_paths, decoded_record
         records = [decoded_record(row) for row in rows[:limit]]
-        return dict(records=restored_paths(self.store, records), next_offset=offset+len(records), more=len(rows)>limit)
+        records = restored_paths(self.store, records)
+        if kind == "work":
+            from .operation_views import operation_summary, size
+            selected = []
+            for record in records:
+                summary = operation_summary(record)
+                if selected and size(dict(records=selected + [summary])) > 5500:
+                    break
+                selected.append(summary)
+            records = selected
+        return dict(records=records, next_offset=offset+len(records), more=len(rows)>len(records))
 
     @public
     def task_claim(self, task_id: str, owner: str, seconds: int = 300, token: str | None = None) -> dict:
@@ -372,8 +382,8 @@ class Service:
         return self.store.mutate(op_id, dict(method="project_snapshot", task_id=task_id, revision=revision, token=token, paths=paths), apply)
 
     @public
-    def operation_get(self, operation_id: str) -> dict:
-        """Read a durable work item's progress/result; works after closing the original conversation."""
+    def operation_get(self, operation_id: str, include_details: bool = False) -> dict:
+        """Read work progress/result after any conversation. Large results preserve IDs and link to operation_read; follow its paths and cursors for every detail. include_details=True returns the full record for local consumers."""
         with self.store.connect() as db:
             row = db.execute("SELECT * FROM queue WHERE id=?", (operation_id,)).fetchone()
             require(row, "没有找到后台操作", "not_found", "读取任务记录")
@@ -381,7 +391,15 @@ class Service:
         for field in ("payload", "result"):
             result[field] = json.loads(result[field]) if result[field] else None
         from .records import restored_paths
-        return restored_paths(self.store, result)
+        from .operation_views import operation_summary
+        result = restored_paths(self.store, result)
+        return result if include_details else operation_summary(result)
+
+    @public
+    def operation_read(self, operation_id: str, path: list[str] | None = None, offset: int = 0, limit: int = 20, text_limit: int = 4096) -> dict:
+        """Read lossless pages of a work record. path=['result','files'] reads a snapshot manifest; child paths preserve literal filenames. Objects/arrays return items; long values link to deeper paths. Text uses character offsets. Follow next_offset while more is true."""
+        from .operation_views import operation_page
+        return operation_page(self.operation_get(operation_id, include_details=True), path or [], offset, limit, text_limit)
 
     @public
     def operation_retry(self, operation_id: str, op_id: str) -> dict:

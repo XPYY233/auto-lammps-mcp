@@ -9,7 +9,7 @@ For project development, begin every work turn by reading the entire original ap
 
 Use `doctor` first for installation or connection work. Use `task_list` and `task_get` first when continuing research. `help` returns the actual installed version's parameters. MCP and `alm call` share one service and task store.
 
-task_get returns compact progress with the full original request. Use task_records to page through complete run, artifact, work or stage records, and operation_get for a specific result. Follow returned cursors instead of repeatedly requesting the entire history.
+task_get returns compact progress with the full original request. Use task_records to page through run, artifact, work or stage records, and operation_get for a specific result. Large operation results preserve identifiers and provide explicit operation_read links; follow their path and next_offset until more is false. Paths are literal field names, including filenames and array index strings. A snapshot manifest uses path=['result','files']. Read linked long text by character offsets. Work-history records use the same size limit. Full records remain in the export. Follow returned cursors instead of repeatedly requesting the entire history.
 
 ## Installation and setup
 

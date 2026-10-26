@@ -51,6 +51,7 @@ async def test_mcp_actual_tools_and_daemon_restart(tmp_path):
                 assert "task_create" in {t.name for t in tools.tools}
                 annotations = {t.name: t.annotations for t in tools.tools}
                 assert annotations["doctor"].readOnlyHint is True
+                assert annotations["operation_read"].readOnlyHint is True
                 assert annotations["run_submit"].readOnlyHint is False
                 response = await client.call_tool("task_create", dict(title="MCP research", request="Analyze existing output", requirements=[dict(id="plot", description="plot")], op_id="mcp-create"))
                 assert not response.isError

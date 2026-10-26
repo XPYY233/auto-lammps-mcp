@@ -132,9 +132,10 @@ def test_task_summary_does_not_repeat_large_snapshot_payloads(service, task):
     summary = service.task_get(task["id"])
     assert len(json.dumps(summary)) < 8000
     assert summary["request"] == task["request"]
-    assert service.operation_get(work["operation_id"])["result"] == result
+    assert service.operation_get(work["operation_id"], include_details=True)["result"] == result
+    assert service.operation_get(work["operation_id"])["truncated"]
     page = service.task_records(task["id"], "work", limit=1)
-    assert page["records"][0]["result"] == result
+    assert page["records"][0]["truncated"]
     assert page["next_offset"] == 1 and not page["more"]
 
 
