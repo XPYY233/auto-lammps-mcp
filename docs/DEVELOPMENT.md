@@ -52,3 +52,7 @@ NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保�
 `analysis_submit` 的 `input_bindings` 将工作目录内路径映射到项目原文件。例如脚本读取 `data/input.csv`，可绑定到先前分析的 `analysis/<operation>/data/input.csv`。回执保存映射、原文件摘要和副本方式。输入文件保持独立，输出、失败与重试继续保留。
 
 `project_optimize` 通过持久队列整理已存在快照的大文件。支持文件克隆的卷共享未修改的数据块，逐个核对摘要、模式、属性和修改时间后原位替换；扩展访问规则的文件留在原位。任务暂停或操作权变化时保留已完成路径和部分回执。新工具与原生文件、分析、交接使用同一个任务服务。
+
+## 审核意见与用户验收
+
+[45 条审核意见](REVIEW_TRACEABILITY.md) 逐项列出已有结果、证据和下一项用户验收。`review-traceability.json` 保留原始要求和验收条件；更新后运行 `python scripts/render_review_traceability.py` 生成可读记录。自动检查核对编号、文件引用与两种记录的一致性。软件检查、安装验证和完整研究分别保留实际结果。

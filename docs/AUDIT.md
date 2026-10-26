@@ -218,3 +218,11 @@ A read-only lookup assumed a private helper subdirectory and used a shell glob f
 A second read-only lookup repeated an unmatched shell glob for copy tests. Subsequent inspection searches the tests directory directly. Review of storage metadata handling also found that ordinary Python metadata copying does not retain macOS extended access rules; keep such files untouched and report the skipped path. Normal mode, modification time and extended attributes are checked on replacement files.
 
 The second scientific report improved frame identity and temperature scope but introduced an incorrect covariance unit and treated agreement with one instantaneous sample as verification of an averaged quantity. Record these findings in the same scientific task, revise the native analysis/report, and verify the corrected deliverables before registering completion.
+
+## 2026-10-27 — Review evidence reconciliation
+
+A read-only documentation lookup used a guessed traceability filename; the inventory names REVIEW_TRACEABILITY.md and review-traceability.json. Use those actual records. Most existing review rows had generic module mappings and status despite new installed evidence; retain all 45 original requirements and tie each observed outcome to its actual implementation, checks, evidence and remaining user flow.
+
+The next official DSH continuation called task_records(kind='artifact') instead of the documented plural and corrected it after the error. Its direct editor also requested broader filesystem permission, which the headless host could not approve. It continued through the authorized project file tools and workspace imports, preserving the existing host permissions. Keep both rejected calls in the acceptance transcript.
+
+A workflow inspection initially assumed ci.yml; the actual file is checks.yml. The current inventory now supplies that path for adding the review-register consistency check. No execution state changed.
