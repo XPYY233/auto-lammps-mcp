@@ -433,8 +433,7 @@ class Worker:
                   "当前待办：" + encode(payload))
         binary = str(Path(sys.executable).parent / "alm")
         connection_args = ["--home", str(self.store.home), "mcp", "--host", "background-codex"]
-        command = [codex, "exec", "--json", "--cd", str(root), "--skip-git-repo-check", "--sandbox", "workspace-write",
-                   "-c", "approval_policy=\"never\"",
+        command = [codex, "exec", "--json", "--cd", str(root), "--skip-git-repo-check", "--approve-for-me",
                    "-c", "mcp_servers.auto-lammps.command=" + json.dumps(binary),
                    "-c", "mcp_servers.auto-lammps.args=" + json.dumps(connection_args),
                    "--output-last-message", str(output_dir / "summary.txt")]
@@ -446,10 +445,32 @@ class Worker:
         require(returncode == 0, "后台 Codex 未完成此轮处理", "model_unavailable", "读取后台日志，恢复登录或从前台接续")
         summary = (output_dir / "summary.txt").read_text() if (output_dir / "summary.txt").exists() else ""
         require(summary.strip(), "后台回复为空", "model_truncated", "保留原待办，读取日志后接续")
-        receipt = dict(work_id=work["id"], completed_at=time.time(), summary=summary)
+        calls = self.verify_background_output(task_id, output_dir / "events.jsonl", payload.get("expected_outputs", []))
+        receipt = dict(work_id=work["id"], completed_at=time.time(), summary=summary, verified=True, evidence=calls)
         with self.store.transaction() as db:
             self.store.set_setting(db, "background_receipt", receipt)
         return receipt
+
+    def verify_background_output(self, task_id, log, expected_outputs):
+        successful = []
+        for line in log.read_text(errors="replace").splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            item = event.get("item", {})
+            if event.get("type") == "item.completed" and item.get("type") == "mcp_tool_call" and item.get("status") == "completed" and not item.get("error"):
+                result = item.get("result") or {}
+                if not result.get("isError"):
+                    successful.append(dict(tool=item.get("tool"), arguments=item.get("arguments", {})))
+        require(any(c["tool"] == "task_get" and c["arguments"].get("task_id") == task_id for c in successful),
+                "后台未能读取本任务的实际工具回执", "background_unverified", "读取后台调用错误并恢复工具接入")
+        outputs = {}
+        for name in expected_outputs:
+            path = self.store.path(task_id, name)
+            require(path.is_file() and path.stat().st_size > 0, f"后台成果缺失: {name}", "output_missing", "保留此次记录，接续缺少的成果")
+            outputs[name] = dict(sha256=file_hash(path), bytes=path.stat().st_size)
+        return dict(task_read=True, tools=[c["tool"] for c in successful], outputs=outputs)
 
     def export(self, task_id):
         task = self.service.task_get(task_id)

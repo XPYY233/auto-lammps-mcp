@@ -511,14 +511,16 @@ class Service:
         return dict(resources=results)
 
     @public
-    def background_request(self, task_id: str, revision: int, instruction: str, op_id: str) -> dict:
+    def background_request(self, task_id: str, revision: int, instruction: str, op_id: str, expected_outputs: list[str] | None = None) -> dict:
         """Persist a concrete continuation request for the background Codex executor."""
         require(instruction.strip(), "需要接续任务说明")
+        for path in expected_outputs or []:
+            self.store.path(task_id, path)
         def apply(db):
             self.store.task(db, task_id, revision)
             self.store.bump(db, task_id)
-            return self.store.queue(db, task_id, "decision", dict(events=[dict(reason="user_request", instruction=instruction)]))
-        return self.store.mutate(op_id, dict(method="background_request", task_id=task_id, revision=revision, instruction=instruction), apply)
+            return self.store.queue(db, task_id, "decision", dict(events=[dict(reason="user_request", instruction=instruction)], expected_outputs=expected_outputs or []))
+        return self.store.mutate(op_id, dict(method="background_request", task_id=task_id, revision=revision, instruction=instruction, expected_outputs=expected_outputs), apply)
 
     @public
     def legacy_inspect(self, database: str) -> dict:

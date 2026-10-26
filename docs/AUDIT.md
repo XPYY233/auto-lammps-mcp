@@ -34,3 +34,13 @@ Verified original signed commit recovered exactly via API. Blob/tree/commit hash
 The user identified the old native desktop as retired and selected the existing DeepSeek Harness source distribution. Its CLI reports 0.1.7-rc.2. Read attempts using guessed package locations failed; the package inventory identifies `packages/bundle/headless` and `packages/util/home-paths`. Continue against these exact paths and the official CLI. No retired desktop source or configuration is changed.
 
 DSH configuration inspection: the source-root Node resolver could not import `yaml`; the installed profile dependency tree contains the parser. Use that existing parser for selected non-secret configuration fields. No dependency installation or model configuration change was made.
+
+## 2026-10-27 — Installed host validation
+
+The official DSH CLI completed a real model turn and invoked the installed MCP tools. Codex background launch reached a session but its model refresh and request timed out; the service retains the running continuation and its log for reconciliation. No calculation was submitted. Git HTTPS push of the next candidate also timed out after the initial branch push had succeeded; existing macOS/Linux CI for the previous commit passed. Retry the publication separately and retain the exact candidate identity. One documentation read used the product checkout instead of the Harness checkout; subsequent reads use the explicit runtime directory.
+
+## 2026-10-27 — Background continuation needs tool evidence
+
+The installed Codex subprocess exited with code zero and a summary, but both MCP reads were rejected because the runner combined required tool approval with `approval_policy=never`. Its shell fallback could not access the Unix socket. The runner incorrectly stored this as a successful background receipt. Correction: use Codex automatic approval review, retain read/write tool annotations, and verify successful task reads plus requested output files before saving a verified receipt. The failed attempt and model output remain in the task history.
+
+A multi-file update included a documentation context that did not match the paragraph. Inspect the applied file state before completing the remaining patch; do not rerun already applied replacements.

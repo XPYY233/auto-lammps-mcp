@@ -53,7 +53,7 @@ def test_dsh_connect_records_runtime_and_keeps_credentials_at_host(tmp_path, mon
     monkeypatch.setattr(subprocess, "run", lambda args, **kwargs: subprocess.CompletedProcess(args, 0, "0.1.7" if "--version" in args else "mcp-auto-lammps", ""))
     store = Store(tmp_path / "alm")
     result = connect(store, dict(command="alm", args=["mcp"]), str(launcher), dsh_home=str(home))
-    assert result["version"] == "0.1.7"
+    assert result["runtime_version"] == "0.1.7"
     assert credentials.read_bytes() == b"opaque host credential store"
     assert not list(store.home.rglob("*credential*"))
     assert '"command": "alm"' in Path(result["overlay"]).read_text()

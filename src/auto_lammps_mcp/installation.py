@@ -52,6 +52,9 @@ def doctor(store):
                 aliases.extend(name for name in match[1].split() if not any(c in name for c in "*?!"))
     cluster = store.setting("cluster")
     background = store.setting("background", {})
+    background_receipt = store.setting("background_receipt")
+    if background_receipt and not background_receipt.get("verified"):
+        background_receipt = None
     from .transport import socket_path
     receipt = dict(version=__version__, protocol=1, schema=1, python=sys.executable, package_path=str(Path(__file__).parent),
                    state_directory=str(store.home), platform=platform.system(),
@@ -59,7 +62,7 @@ def doctor(store):
                    hosts=store.setting("hosts", {}), host_calls=store.setting("host_calls", {}),
                    cluster_configured=bool(cluster), cluster_receipt=store.setting("cluster_receipt"),
                    environment_receipts=store.setting("environment_receipts", []),
-                   background=dict(configured=background, executable=codex_path(), receipt=store.setting("background_receipt")),
+                   background=dict(configured=background, executable=codex_path(), receipt=background_receipt),
                    available_ssh_aliases=sorted(set(aliases)))
     next_actions = []
     if not receipt["host_calls"]:

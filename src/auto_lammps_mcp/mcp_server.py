@@ -6,6 +6,7 @@ import inspect
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import ToolAnnotations
 from .core import Fault, encode
 from .service import Service
 from .transport import call
@@ -27,6 +28,10 @@ def run(home, host="unknown"):
                     raise ToolError(encode(exc.as_dict())) from exc
             tool.__signature__ = signature
             return tool
-        app.add_tool(build(name, fn), name=name, description=inspect.getdoc(fn))
+        read_only = name in {"help", "doctor", "task_list", "task_get", "events", "file_read", "operation_get", "run_get", "units_convert", "data_inspect", "resource_search", "legacy_inspect"}
+        app.add_tool(build(name, fn), name=name, description=inspect.getdoc(fn),
+                     annotations=ToolAnnotations(readOnlyHint=read_only, destructiveHint=not read_only,
+                                                 idempotentHint=read_only or "op_id" in inspect.signature(fn).parameters,
+                                                 openWorldHint=name in {"connection_check", "run_submit", "run_action", "background_request"}))
     app.run(transport="stdio")
 

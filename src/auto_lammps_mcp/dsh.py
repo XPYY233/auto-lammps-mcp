@@ -70,6 +70,6 @@ def connect(store, connection: dict, runtime: str, profile: str = "web", dsh_hom
         raise
     overlay = store.home / "dsh-auto-lammps.patch.yml"
     atomic_write(overlay, ("- insert: " + json.dumps([entry], ensure_ascii=False) + "\n").encode())
-    return dict(runtime=command, version=version.stdout.strip(), profile=profile, profile_path=str(path),
+    return dict(runtime=command, runtime_version=version.stdout.strip(), profile=profile, profile_path=str(path),
                 dsh_home=str(home), backup=str(backup), overlay=str(overlay), configured_at=time.time(),
                 next_action="在 DeepSeek Harness 对话中调用 Auto-LAMMPS 的 doctor，读取实际连接回执")
