@@ -347,6 +347,11 @@ class Worker:
             work = None
             for row in rows:
                 candidate = dict(row)
+                if candidate["kind"] == "decision":
+                    dependencies = json.loads(candidate["payload"]).get("after_operations", [])
+                    states = [db.execute("SELECT state FROM queue WHERE id=? AND task_id=?", (key, candidate["task_id"])).fetchone() for key in dependencies]
+                    if any(not item or item[0] in ("pending", "running") for item in states):
+                        continue
                 if candidate["task_id"]:
                     lease = db.execute("SELECT * FROM leases WHERE task_id=? AND expires>?", (candidate["task_id"], time.time())).fetchone()
                     if lease:
