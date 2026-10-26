@@ -43,7 +43,11 @@ def operation_summary(record):
 
 def operation_page(record, path, offset, limit, text_limit, *, record_id=None, read_method="operation_read", id_key="operation_id"):
     require(isinstance(path, list) and all(isinstance(part, str) for part in path), "path 使用字段名称或数组下标字符串列表")
-    require(0 <= offset and 1 <= limit <= 50 and 1 <= text_limit <= 4096, "分页范围无效")
+    for name, value, minimum in (("offset", offset, 0), ("limit", limit, 1), ("text_limit", text_limit, 1)):
+        require(type(value) is int and value >= minimum, f"{name} 需要大于等于 {minimum} 的整数，收到 {value!r}",
+                "invalid_input", f"保留记录编号和 path，将 {name} 改为大于等于 {minimum} 的整数；沿返回的 next_offset 继续读取")
+    requested = dict(limit=limit, text_limit=text_limit)
+    limit, text_limit = min(limit, 50), min(text_limit, 4096)
     value = record
     for part in path:
         if isinstance(value, dict):
@@ -56,6 +60,8 @@ def operation_page(record, path, offset, limit, text_limit, *, record_id=None, r
             require(False, "该记录路径没有下一级", "not_found", "读取上一级记录页面")
     record_id = record_id or record["id"]
     result = {id_key: record_id, "path": path, "type": kind(value), "offset": offset}
+    if requested != dict(limit=limit, text_limit=text_limit):
+        result.update(requested_limits=requested, applied_limits=dict(limit=limit, text_limit=text_limit))
     if isinstance(value, (dict, list, str)):
         require(offset <= len(value), "offset 超出记录范围")
     if isinstance(value, str):

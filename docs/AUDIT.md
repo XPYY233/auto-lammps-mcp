@@ -202,3 +202,5 @@ The scientific journey copied the same large trajectory into multiple attempts. 
 A source lookup assumed a background_queue test module. Existing background and queue coverage is in test_background_evidence and test_recovery; inspect the file inventory before selecting a test file. The failed lookup made no changes.
 
 The first full check overlapped the development version update, so its long-lived parent imported the old version while fresh child services read the new one. Two identity tests failed on that mismatch; 92 checks passed. Finish source edits before starting the full check, then run the unchanged tree in fresh processes.
+
+The installed official DSH continuation requested response_read(text_limit=5000) four times and received only a generic invalid-range error. It then inspected the database to recover artifact history. Treat positive page sizes as requested upper bounds, return a bounded page with its applied limits and next offset, and give specific correction instructions for invalid zero/negative parameters. Preserve the full stored response. Tracked in Issue #20.

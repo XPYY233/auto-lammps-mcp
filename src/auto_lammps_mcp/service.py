@@ -62,7 +62,7 @@ class Service:
 
     @public
     def response_read(self, response_id: str, path: list[str] | None = None, offset: int = 0, limit: int = 20, text_limit: int = 4096) -> dict:
-        """Read a stored complete host response by literal field path and next_offset; available across conversations and restarts."""
+        """Read a stored complete host response by literal field path and next_offset; available across conversations and restarts. offset is nonnegative; limit and text_limit are positive requested upper bounds. Pages use at most 50 items/4096 text characters and may be smaller to fit the host. Follow next_offset until more=false."""
         from .responses import read_response
         return read_response(self.store, response_id, path or [], offset, limit, text_limit)
 
@@ -456,7 +456,7 @@ class Service:
 
     @public
     def operation_read(self, operation_id: str, path: list[str] | None = None, offset: int = 0, limit: int = 20, text_limit: int = 4096) -> dict:
-        """Read lossless pages of a work record. path=['result','files'] reads a snapshot manifest; child paths preserve literal filenames. Objects/arrays return items; long values link to deeper paths. Text uses character offsets. Follow next_offset while more is true."""
+        """Read lossless pages of a work record. path=['result','files'] reads a snapshot manifest; child paths preserve literal filenames. Objects/arrays return items; long values link to deeper paths. offset is nonnegative; limit/text_limit are positive requested upper bounds, capped at 50 items/4096 characters per page. Text uses character offsets. Follow next_offset while more is true."""
         from .operation_views import operation_page
         return operation_page(self.operation_get(operation_id, include_details=True), path or [], offset, limit, text_limit)
 
