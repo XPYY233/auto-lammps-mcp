@@ -41,3 +41,9 @@ DSH 实测运行时为官方 DeepSeek Harness 0.1.7-rc.2，沿用用户既有模
 | 与直接 Agent 比较 | 两条比较路径和分母定义已固定 | 同模型、同资源执行配对研究 |
 
 完整研究是否交付，按 ACCEPTANCE.md 中的原始要求、科学检查、可打开成果与接续能力共同判断。
+
+## 2026-10-27 — Native input reuse and preserved storage
+
+Fixed installed candidate `e819d7cc894d3944913dd88f34a2e6ae8535f340`, package version 0.1.0a6, wheel SHA-256 `106974153d89a349d9213c9925c1af2bad05ff9ce05fbe3ea74768808343fc8c`. 110 software checks and four macOS/Linux CI jobs passed. The isolated installed MCP journey exercised binding a retained prior input, failure recovery, analysis, preview, optimization, complete history export and reimport: 514 files and 37 operations. Official DSH called doctor, task_get and task_records; the loaded conversation identity was current and all three results were complete.
+
+The installed storage operation processed a real existing research project. Independent before/after verification matched all 627 paths, byte hashes, sizes, permission modes and modification times. Thirty large files shared existing snapshot blocks; 27 were preserved in place. Observed free space increased from 3,668,824,064 to 9,035,972,608 bytes. Original archives and external source files remained intact. The next independent scientific review was registered through MCP and the same DSH task resumed from its retained deliverables.
