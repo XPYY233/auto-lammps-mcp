@@ -42,13 +42,13 @@ class Worker:
             db.execute("DELETE FROM leases WHERE owner LIKE 'background:%' OR owner LIKE 'worker:%'")
         threading.Thread(target=self.monitor_loop, daemon=True, name="alm-monitor").start()
         threading.Thread(target=self.decision_loop, daemon=True, name="alm-decisions").start()
+        threading.Thread(target=self.dispatch_loop, daemon=True, name="alm-dispatch").start()
         while not self.stopping.is_set():
             try:
                 if self.store.setting("recovery", {}).get("pending"):
                     self.stopping.wait(1)
                     continue
                 self.advance_stages()
-                self.dispatch_one()
                 self.work_one()
             except Exception as exc:
                 with self.store.transaction() as db:
@@ -183,6 +183,29 @@ class Worker:
                     self.store.event(db, task["id"], "progress_summary", dict(title=task["title"], state=task["state"], jobs=jobs))
             self.last_summary = now
 
+    def dispatch_loop(self):
+        while not self.stopping.is_set():
+            try:
+                if not self.store.setting("recovery", {}).get("pending"):
+                    self.dispatch_one()
+            except Exception as exc:
+                with self.store.transaction() as db:
+                    self.store.event(db, None, "dispatch_worker_error", dict(type=type(exc).__name__, message=str(exc)))
+            self.stopping.wait(1)
+
+    def preparation_progress(self, run, started, phase, event):
+        with self.store.transaction() as db:
+            row = db.execute("SELECT evidence FROM runs WHERE id=?", (run["id"],)).fetchone()
+            evidence = json.loads(row[0])
+            progress = dict(phase=phase, started_at=started, observed_at=time.time())
+            evidence["preparation"] = progress
+            db.execute("UPDATE runs SET evidence=?,updated=? WHERE id=?", (encode(evidence), time.time(), run["id"]))
+            self.store.event(db, run["task_id"], event, dict(run_id=run["id"], **progress))
+
+    def preparation_heartbeat(self, run, started, finished):
+        while not finished.wait(30):
+            self.preparation_progress(run, started, "uploading", "staging_progress")
+
     def dispatch_one(self):
         with self.store.transaction() as db:
             row = db.execute("SELECT r.* FROM runs r JOIN tasks t ON t.id=r.task_id WHERE r.state='pending' AND t.state='active' ORDER BY r.created LIMIT 1").fetchone()
@@ -193,6 +216,10 @@ class Worker:
             if active:
                 return
             # Staging contains no sbatch. It can be repeated after interruption.
+        started, finished = time.time(), threading.Event()
+        self.preparation_progress(run, started, "uploading", "staging_started")
+        heartbeat = threading.Thread(target=self.preparation_heartbeat, args=(run, started, finished), daemon=True)
+        heartbeat.start()
         try:
             self.slurm.stage(run)
         except Exception as exc:
@@ -201,10 +228,16 @@ class Worker:
                 self.store.event(db, run["task_id"], "staging_failed", dict(run_id=run["id"], error=str(exc)))
             self.decision(run["task_id"], "staging_failed", dict(run_id=run["id"], error=str(exc)))
             return
+        finally:
+            finished.set()
+        self.preparation_progress(run, started, "uploaded", "staging_finished")
         with self.store.transaction() as db:
             task = self.store.task(db, run["task_id"])
-            state = db.execute("SELECT state FROM runs WHERE id=?", (run["id"],)).fetchone()[0]
-            if task["state"] != "active" or state != "pending":
+            latest = db.execute("SELECT state,rules FROM runs WHERE id=?", (run["id"],)).fetchone()
+            if self.stopping.is_set() or task["state"] != "active" or latest["state"] != "pending":
+                return
+            if latest["rules"] != run["rules"]:
+                self.store.event(db, run["task_id"], "staging_rules_changed", dict(run_id=run["id"], next_action="按最新规则重新准备输入"))
                 return
             db.execute("UPDATE runs SET state='dispatching',updated=? WHERE id=?", (time.time(), run["id"]))
             self.store.event(db, run["task_id"], "dispatch_started", dict(run_id=run["id"]))

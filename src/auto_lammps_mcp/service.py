@@ -233,6 +233,11 @@ class Service:
                     require(all(current.get(key) == text for key, text in previous.items()), "原始成果要求需要保留；补充要求可追加新编号", "requirement_preservation", "保留原要求并登记新的研究范围")
                 db.execute(f"UPDATE tasks SET {column}=? WHERE id=?", (value if name == "title" else encode(value), task_id))
             self.store.bump(db, task_id)
+            if "policy" in changes:
+                affected = [row[0] for row in db.execute("SELECT id FROM runs WHERE task_id=? AND state='pending'", (task_id,))]
+                db.execute("UPDATE runs SET state='prepared',updated=? WHERE task_id=? AND state='pending'", (time.time(), task_id))
+                if affected:
+                    self.store.event(db, task_id, "pending_rules_updated", dict(run_ids=affected, next_action="按当前规则调用 run_submit；准备中的旧输入不会派发"))
             if "constraints" in changes and changes["constraints"] != task["constraints_json"]:
                 db.execute("UPDATE artifacts SET stale=1 WHERE task_id=?", (task_id,))
                 db.execute("UPDATE runs SET state='cancelled_before_dispatch' WHERE task_id=? AND state IN ('prepared','pending')", (task_id,))

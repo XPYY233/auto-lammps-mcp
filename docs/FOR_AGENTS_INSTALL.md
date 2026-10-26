@@ -31,6 +31,8 @@ DSH 使用官方 DeepSeek Harness 的现有安装。运行 `python3 scripts/inst
 
 安装器同时生成 dsh-mcp.json、dsh-harness-entry.json 和可供官方 `--patch` 参数使用的 dsh-auto-lammps.patch.yml。工具帮助通过 MCP 提供，skill 安装到 `.agents/skills/auto-lammps-mcp`。加载后在 DSH 中实际调用 doctor 与 task_list，回执中的 host_calls 记录调用时间与工具名称。
 
+使用安装回执中的 runtime 启动官方 `--profile web`。它会打开带有现有模型配置的对话页面。选择工作区，在输入框粘贴接续提示词即可使用。默认端口被占用时，先识别已有服务；需要独立验证时，选用空闲端口，例如 `--port 3081`。保留启动时的登录链接在本机，接入后浏览器显示普通本地地址。
+
 stdio 进程只桥接持久服务。平台探测、重载和多个聊天共享同一服务，退出平台后 macOS 后台继续工作。
 
 ## 基础配置

@@ -86,3 +86,15 @@ A regression-test patch named the same file twice; the patch tool rejected it be
 Two follow-up checks reproduced the impact: one 500-file snapshot produced a 119 KB task summary, and a restored export receipt still pointed to the unavailable original directory. Preserve full history behind explicit reads, return compact task progress, and resolve recovered file links against the restored directory while retaining their original paths.
 
 The same recovery check failed after a second backup-and-restore cycle: historical receipts still contained the first source root. Preserve the complete chain of previous state roots when restoring, so all retained receipts resolve in the latest recovery directory.
+
+## 2026-10-27 — Official Harness web startup
+
+A repository-status check ran in the extracted Harness distribution, which has no Git metadata; subsequent project checks use the explicit product checkout. Official Harness web startup then failed because its default loopback port 3080 was occupied. Preserve the existing listener, inspect its ownership, and use an available loopback port for the official runtime acceptance. No model configuration or retired desktop is changed.
+
+The first local suite invocation used the historical unittest runner and discovered zero tests; this project uses pytest, as declared in its CI. The official DSH directory chooser stayed pending outside the observable Safari window; reload the UI and select an existing workspace for this read-only presentation check.
+
+## 2026-10-27 — Upload responsiveness review
+
+A read used a nonexistent client.py filename; the RPC client is in transport.py. Review found that staging/upload shares the serial concrete-work consumer, so a long upload can delay queued analysis and has no per-run progress record. The initial reproduction omitted the required analysis input list and was rejected before reaching that condition; supply an existing input to reproduce queue behavior, then keep dispatch independent and record upload progress.
+
+The corrected reproduction confirmed that an analysis remained pending while upload was blocked. The same dispatch review found that a policy update could leave an accepted-but-undispatched run using old rules. Return pending runs to preparation when policy changes and compare uploaded rules before actual dispatch, while preserving previous request events.

@@ -1,12 +1,14 @@
 import json
 from pathlib import Path
 import subprocess
+import threading
+import time
 
 import pytest
 
 from auto_lammps_mcp.remote_read import read_file
 from auto_lammps_mcp.slurm import Slurm
-from conftest import prepare
+from conftest import prepare, revision
 
 
 def test_log_reports_latest_complete_block_and_raw_time(tmp_path):
@@ -68,3 +70,40 @@ def test_queued_log_read_reuses_operation_and_never_submits(service, task, worke
     worker.work_one()
     assert service.operation_get(first["operation_id"])["result"]["files"][0]["text"] == "existing output"
     assert scheduler.submissions == 0
+
+
+def test_upload_keeps_analysis_and_stop_responsive(service, task, worker, scheduler, monkeypatch):
+    run = prepare(service, worker, task)
+    service.run_submit(run["id"], revision(service, task), "submit")
+    entered, release = threading.Event(), threading.Event()
+
+    def slow_stage(run):
+        entered.set()
+        assert release.wait(10)
+
+    monkeypatch.setattr(scheduler, "stage", slow_stage)
+    root = service.store.root(task["id"])
+    (root / "input.txt").write_text("existing data analyzed")
+    (root / "analyze.py").write_text("from pathlib import Path\nPath('result.txt').write_text(Path('input.txt').read_text())\n")
+    queued = service.analysis_submit(task["id"], revision(service, task), "analyze.py", ["input.txt"], ["result.txt"], "analysis")
+    thread = threading.Thread(target=worker.loop)
+    thread.start()
+    try:
+        assert entered.wait(2)
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and service.operation_get(queued["operation_id"])["state"] != "completed":
+            time.sleep(.05)
+        assert service.operation_get(queued["operation_id"])["state"] == "completed"
+        progress = service.run_get(run["id"])["evidence"]["preparation"]
+        assert progress["phase"] == "uploading" and progress["observed_at"] >= progress["started_at"]
+        service.task_control(task["id"], revision(service, task), "stop", "stop-upload")
+        release.set()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and not any(e["kind"] == "staging_finished" for e in service.events()["events"]):
+            time.sleep(.05)
+        assert scheduler.submissions == 0
+        assert service.run_get(run["id"])["state"] == "cancelled_before_dispatch"
+    finally:
+        release.set()
+        worker.stopping.set()
+        thread.join(timeout=5)

@@ -83,6 +83,41 @@ def test_rules_are_recorded_at_submission(service, task, worker):
     assert service.run_get(run["id"])["rules"]["wall_seconds"] == 60
 
 
+def test_withdrawing_authorization_during_upload_prevents_dispatch(service, task, worker, scheduler, monkeypatch):
+    run = prepare(service, worker, task)
+    service.run_submit(run["id"], revision(service, task), "submit")
+
+    def withdraw(run):
+        service.task_update(task["id"], revision(service, task), {"policy": {"authorized": False}}, "user withdraws start", "withdraw")
+
+    monkeypatch.setattr(scheduler, "stage", withdraw)
+    worker.dispatch_one()
+    assert scheduler.submissions == 0
+    assert service.run_get(run["id"])["state"] == "prepared"
+    with pytest.raises(Fault, match="等待确认"):
+        service.run_submit(run["id"], revision(service, task), "repeat-without-authorization")
+
+
+def test_new_rules_during_upload_require_new_staging(service, task, worker, scheduler, monkeypatch):
+    run = prepare(service, worker, task)
+    service.run_submit(run["id"], revision(service, task), "submit")
+    staged = []
+
+    def change_rules(record):
+        staged.append(json.loads(record["rules"])["wall_seconds"])
+        if len(staged) == 1:
+            service.task_update(task["id"], revision(service, task), {"policy": {"wall_seconds": 60}}, "user changes wall time", "new-time")
+            service.run_submit(run["id"], revision(service, task), "submit-updated-time")
+
+    monkeypatch.setattr(scheduler, "stage", change_rules)
+    worker.dispatch_one()
+    assert scheduler.submissions == 0
+    worker.dispatch_one()
+    assert scheduler.submissions == 1
+    assert staged == [604800, 60]
+    assert service.run_get(run["id"])["rules"]["wall_seconds"] == 60
+
+
 def test_scientific_change_invalidates_pending_dispatch(service, task, worker, scheduler):
     run = prepare(service, worker, task)
     service.run_submit(run["id"], revision(service, task), "submit")

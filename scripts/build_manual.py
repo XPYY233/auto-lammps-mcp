@@ -52,7 +52,7 @@ def render(markdown):
     return "\n".join(out)
 
 
-documents = ["README.md", "docs/FOR_AGENTS_INSTALL.md", "docs/USER_GUIDE.md", "docs/DEVELOPMENT.md", "docs/RECOVERY.md", "docs/ACCEPTANCE.md", "docs/ASSET_PROVENANCE.md", "docs/PROGRESS.md"]
+documents = ["README.md", "docs/FOR_AGENTS_INSTALL.md", "docs/USER_GUIDE.md", "docs/DEVELOPMENT.md", "docs/RECOVERY.md", "docs/ACCEPTANCE.md", "docs/ASSET_PROVENANCE.md", "docs/PROGRESS.md", "docs/VALIDATION.md"]
 source = r"""\documentclass[11pt,a4paper]{ctexart}
 \usepackage[margin=22mm]{geometry}
 \usepackage{longtable,booktabs,array,xcolor,hyperref}
