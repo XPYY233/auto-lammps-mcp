@@ -3,6 +3,15 @@ import json
 from pathlib import Path
 
 
+def decoded_record(row):
+    record = dict(row)
+    for key in ("environment", "rules", "evidence", "cluster", "sources", "requirements", "checks",
+                "payload", "result", "dependencies", "specification", "data"):
+        if isinstance(record.get(key), str):
+            record[key] = json.loads(record[key])
+    return record
+
+
 def restored_paths(store, value):
     recovery = store.setting("recovery", {})
     if not recovery.get("source_home"):

@@ -555,9 +555,7 @@ class Worker:
                 package.write(self.store.home / "blobs" / info["sha256"], "project/" + name)
             package.writestr("project-manifest.json", encode(files))
             package.writestr("research-record.json", encode(task))
-            with self.store.connect() as db:
-                events = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq", (task_id,))]
-            package.writestr("events.json", encode(events))
+            package.writestr("events.json", encode(sorted(task["events"], key=lambda event: event["seq"])))
             package.writestr("README.txt", "Auto-LAMMPS 研究交接\n打开 research-record.json 读取原始需求、规则、执行与成果。\nproject/ 保存原生脚本、输入、数据和图表。project-manifest.json 保存 SHA-256。\n在新对话中说：使用 Auto-LAMMPS 导入这个研究结果包，说明已完成内容和剩余成果，然后继续分析。\n")
         receipt = dict(path=str(archive), filename=archive.name, sha256=file_hash(archive), files=len(files),
                        manifest_digest=digest(encode(files).encode()), requirement_ids=requirement_ids or [])

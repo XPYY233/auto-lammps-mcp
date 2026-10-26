@@ -20,7 +20,7 @@
 
 
 
-当前版本：0.1.0a2。固定安装包及对应源码见发布记录，进度与完整研究验收见 交付记录。
+当前版本：0.1.0a3。固定安装包及对应源码见发布记录，进度与完整研究验收见 交付记录。
 
 
 
@@ -362,6 +362,10 @@ alm help 和 MCP help 从代码生成工具说明和参数。任务变更检查�
 
 
 
+对话默认读取最近五条进展，完整记录按页读取。导出的 research-record.json 包含全部操作的原始参数、结果和状态；events.json 保存同一时点的完整事件。安装包验证加入超过三十条操作的项目，核对导出与重新导入后的历史完整性。
+
+
+
 \subsection{资产复用}
 
 
@@ -536,7 +540,7 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \section{当前交付记录}
 
 
-日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a2，已发布版本：0.1.0a1。
+日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a3，已发布版本：0.1.0a2。
 
 
 
@@ -613,13 +617,13 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \subsection{下一步}
 
 
-首个软件安装包与手册已公开发布，PR \#2 已合并。Issue \#3 补齐升级后的当前会话身份检查与任务下一步提示，再通过安装包流程核验。每轮先通读 APPROVED\_\allowbreak{}PLAN.md，再核对 PLAN\_\allowbreak{}AMENDMENTS.md。Ni 计算保留为后续获开始指令后的验证。
+软件安装包与手册已公开发布。PR \#4 完成升级后的当前会话身份检查，实际 DSH 与后台 Codex 均确认当前版本。Issue \#5 补齐长期研究的完整交接记录，并把超过三十条操作的导出导入纳入安装包检查。每轮先通读 APPROVED\_\allowbreak{}PLAN.md，再核对 PLAN\_\allowbreak{}AMENDMENTS.md。Ni 计算保留为后续获开始指令后的验证。
 
 \clearpage
 \section{验证记录}
 
 
-日期：2026-10-27。产品版本：0.1.0a1。源码、安装包和实际安装记录分别保存身份。
+日期：2026-10-27。验证按下列固定版本分别记录，源码、安装包和实际安装记录各自保存身份。
 
 
 
@@ -651,6 +655,10 @@ DSH 实测运行时为官方 DeepSeek Harness 0.1.7-rc.2，沿用用户既有模
 
 
 首个公开包 v0.1.0-alpha.1 固定在提交 ebc7e9b3\allowbreak{}32ce6129\allowbreak{}9c9f62a2\allowbreak{}fe6ea93b\allowbreak{}e1dfc0c2。该安装包完成 64 项软件检查、独立 MCP 安装流程、官方 DSH 三个实际工具调用及后台 Codex 现有数据全流程。后台用时 273 秒，13 个项目文件与成果包摘要逐项核对，50 个观测值的中位数和 p95 另行重算一致。DSH 返回内容完整。包、安装器和手册摘要见发布附件 release.json 与 SHA256SUMS。
+
+
+
+v0.1.0-alpha.2 固定在提交 e9747cbe\allowbreak{}b9da9b95\allowbreak{}93586b36\allowbreak{}7981f7d0\allowbreak{}737b46e1，完成 67 项软件检查及固定包流程。官方 DSH 会话与持久服务的版本身份一致；后台 Codex 在 143 秒内读取真实连接回执、形成报告、登记成果并完成任务。旧版本证据与安装包保留。
 
 
 

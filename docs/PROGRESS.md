@@ -1,6 +1,6 @@
 # 当前交付记录
 
-日期：2026-10-27。主任务：[Issue #1](https://github.com/XPYY233/auto-lammps-mcp/issues/1)。开发版本：0.1.0a2，已发布版本：0.1.0a1。
+日期：2026-10-27。主任务：[Issue #1](https://github.com/XPYY233/auto-lammps-mcp/issues/1)。开发版本：0.1.0a3，已发布版本：0.1.0a2。
 
 ## 用户新增能够完成什么
 
@@ -38,4 +38,4 @@
 
 ## 下一步
 
-首个软件安装包与手册已公开发布，PR #2 已合并。Issue #3 补齐升级后的当前会话身份检查与任务下一步提示，再通过安装包流程核验。每轮先通读 APPROVED_PLAN.md，再核对 PLAN_AMENDMENTS.md。Ni 计算保留为后续获开始指令后的验证。
+软件安装包与手册已公开发布。PR #4 完成升级后的当前会话身份检查，实际 DSH 与后台 Codex 均确认当前版本。Issue #5 补齐长期研究的完整交接记录，并把超过三十条操作的导出导入纳入安装包检查。每轮先通读 APPROVED_PLAN.md，再核对 PLAN_AMENDMENTS.md。Ni 计算保留为后续获开始指令后的验证。
