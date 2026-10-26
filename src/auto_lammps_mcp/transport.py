@@ -44,7 +44,7 @@ def call(home, method, arguments=None, host=None, client=None):
         raise Fault("response_unknown", "未收到完整回执", "先读取任务；变更重试必须保留同一 op_id", "unknown") from exc
     if not result["ok"]:
         error = result["error"]
-        raise Fault(error["code"], error["message"], error["next_action"], error["effect"])
+        raise Fault(error["code"], error["message"], error["next_action"], error["effect"], evidence=error.get("evidence"))
     return result["result"]
 
 

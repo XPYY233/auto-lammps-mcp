@@ -166,3 +166,23 @@ A deterministic staging hold reproduced a service replacement while input upload
 The official DSH replay explicitly called operation_get(include_details=true), bypassing its bounded default and producing an 8,192-character truncated host result. Skill loading, default operation reads and help pagination had passed. Preserve the archive and failed acceptance transcript. Move the final size check to the host transport boundary, store the full response with a content identity, and return persistent detail links for all oversized host replies. Keep raw local reads available and verify full-detail requests across conversation and service restarts. Tracked in Issue #12.
 
 The new restart regression initially read project_path from task_create; that path belongs to task_get. Read the public task record before populating its native files, then replay the intended full-response check.
+
+## 2026-10-27 — Existing scientific result journey
+
+A source lookup assumed separate analysis.py and projects.py modules; the repository inventory locates those methods in service.py, worker.py and files.py. No task state changed. Use the current public interface help and actual file inventory during the installed scientific-result journey. Tracked in Issue #14.
+
+Two later read-only searches included an absent packages/model directory and a packages path from the wrong checkout. Limit source searches to the inventoried provider directory and explicit checkout; neither search changed the host or research task.
+
+The actual DSH turn imported all 17 original output files, then ended with `max-tokens`: its verification overlay limited one model response to 4,096 tokens, consumed by reasoning before an analysis script was written. Preserve the original session and completed import. Inspect the supported output setting, use a separate continuation overlay with sufficient output space, and resume the same task. The original host/model credentials remain unchanged.
+
+The resumed native analysis parsed ten values from an eleven-column thermo table and failed while writing its CSV. Its operation reported `analysis_failed` with `effect=rejected_before_action` and no log location, although the script had run and left partial output. The host guessed a missing result path, then attempted repair while the enabled background executor held the task lease. Both stale-revision and conflicting-writer checks rejected those writes. Preserve the failed script, log, partial CSV and automatic diagnosis. Return a persistent failure receipt with the actual log, inputs, partial outputs and execution effect; show the active executor in task progress so the foreground can follow the existing recovery.
+
+A private verification command used the system Python and could not import the project package. Subsequent verification uses the repository environment explicitly; the failed command made no task changes.
+
+The focused recovery test reproduced the incorrect execution effect. Its executor-observation fixture initially omitted the required analysis input; supply a small existing data file before exercising the running-worker observation.
+
+The background-observation fixture initially bound the queue receipt dictionary as a SQL identifier. Use the returned operation_id, matching the public queue receipt contract.
+
+An added parameterized test was inserted before the preceding test's release assertions, leaving those assertions in the wrong function. Keep each test's setup and release in the same function; the preparation and missing-output receipt assertions themselves passed.
+
+A documentation lookup assumed an API.md file; generated interface help and DEVELOPMENT.md are the current sources. The official-host verification prompt also used an ambiguous prohibition on “other agents.” The host interpreted it as excluding the already enabled product background executor, stopped that recovery, and disabled the shared setting. Preserve this attempt; clarify collaboration agents versus product continuation in subsequent verification, and track task-scoped background control so one task's preference can be expressed without changing other tasks.

@@ -169,9 +169,23 @@ class Service:
 
     @public
     def task_get(self, task_id: str, include_details: bool = False) -> dict:
-        """Resume a project with original goals, current rules and compact progress. Use task_records for paged runs/artifacts/work/stages, events for history, operation_get for full results. include_details=True returns the complete record for export."""
+        """Resume a project with original goals, rules, current lease owner and compact progress. executor identifies its owner without sharing write tokens; active_background identifies ongoing automatic recovery even while it awaits queued work. Follow operation_get before starting a competing repair. Use task_records for paged history. include_details=True returns the complete record for export."""
         with self.store.connect() as db:
             result = self.store.task(db, task_id)
+            lease = db.execute("SELECT owner,expires FROM leases WHERE task_id=? AND expires>?", (task_id, time.time())).fetchone()
+            result["executor"] = None
+            if lease:
+                owner = lease["owner"]
+                kind = "worker" if owner.startswith("worker:") else "agent"
+                executor = dict(owner=owner, kind=kind, expires=lease["expires"])
+                if kind == "worker":
+                    operation_id = owner.split(":", 1)[1]
+                    operation = db.execute("SELECT state,updated FROM queue WHERE id=? AND task_id=?", (operation_id, task_id)).fetchone()
+                    executor.update(operation_id=operation_id, next_action="operation_get")
+                    if operation:
+                        executor.update(dict(operation))
+                result["executor"] = executor
+            result["active_background"] = [dict(row) for row in db.execute("SELECT id AS operation_id,state,updated FROM queue WHERE task_id=? AND kind='decision' AND state='running' ORDER BY created", (task_id,))]
             result["runs"] = [dict(row) for row in db.execute("SELECT * FROM runs WHERE task_id=? ORDER BY created", (task_id,))]
             result["artifacts"] = [dict(row) for row in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created", (task_id,))]
             work_columns = "*" if include_details else "id,kind,state,result,updated"

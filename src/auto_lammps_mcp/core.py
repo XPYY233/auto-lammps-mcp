@@ -24,12 +24,16 @@ def identifier(prefix):
 
 
 class Fault(Exception):
-    def __init__(self, code, message, next_action, effect="rejected_before_action"):
+    def __init__(self, code, message, next_action, effect="rejected_before_action", evidence=None):
         super().__init__(message)
         self.code, self.next_action, self.effect = code, next_action, effect
+        self.evidence = evidence
 
     def as_dict(self):
-        return dict(code=self.code, message=str(self), next_action=self.next_action, effect=self.effect)
+        result = dict(code=self.code, message=str(self), next_action=self.next_action, effect=self.effect)
+        if self.evidence is not None:
+            result["evidence"] = self.evidence
+        return result
 
 
 def require(condition, message, code="invalid_input", next_action="修正输入后重试"):

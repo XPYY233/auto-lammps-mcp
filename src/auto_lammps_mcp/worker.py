@@ -465,30 +465,53 @@ class Worker:
 
     def analysis(self, work, payload):
         task_id = work["task_id"]
-        source = self.store.root(task_id)
-        result_root = self.store.path(task_id, "analysis/" + work["id"])
+        relative_root = "analysis/" + work["id"]
+        result_root = self.store.path(task_id, relative_root)
         result_root.mkdir(parents=True, exist_ok=True)
         sources = {}
-        for name in [payload["script"], *payload["inputs"]]:
-            original = self.store.path(task_id, name)
-            require(original.is_file(), f"分析输入缺失: {name}")
-            destination = result_root / name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(original, destination)
-            sources[name] = file_hash(destination)
         output = result_root / "analysis.log"
-        environment = {**os.environ, "MPLBACKEND": "Agg", "PYTHONUNBUFFERED": "1"}
-        with output.open("wb") as log:
-            returncode = self.process(work, [sys.executable, payload["script"]], cwd=result_root, env=environment, output=log, timeout=3600)
-        require(returncode == 0, "分析失败，计算结果已保留", "analysis_failed", "读取分析日志并修改脚本")
-        files = {}
-        for name in payload["outputs"]:
-            path = result_root / name
-            require(path.is_file() and path.stat().st_size > 0, f"分析成果缺失: {name}", "output_missing", "读取分析日志和输出目录")
-            files[name] = dict(path=str(path), sha256=file_hash(path))
-        receipt = dict(sources=sources, outputs=files, script=payload["script"], log=str(output))
-        atomic_write(result_root / "analysis-receipt.json", encode(receipt).encode())
-        return receipt
+        receipt_path = relative_root + "/analysis-receipt.json"
+        started, returncode = False, None
+
+        def receipt(status):
+            files = {}
+            for name in payload["outputs"]:
+                path = result_root / name
+                if path.is_file():
+                    files[name] = dict(path=str(path), sha256=file_hash(path), size=path.stat().st_size)
+            return dict(status=status, sources=sources, outputs=files, script=payload["script"],
+                        directory=str(result_root), log=str(output) if output.exists() else None,
+                        log_path=relative_root + "/analysis.log" if output.exists() else None,
+                        receipt_path=receipt_path, exit_code=returncode,
+                        missing_outputs=[name for name in payload["outputs"] if name not in files or not files[name]["size"]])
+
+        try:
+            for name in [payload["script"], *payload["inputs"]]:
+                original = self.store.path(task_id, name)
+                require(original.is_file(), f"分析输入缺失: {name}")
+                destination = result_root / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(original, destination)
+                sources[name] = file_hash(destination)
+            environment = {**os.environ, "MPLBACKEND": "Agg", "PYTHONUNBUFFERED": "1"}
+            with output.open("wb") as log:
+                started = True
+                returncode = self.process(work, [sys.executable, payload["script"]], cwd=result_root, env=environment, output=log, timeout=3600)
+            require(returncode == 0, "分析失败，计算结果已保留", "analysis_failed", "读取分析日志并修改脚本")
+            result = receipt("completed")
+            require(not result["missing_outputs"], "分析成果缺失: " + ", ".join(result["missing_outputs"]), "output_missing", "读取分析日志和输出目录")
+        except Exception as exc:
+            result = receipt("failed")
+            error = exc if isinstance(exc, Fault) else Fault("analysis_failed", str(exc), "读取分析回执并从失败处恢复")
+            effect = "partial" if started else "saved_needs_correction"
+            action = "用 file_read 读取 " + (result["log_path"] or receipt_path) + "，保留原操作并修正对应脚本或输入"
+            failure = Fault(error.code, str(error), action, effect)
+            result["error"] = failure.as_dict()
+            atomic_write(result_root / "analysis-receipt.json", encode(result).encode())
+            failure.evidence = result
+            raise failure from exc
+        atomic_write(result_root / "analysis-receipt.json", encode(result).encode())
+        return result
 
     def decision(self, task_id, reason, evidence):
         with self.store.transaction() as db:
