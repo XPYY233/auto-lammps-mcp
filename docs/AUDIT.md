@@ -50,3 +50,9 @@ Installed upgrade: the wrapper captured the inner installer error but discarded 
 The next background turn successfully passed automatic review for actual MCP reads and task ownership. Repeated initial network timeouts were observed alongside an enabled macOS system proxy and absent CLI proxy environment variables. Background processes now inherit the existing system HTTP/HTTPS route while retaining explicit environment overrides. The installer wrapper now saves and prints inner step failures instead of losing them in a generic traceback.
 
 The second installed background attempt passed MCP approval and released task ownership, but exceeded its 300-second per-turn timeout after repeated connection fallback delays. The timeout and any produced handoff file are retained. Next verification uses the discovered system network route and checks existing outputs before continuing.
+
+## 2026-10-27 — Completion must include the actual handoff package
+
+The installed DSH analysis flow delivered its plot, statistics and ZIP, but completion_check returned complete before project_export ran: a HANDOFF.md artifact had been linked to the package requirement. Add an explicit archive requirement kind and validate the produced ZIP and current source manifest before satisfying it. Also keep pending analysis/export work visible in completion checks. Replay this observed sequence and the installed handoff flow.
+
+The requirement patch included an unrelated earlier context after a later section, so atomic verification rejected it. Apply the requirement and delivery changes in file order.

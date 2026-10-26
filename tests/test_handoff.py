@@ -42,3 +42,25 @@ def test_corrupt_package_is_rejected_before_project_changes(tmp_path):
     with pytest.raises(Fault, match="摘要不一致"):
         import_project(service.store, other["id"], corrupt)
     assert not list(service.store.root(other["id"]).iterdir())
+
+
+def test_handoff_document_does_not_complete_archive_requirement(tmp_path):
+    service = Service(tmp_path / "state")
+    task = service.task_create("Research", "Give the full result package", [{"id": "package", "description": "full ZIP", "kind": "archive"}], "create")
+    root = service.store.root(task["id"])
+    (root / "HANDOFF.md").write_text("Files to deliver")
+    (root / "check.json").write_text('{"document_exists":true}')
+    registered = service.artifact_register(task["id"], 1, "HANDOFF.md", [], ["package"], [{"passed": True, "method": "document exists", "evidence": "check.json"}], "register")
+    before = service.completion_check(task["id"], registered["revision"], "before-export")
+    assert not before["complete"]
+    assert before["missing"][0]["id"] == "package"
+    exported = service.project_export(task["id"], before["revision"], "export")
+    pending = service.completion_check(task["id"], before["revision"], "pending-export")
+    assert not pending["complete"] and pending["active_work"] == 1
+    Worker(service).work_one()
+    receipt = service.operation_get(exported["operation_id"])["result"]
+    after = service.completion_check(task["id"], pending["revision"], "after-export")
+    assert after["complete"]
+    Path(receipt["path"]).write_bytes(b"damaged archive")
+    invalid = service.completion_check(task["id"], after["revision"], "damaged-export")
+    assert not invalid["complete"]

@@ -383,7 +383,7 @@ class Worker:
         if kind == "decision":
             return self.background(work, payload)
         if kind == "export":
-            return self.export(task_id)
+            return self.export(task_id, payload.get("requirement_ids", []), work["token"])
         raise Fault("unknown_work", kind, "检查当前版本工作类型")
 
     def analysis(self, work, payload):
@@ -483,7 +483,7 @@ class Worker:
             outputs[name] = dict(sha256=file_hash(path), bytes=path.stat().st_size)
         return dict(task_read=True, tools=[c["tool"] for c in successful], outputs=outputs)
 
-    def export(self, task_id):
+    def export(self, task_id, requirement_ids=None, token=None):
         task = self.service.task_get(task_id)
         files = manifest(self.store, task_id)
         key = identifier("export")
@@ -497,7 +497,13 @@ class Worker:
                 events = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq", (task_id,))]
             package.writestr("events.json", encode(events))
             package.writestr("README.txt", "Auto-LAMMPS 研究交接\n打开 research-record.json 读取原始需求、规则、执行与成果。\nproject/ 保存原生脚本、输入、数据和图表。project-manifest.json 保存 SHA-256。\n在新对话中说：使用 Auto-LAMMPS 导入这个研究结果包，说明已完成内容和剩余成果，然后继续分析。\n")
-        return dict(path=str(archive), sha256=file_hash(archive), files=len(files))
+        receipt = dict(path=str(archive), filename=archive.name, sha256=file_hash(archive), files=len(files),
+                       manifest_digest=digest(encode(files).encode()), requirement_ids=requirement_ids or [])
+        with self.store.transaction() as db:
+            self.store.task(db, task_id, token=token)
+            self.store.set_setting(db, "delivery:" + task_id + ":" + key, receipt)
+            self.store.event(db, task_id, "project_exported", receipt)
+        return receipt
 
     def notifications(self):
         config = self.store.setting("notifications", {})

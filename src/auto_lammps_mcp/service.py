@@ -120,12 +120,13 @@ class Service:
 
     @public
     def task_create(self, title: str, request: str, requirements: list[dict], op_id: str, constraints: dict | None = None, mode: str = "research", policy_source: str = "user request") -> dict:
-        """Create a research project from the original words and deliverables. Requirements need id and description."""
+        """Create a project from original words and deliverables. Each requirement needs id and description; use kind='archive' for an exported ZIP, otherwise kind='file'."""
         require(mode in ("research", "author_reference", "formal_b", "historical"), "未知任务规则")
         require(title.strip() and request.strip() and requirements, "需要任务名称、原始需求和成果清单")
         ids = [item.get("id") for item in requirements]
         require(all(isinstance(i, str) and i for i in ids) and len(set(ids)) == len(ids), "成果编号应唯一且非空")
         require(all(item.get("description") for item in requirements), "每项成果需要描述")
+        require(all(item.get("kind", "file") in ("file", "archive") for item in requirements), "成果类型为 file 或 archive")
         def apply(db):
             task_id, now = identifier("task"), time.time()
             policy = dict(mode=mode, submission_limit=2 if mode == "formal_b" else None,
@@ -155,6 +156,7 @@ class Service:
             result["work"] = [dict(row) for row in db.execute("SELECT id,kind,state,result,updated FROM queue WHERE task_id=? ORDER BY created DESC LIMIT 30", (task_id,))]
             result["events"] = [dict(row) for row in db.execute("SELECT * FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 20", (task_id,))]
             result["stages"] = [dict(row) for row in db.execute("SELECT * FROM stages WHERE task_id=? ORDER BY created,id", (task_id,))]
+            result["deliveries"] = [json.loads(row[0]) for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",))]
         result["project_path"] = str(self.store.root(task_id))
         for run in result["runs"]:
             for key in ("environment", "rules", "evidence"):
@@ -206,6 +208,7 @@ class Service:
                 if name == "requirements":
                     ids = [item.get("id") for item in value]
                     require(value and all(ids) and len(ids) == len(set(ids)) and all(item.get("description") for item in value), "成果清单需要唯一编号和描述")
+                    require(all(item.get("kind", "file") in ("file", "archive") for item in value), "成果类型为 file 或 archive")
                     previous = {item["id"]: item["description"] for item in task["requirements"]}
                     current = {item["id"]: item["description"] for item in value}
                     require(all(current.get(key) == text for key, text in previous.items()), "原始成果要求需要保留；补充要求可追加新编号", "requirement_preservation", "保留原要求并登记新的研究范围")
@@ -260,7 +263,11 @@ class Service:
 
     @public
     def project_import(self, task_id: str, revision: int, source: str, op_id: str, token: str | None = None) -> dict:
-        """Queue a complete directory or exported research ZIP import. Verify package hashes and retain original records."""
+        """Import a directory or exported ZIP into the task's project_path, retaining relative paths, binary files and helpers.
+
+        Existing identical files are reused; differing files cause a conflict, never overwrite. ZIP hashes and original records are checked.
+        Returns operation_id immediately. Release any task_claim before waiting on operation_get; read task_get for the new revision after completion.
+        """
         incoming = Path(source).expanduser()
         require(incoming.is_dir() or incoming.is_file() and incoming.suffix.lower() == ".zip", "请选择项目目录或导出的研究 ZIP 包")
         def apply(db):
@@ -450,7 +457,16 @@ class Service:
 
     @public
     def analysis_submit(self, task_id: str, revision: int, script: str, inputs: list[str], outputs: list[str], op_id: str, token: str | None = None) -> dict:
-        """Queue native Python analysis of existing data. Physics runs use run_prepare; analysis runs in an isolated work directory."""
+        """Run a native Python script against existing data in a persistent analysis queue.
+
+        script and inputs are project-relative files. They are copied, with subdirectories preserved, into analysis/<operation_id>/.
+        Python's working directory is that analysis directory, so scripts read input paths relative to its root, not their own scripts/ folder.
+        outputs are required nonempty paths relative to the analysis directory. The installed analysis environment provides NumPy and Matplotlib.
+        Example: script='scripts/plot.py', inputs=['data.csv'], outputs=['plot.png','statistics.csv'].
+        Returns operation_id; release the task lease before polling. operation_get returns output paths, SHA-256 values and analysis.log.
+        Use file_read for logs, artifact_preview for the actual image, then artifact_register to link each result to requirements.
+        Physics evaluations use run_prepare/run_submit on HPC.
+        """
         require(inputs and outputs and script.endswith(".py"), "需要 Python 脚本、输入与输出清单")
         for name in [script, *inputs, *outputs]:
             self.store.path(task_id, name)
@@ -462,7 +478,13 @@ class Service:
 
     @public
     def artifact_register(self, task_id: str, revision: int, path: str, sources: list[str], requirement_ids: list[str], checks: list[dict], op_id: str, token: str | None = None) -> dict:
-        """Register an actual artifact, its source files and evidence-backed checks. Each check needs passed, method and evidence path."""
+        """Link an actual output to the user's requirement IDs, source files and verification evidence.
+
+        path, sources and checks[].evidence are project-relative. The service reads their hashes; do not calculate or repeat hashes in the request.
+        Each check is {'passed': true/false, 'method': 'what was checked', 'evidence': 'path/to/check-result.json'}.
+        Create the evidence file from actual analysis/inspection first. Checks must address the requirement's scientific and file-content criteria.
+        An analysis result path normally starts with analysis/<operation_id>/. Returns the new task revision.
+        """
         def apply(db):
             task = self.store.task(db, task_id, revision, token)
             require(set(requirement_ids) <= {r["id"] for r in task["requirements"]}, "成果要求编号不存在")
@@ -489,26 +511,41 @@ class Service:
             current = manifest(self.store, task_id)
             invalidate(self.store, db, task_id, current)
             satisfied = set()
+            archive_ids = {item["id"] for item in task["requirements"] if item.get("kind") == "archive"}
             for row in db.execute("SELECT * FROM artifacts WHERE task_id=? AND stale=0", (task_id,)):
                 if all(check["passed"] for check in json.loads(row["checks"])):
-                    satisfied.update(json.loads(row["requirements"]))
+                    satisfied.update(set(json.loads(row["requirements"])) - archive_ids)
+            for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",)):
+                delivery = json.loads(row[0])
+                archive = self.store.home / "exports" / delivery["filename"]
+                if delivery["manifest_digest"] == digest(encode(current).encode()) and archive.is_file() and file_hash(archive) == delivery["sha256"]:
+                    satisfied.update(set(delivery["requirement_ids"]) & archive_ids)
             missing = [item for item in task["requirements"] if item["id"] not in satisfied]
             active = db.execute("SELECT count(*) FROM runs WHERE task_id=? AND state IN ('pending','dispatching','unknown','queued','running','cancelling')", (task_id,)).fetchone()[0]
-            complete = not missing and not active
+            active_work = db.execute("SELECT count(*) FROM queue WHERE task_id=? AND state IN ('pending','running') AND kind!='decision'", (task_id,)).fetchone()[0]
+            complete = not missing and not active and not active_work
             db.execute("UPDATE tasks SET state=? WHERE id=?", ("completed" if complete else task["state"] if task["state"] != "completed" else "active", task_id))
             self.store.bump(db, task_id)
-            result = dict(complete=complete, missing=missing, active_runs=active, revision=revision + 1)
+            result = dict(complete=complete, missing=missing, active_runs=active, active_work=active_work, revision=revision + 1)
             self.store.event(db, task_id, "research_completed" if complete else "deliverables_missing", result)
             return result
         return self.store.mutate(op_id, dict(method="completion_check", task_id=task_id, revision=revision, token=token), apply)
 
     @public
-    def project_export(self, task_id: str, revision: int, op_id: str, token: str | None = None) -> dict:
-        """Queue a portable archive with native files, manifests, history, rules, accounting and a continuation guide."""
+    def project_export(self, task_id: str, revision: int, op_id: str, token: str | None = None, requirement_ids: list[str] | None = None) -> dict:
+        """Export project files, original request, required results, history, rules, job accounting and continuation instructions to ZIP.
+
+        Returns operation_id immediately; release the lease before waiting. operation_get returns the archive's absolute path and hash.
+        Another task can pass that ZIP to project_import. The archive is outside project_path, so do not register its absolute path as a project file.
+        By default this satisfies all kind='archive' requirements after verifying the real ZIP. Run completion_check after export completes.
+        """
         def apply(db):
-            self.store.task(db, task_id, revision, token)
-            return self.store.queue(db, task_id, "export", {})
-        return self.store.mutate(op_id, dict(method="project_export", task_id=task_id, revision=revision, token=token), apply)
+            task = self.store.task(db, task_id, revision, token)
+            archive_ids = {item["id"] for item in task["requirements"] if item.get("kind") == "archive"}
+            selected = sorted(archive_ids) if requirement_ids is None else requirement_ids
+            require(set(selected) <= archive_ids, "导出成果编号必须指向 archive 类型要求")
+            return self.store.queue(db, task_id, "export", dict(requirement_ids=selected))
+        return self.store.mutate(op_id, dict(method="project_export", task_id=task_id, revision=revision, token=token, requirement_ids=requirement_ids), apply)
 
     @public
     def units_convert(self, value: float, unit: str, target: str) -> dict:
