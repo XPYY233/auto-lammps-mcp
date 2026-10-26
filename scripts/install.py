@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import time
+import zipfile
 
 
 def main():
@@ -59,10 +60,13 @@ def main():
             subprocess.run([sys.executable, "-m", "venv", str(environment)], check=True)
     record("environment", python=str(python))
     command = ["uv", "pip", "install", "--python", str(python)] if shutil.which("uv") else [str(python), "-m", "pip", "install"]
-    lock = target / "requirements.lock.txt" if args.source else None
+    lock = target / "requirements.lock.txt" if args.source else environment / "requirements.lock.txt"
+    if args.wheel:
+        with zipfile.ZipFile(target) as archive:
+            lock.write_bytes(archive.read("auto_lammps_mcp/data/requirements.lock.txt"))
     if lock and lock.exists():
         subprocess.run([*command, "-r", str(lock)], check=True)
-    subprocess.run([*command, str(target)], check=True)
+    subprocess.run([*command, str(target) + "[analysis]"], check=True)
     record("package", completed=True)
     binary = environment / "bin/alm"
     install = [str(binary), "--home", str(args.home.resolve()), "install", "--host", args.host]

@@ -23,6 +23,7 @@ packages = ["src/auto_lammps_mcp"]
 [tool.hatch.build.targets.wheel.force-include]
 "skills/auto-lammps-mcp" = "auto_lammps_mcp/data/skill"
 "docs" = "auto_lammps_mcp/data/docs"
+"requirements.lock.txt" = "auto_lammps_mcp/data/requirements.lock.txt"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

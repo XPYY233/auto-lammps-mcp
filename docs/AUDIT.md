@@ -66,3 +66,9 @@ A second installed upgrade returned service_install_failed and restored the prev
 Two targeted checks failed: editing original data outside the service left a downstream report preview marked current, and file_patch marked only direct outputs stale. The existing completion pass caught transitive changes later, but previews could appear current in between. Propagate known file changes immediately, check the full source chain when previewing, and let new verified registrations supersede old stale records at the same path.
 
 The test and CI lookups used nonexistent filenames. Use the file inventory first; process and socket coverage is in test_process_integration.py. No execution state or project content was affected.
+
+## 2026-10-27 — Background Agent and analysis queue deadlock
+
+A focused continuation test failed: the background decision occupied the only queue consumer while waiting for its own analysis operation. Earlier tool-read and file-write checks did not exercise this dependency. Run model decisions in a separate serial consumer, retain task leases for mutations, and keep ordinary import, analysis and export work advancing. Verify the original failure and a real installed background handoff.
+
+Wheel installation review found that the source path installed locked analysis libraries while the wheel path installed only base dependencies. Package the same dependency lock inside the verified wheel and request the analysis feature for both routes. Verify an installation into a clean environment before publishing the package.

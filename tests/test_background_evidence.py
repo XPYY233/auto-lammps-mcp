@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 import pytest
 
@@ -40,3 +42,42 @@ def test_background_inherits_system_route_without_overwriting_explicit_proxy(mon
     assert env["HTTP_PROXY"] == "http://explicit.example:3128"
     assert env["HTTPS_PROXY"] == "http://localhost:7890"
     assert "127.0.0.1" in env["NO_PROXY"]
+
+
+def test_background_can_wait_for_its_own_analysis_queue(tmp_path):
+    service = Service(tmp_path / "state")
+    task = service.task_create("continuation", "analyze existing data", [{"id": "a", "description": "result"}], "create")
+    root = service.store.root(task["id"])
+    (root / "input.txt").write_text("2 3")
+    (root / "analyze.py").write_text("from pathlib import Path\nPath('sum.txt').write_text(str(sum(map(int, Path('input.txt').read_text().split()))))\n")
+    with service.store.transaction() as db:
+        service.store.set_setting(db, "background", dict(enabled=True))
+
+    class ContinuingWorker(Worker):
+        def background(self, work, payload):
+            current = service.task_get(task["id"])
+            queued = service.analysis_submit(task["id"], current["revision"], "analyze.py", ["input.txt"], ["sum.txt"], "analysis")
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                result = service.operation_get(queued["operation_id"])
+                if result["state"] == "completed":
+                    return {"analysis": result}
+                time.sleep(0.05)
+            raise AssertionError("background occupied the queue needed by its analysis")
+
+    requested = service.background_request(task["id"], 1, "analyze data", "continue")
+    worker = ContinuingWorker(service)
+    thread = threading.Thread(target=worker.loop, daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            state = service.operation_get(requested["operation_id"])
+            if state["state"] in ("completed", "failed"):
+                break
+            time.sleep(0.05)
+        assert state["state"] == "completed", state
+        assert state["result"]["analysis"]["state"] == "completed"
+    finally:
+        worker.stopping.set()
+        thread.join(timeout=10)

@@ -41,6 +41,7 @@ class Worker:
                 self.store.event(db, row["task_id"], "work_interrupted", dict(operation_id=row["id"], kind=row["kind"], next_action="核对已有产物后接续"))
             db.execute("DELETE FROM leases WHERE owner LIKE 'background:%' OR owner LIKE 'worker:%'")
         threading.Thread(target=self.monitor_loop, daemon=True, name="alm-monitor").start()
+        threading.Thread(target=self.decision_loop, daemon=True, name="alm-decisions").start()
         while not self.stopping.is_set():
             try:
                 if self.store.setting("recovery", {}).get("pending"):
@@ -277,9 +278,22 @@ class Worker:
             if count == 2:
                 self.store.event(db, run["task_id"], "connection_lost", dict(run_id=run["id"], error=str(error), last_confirmed=run["updated"]))
 
-    def work_one(self):
+    def decision_loop(self):
+        # The agent may await queued imports, analysis or exports during one turn.
+        # Keep its consumer independent from those concrete operations.
+        while not self.stopping.is_set():
+            try:
+                if not self.store.setting("recovery", {}).get("pending"):
+                    self.work_one(decisions=True)
+            except Exception as exc:
+                with self.store.transaction() as db:
+                    self.store.event(db, None, "decision_worker_error", dict(type=type(exc).__name__, message=str(exc)))
+            self.stopping.wait(1)
+
+    def work_one(self, decisions=False):
         with self.store.transaction() as db:
-            rows = db.execute("SELECT * FROM queue WHERE state='pending' ORDER BY created").fetchall()
+            selector = "kind='decision'" if decisions else "kind!='decision'"
+            rows = db.execute("SELECT * FROM queue WHERE state='pending' AND " + selector + " ORDER BY created").fetchall()
             work = None
             for row in rows:
                 candidate = dict(row)
