@@ -194,3 +194,11 @@ The existing-data host completed file delivery, but independent scientific revie
 A minimal review sequence reproduced `complete=true` after a later failed scientific check on the same unchanged report. completion_check counted an older positive record alongside the newer failed review. Use the latest record per artifact path, block deliverables linked to a current failed review, and reopen their task. Preserve both verdicts and require an explicit corrected review before completion.
 
 A private archive-inspection command guessed manifest.json after listing the archive. The actual package entry is project-manifest.json; the read failed without modifying the archive. Use the listed entry for the streaming hash verification.
+
+## 2026-10-27 — Task-specific continuation and large inputs
+
+The scientific journey copied the same large trajectory into multiple attempts. The first complete archive retained those files and passed every recorded byte hash, but the remaining local space would be consumed by another full analysis copy and export. Add copy-on-write input/import/snapshot copies where supported, retain independent editable files and hashes, and use ordinary copies on other volumes. Existing research files and archives remain intact. Tracked in Issue #18.
+
+A source lookup assumed a background_queue test module. Existing background and queue coverage is in test_background_evidence and test_recovery; inspect the file inventory before selecting a test file. The failed lookup made no changes.
+
+The first full check overlapped the development version update, so its long-lived parent imported the old version while fresh child services read the new one. Two identity tests failed on that mismatch; 92 checks passed. Finish source edits before starting the full check, then run the unchanged tree in fresh processes.

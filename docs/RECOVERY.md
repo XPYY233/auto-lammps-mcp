@@ -24,7 +24,11 @@ macOS LaunchAgent 运行独立任务服务。MCP 与 CLI 连接同一服务，�
 
 `task_get.executor` 显示当前操作权持有人和期限；`active_background` 显示正在执行的后台接续编号。后台等待分析时可能释放操作权，前台仍可通过该编号跟进进展，随后读取最新任务版本接续。
 
+用户说“这项研究先由当前对话处理”时，调用 `task_background(enabled=false)` 暂停本任务后续自动接续。正在进行的一轮继续完成，回执列出对应编号；需要立即交接时先暂停任务，再读取当前工作后恢复。`task_get.automation` 显示本任务设置和后台服务是否启用。重新启用后接续已保存待办，其他研究保持原设置。
+
 分析失败会保存 `analysis-receipt.json`。操作的 `error.evidence` 返回输入摘要、退出码、可直接交给 `file_read` 的日志路径、已有输出与缺项。脚本执行后失败标为 `partial`，准备阶段失败标为 `saved_needs_correction`。修正脚本后生成新的分析编号，原脚本副本、失败日志和部分数据保留。
+
+大文件导入、快照和分析输入在支持的 macOS 文件系统上共享未修改的数据块；每份文件可独立编辑。其他文件系统采用完整复制。分析回执记录每个输入的复制方式与大小，原始摘要与历史持续保留。参见 [Apple 文件复制接口](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/man/man2/clonefile.2)。
 
 同一成果路径采用最近一次登记的检查结果。后续科学复核发现错误时，用 `artifact_register` 保存未通过的检查与证据，关联要求重新进入待交付；其他文件的通过记录不能抵消这项失败。修正内容并重新核验后，再登记当前结果。原通过记录、失败意见和修正过程持续保留。
 
