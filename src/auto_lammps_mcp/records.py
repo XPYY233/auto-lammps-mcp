@@ -51,16 +51,17 @@ def brief(data):
 
 
 def task_summary(task):
-    task["records_truncated"] = [name for name in task["record_counts"] if task["record_counts"][name] > 20]
+    recent_limit = 5
+    task["records_truncated"] = [name for name in task["record_counts"] if task["record_counts"][name] > recent_limit]
     for name in task["record_counts"]:
         if name in ("work", "events"):
-            task[name] = task[name][:20]
+            task[name] = task[name][:recent_limit]
         elif name == "runs":
             active = [run for run in task[name] if run["state"] in ("dispatching", "unknown", "queued", "running", "cancelling")]
             rest = [run for run in task[name] if run not in active]
-            task[name] = active + rest[-max(0, 20-len(active)):] if len(active) < 20 else active
+            task[name] = active + rest[-(recent_limit-len(active)):] if len(active) < recent_limit else active[:recent_limit]
         else:
-            task[name] = task[name][-20:]
+            task[name] = task[name][-recent_limit:]
     for run in task["runs"]:
         progress = run["evidence"].get("output_progress")
         if progress:

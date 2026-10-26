@@ -137,3 +137,17 @@ def test_task_summary_does_not_repeat_large_snapshot_payloads(service, task):
     assert page["records"][0]["result"] == result
     assert page["next_offset"] == 1 and not page["more"]
 
+
+def test_multistage_task_summary_fits_host_response_and_retains_history(service, task):
+    with service.store.transaction() as db:
+        for number in range(20):
+            service.store.event(db, task["id"], "work_completed", {
+                "operation_id": "work_" + str(number).zfill(20), "kind": "analysis",
+                "result": {"path": "analysis/" + str(number).zfill(20) + "/response_statistics.json",
+                           "message": "The existing results were checked and preserved for the next analysis."}})
+    summary = service.task_get(task["id"])
+    assert len(json.dumps(summary,ensure_ascii=False,indent=2)) < 6000
+    assert summary["request"] == task["request"]
+    assert "events" in summary["records_truncated"]
+    assert service.events(task_id=task["id"])["events"][-1]["data"]["operation_id"].endswith("19")
+

@@ -108,3 +108,9 @@ The local packaging invocation found that the development environment does not i
 A focused check confirmed that `--host none` still overwrote the global DSH skill. Independent package validation must retain the user's selected host version. Keep the packaged skill available in that environment and write global host skills only when Codex or DSH is selected.
 
 Installed dependency metadata shows NumPy 2.5.4 requires Python 3.12 while the installer advertised 3.11. Align the package and fallback installer minimum with the locked analysis environment; uv continues selecting the tested Python 3.13 runtime.
+
+## 2026-10-27 — Real host response budget
+
+The final official DSH turn still marked task_get truncated. Its actual compact response was 9,444 characters: 20 recent events contributed 4,281 and seven artifacts 2,353. The earlier large-snapshot test covered repeated payloads but not realistic multi-stage history. Bound the default recent lists to five entries, retain counts and explicit pagination, and replay the same installed task through DSH before publication. A Harness search included a nonexistent package/agent directory; further searches use its package inventory.
+
+The multi-stage regression reproduced a 10,205-character formatted summary, confirming that bounded recent-list length is needed in addition to removing repeated payloads.
