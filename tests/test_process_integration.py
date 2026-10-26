@@ -18,8 +18,8 @@ def start(home):
     process = subprocess.Popen([sys.executable, "-m", "auto_lammps_mcp.cli", "--home", str(home), "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     for _ in range(100):
         try:
-            call(home, "doctor")
-            return process
+            if call(home, "doctor")["daemon"].get("heartbeat"):
+                return process
         except Fault:
             if process.poll() is not None:
                 raise AssertionError(process.communicate()[1].decode())
@@ -38,6 +38,7 @@ async def test_mcp_actual_tools_and_daemon_restart(tmp_path):
     home = tmp_path / "state"
     process = start(home)
     try:
+        first_boot = call(home, "doctor")["daemon"]["heartbeat"]["boot_id"]
         params = StdioServerParameters(command=sys.executable, args=["-m", "auto_lammps_mcp.cli", "--home", str(home), "mcp", "--host", "integration-test"])
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as client:
@@ -63,6 +64,10 @@ async def test_mcp_actual_tools_and_daemon_restart(tmp_path):
         process = start(home)
         restored = call(home, "task_get", {"task_id": task["id"]})
         assert restored["request"] == task["request"]
+        heartbeat = call(home, "doctor")["daemon"]["heartbeat"]
+        assert heartbeat["boot_id"] != first_boot
+        assert heartbeat["pid"] == process.pid
+        assert heartbeat["observed_at"] >= heartbeat["started_at"]
         assert call(home, "doctor")["host_calls"]["integration-test"]["tool"] == "artifact_preview"
     finally:
         stop(process)

@@ -310,10 +310,8 @@ class Service:
                       mime_type=mimetypes.guess_type(path)[0] or "application/octet-stream", registered=registered is not None)
         if registered:
             sources = json.loads(registered["sources"])
-            stale = bool(registered["stale"]) or result["sha256"] != registered["sha256"]
-            for name, sha in sources.items():
-                source = self.store.path(task_id, name)
-                stale = stale or not source.is_file() or file_hash(source) != sha
+            from .files import preview_stale
+            stale = preview_stale(self.store, task_id, path)
             result.update(sources=sources, stale=stale, requirements=json.loads(registered["requirements"]))
         return result
 
@@ -324,7 +322,8 @@ class Service:
             self.store.task(db, task_id, revision, token)
             result = patch_file(self.store, task_id, path, expected_sha256, old, new)
             self.store.bump(db, task_id)
-            db.execute("UPDATE artifacts SET stale=1 WHERE task_id=? AND (path=? OR instr(sources,?)>0)", (task_id, path, encode(path)))
+            from .files import invalidate_paths
+            invalidate_paths(self.store, db, task_id, {path})
             self.store.event(db, task_id, "file_changed", result)
             return {**result, "revision": revision + 1}
         return self.store.mutate(op_id, dict(method="file_patch", task_id=task_id, revision=revision, path=path, expected_sha256=expected_sha256, old=old, new=new, token=token), apply)

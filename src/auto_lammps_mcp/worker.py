@@ -25,11 +25,14 @@ class Worker:
         self.stopping = threading.Event()
         self.last_poll = 0
         self.last_summary = 0
+        self.boot_id = identifier("service")
+        self.started_at = time.time()
 
     def loop(self):
         self.recover_processes()
         # A previous process cannot retain execution ownership after a daemon restart.
         with self.store.transaction() as db:
+            self.store.event(db, None, "service_started", dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at))
             db.execute("UPDATE runs SET state='unknown' WHERE state='dispatching'")
             db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','collect','reconcile','cancel','connection_check')")
             rows = db.execute("SELECT id,task_id,kind FROM queue WHERE state='running'").fetchall()
@@ -166,6 +169,11 @@ class Worker:
         if now - self.last_poll >= 60:
             self.poll()
             self.last_poll = now
+            with self.store.transaction() as db:
+                heartbeat = dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at, observed_at=time.time(),
+                                 python=sys.executable)
+                self.store.set_setting(db, "service_heartbeat", heartbeat)
+                self.store.event(db, None, "service_heartbeat", heartbeat)
         self.notifications()
         if now - self.last_summary >= 300:
             with self.store.transaction() as db:

@@ -12,6 +12,8 @@
 | transport.py | 私有本机连接、单一后台进程、协议核对 |
 | mcp_server.py / cli.py | 同一服务的 MCP 与命令行入口 |
 | installation.py | 自检、连接、skill 与 macOS 后台安装 |
+| dsh.py / network.py | 官方 Harness 接入、配置保留与已有系统代理发现 |
+| handoff.py / backup.py | 带来源记录的成果包导入、完整备份与独立目录恢复 |
 | science.py | 单位、热力学列、逐原子轨迹检查 |
 
 原生项目入口接受快照和 shell 脚本。工况、独立样本、重试、续算和分析各有身份。运行绑定环境与输入；更新环境产生新指纹。

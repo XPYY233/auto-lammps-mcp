@@ -64,6 +64,30 @@ def test_changed_input_invalidates_transitive_results(service, task):
     assert all(a["stale"] for a in service.task_get(task["id"])["artifacts"])
 
 
+def test_preview_checks_upstream_data_without_completion_call(service, task):
+    root = service.store.root(task["id"])
+    (root / "data.csv").write_text("1,2\n")
+    register(service, task, "plot.svg", ["data.csv"], "curve", "plot")
+    register(service, task, "report.txt", ["plot.svg"], "curve", "report")
+    (root / "data.csv").write_text("1,3\n")
+    assert service.artifact_preview(task["id"], "report.txt")["stale"]
+
+
+def test_reregistered_sources_replace_old_staleness(service, task):
+    root = service.store.root(task["id"])
+    (root / "data.csv").write_text("1,2\n")
+    register(service, task, "plot.svg", ["data.csv"], "curve", "plot-old")
+    register(service, task, "report.txt", ["plot.svg"], "curve", "report-old")
+    previous = service.file_read(task["id"], "data.csv")
+    service.file_patch(task["id"], revision(service, task), "data.csv", previous["sha256"], "1,2", "1,3", "edit")
+    assert all(a["stale"] for a in service.task_get(task["id"])["artifacts"])
+    register(service, task, "plot.svg", ["data.csv"], "curve", "plot-new")
+    register(service, task, "report.txt", ["plot.svg"], "curve", "report-new")
+    service.completion_check(task["id"], revision(service, task), "complete-new")
+    latest = service.task_get(task["id"])["artifacts"][-2:]
+    assert all(not a["stale"] for a in latest)
+
+
 def test_analysis_failure_preserves_data_then_retry(service, task, worker):
     root = service.store.root(task["id"])
     (root / "data.txt").write_text("3\n")

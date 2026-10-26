@@ -190,11 +190,11 @@ Codex：安装器通过现有 codex mcp add 注册 auto-lammps，并安装 skill
 
 
 
-DSH：安装器生成 dsh-mcp.json。在 DSH 的 MCP 连接配置中创建 stdio 服务 auto-lammps，command 和 args 使用生成文件中的实际值。加载后实际调用 doctor 与 task\_\allowbreak{}list。工具帮助通过 MCP 提供，skill 同时安装到 .agents/\allowbreak{}skills/\allowbreak{}auto-lammps-mcp。
+DSH 使用官方 DeepSeek Harness 的现有安装。运行 python3 scripts/\allowbreak{}install.py --source . --host dsh --dsh-runtime /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}to/\allowbreak{}deepseek-harness --dsh-profile web；runtime 也可以是已安装 dsh 命令的绝对路径。安装器检查实际版本，在所选 profile 中添加独立的 MCP 配置块，保留原模型设置，备份原文件并检查组合结果。配置失败会恢复原文件。已有 API 凭据继续由 DSH 管理。
 
 
 
-使用 DeepSeek Harness 配置时，安装器另提供 dsh-harness-entry.json：按官方配置将该对象加入插件列表，包含 @deepseek-ai/\allowbreak{}dsh-mcp-client、serverName、transport、command 和 args。平台入口应先能打开有效工作目录，再验证工具加载。
+安装器同时生成 dsh-mcp.json、dsh-harness-entry.json 和可供官方 --patch 参数使用的 dsh-auto-lammps.patch.yml。工具帮助通过 MCP 提供，skill 安装到 .agents/\allowbreak{}skills/\allowbreak{}auto-lammps-mcp。加载后在 DSH 中实际调用 doctor 与 task\_\allowbreak{}list，回执中的 host\_\allowbreak{}calls 记录调用时间与工具名称。
 
 
 
@@ -272,6 +272,17 @@ cluster 配置需要 ssh\_\allowbreak{}alias、remote\_\allowbreak{}root、accou
 
 每幅图能追到数据、单位、工况、独立样本与分析脚本。结构和轨迹通过平台预览或 OVITO 等工具打开；交接包包含原生项目与文件摘要。
 
+
+
+\subsection{查看与交接现有结果}
+
+
+请 Agent 调用 artifact\_\allowbreak{}preview 展示项目中的图表。MCP 会直接返回 PNG、JPEG 或 WebP 图片，并附文件摘要、来源和是否需要更新；较大的图片以及结构、轨迹提供实际文件入口。
+
+
+
+交接使用 project\_\allowbreak{}export。接收者创建接续任务后，把 ZIP 路径交给 project\_\allowbreak{}import。软件核对每个文件的摘要和大小，恢复原生目录，并把原任务需求、规则、事件与成果记录保存在 handoff 目录；Agent 读取原要求后继续分析。
+
 \clearpage
 \section{项目开发与交付}
 
@@ -292,6 +303,8 @@ worker.py & 持久阶段链、分析队列、监视线程、Codex 接续与通�
 transport.py & 私有本机连接、单一后台进程、协议核对 \\
 mcp\_\allowbreak{}server.py /\allowbreak{} cli.py & 同一服务的 MCP 与命令行入口 \\
 installation.py & 自检、连接、skill 与 macOS 后台安装 \\
+dsh.py /\allowbreak{} network.py & 官方 Harness 接入、配置保留与已有系统代理发现 \\
+handoff.py /\allowbreak{} backup.py & 带来源记录的成果包导入、完整备份与独立目录恢复 \\
 science.py & 单位、热力学列、逐原子轨迹检查 \\
 \bottomrule
 \end{longtable}
@@ -340,6 +353,10 @@ macOS LaunchAgent 运行独立任务服务。MCP 与 CLI 连接同一服务，�
 
 
 
+doctor.daemon.heartbeat 返回本次服务的启动编号、启动时间和最近监视时间。每分钟的记录保留在事件历史中；重启产生新编号，便于核对离开期间是否持续运行。
+
+
+
 \begin{longtable}{p{4.67cm}p{4.67cm}p{4.67cm}}
 \toprule
 状态或问题 & 处理 & 保留事实 \\
@@ -364,6 +381,14 @@ Agent 中断 & 保存待办与证据，重新接续 & 原目标、已否定修�
 \subsection{升级与恢复}
 
 
+后台 Codex 使用官方自动审批审查入口。每轮保存真实工具调用记录；读取目标任务成功后才能记为接续验证通过。指定 expected\_\allowbreak{}outputs 时还逐项检查产物和摘要。进程正常退出或返回一段文字都需要这些执行证据。
+
+
+
+依据：Codex CLI 参数说明。
+
+
+
 保留固定版本环境和安装回执。升级前读取协议与数据库版本，备份数据库与项目；升级后验证工具调用、已有作业、后台恢复和文件完整性。协议不一致拒绝写入并提示接入同一版本。
 
 
@@ -373,6 +398,14 @@ Agent 中断 & 保存待办与证据，重新接续 & 原目标、已否定修�
 
 
 备份包含数据库一致性副本、内容文件、快照、项目、安装回执和导出包。恢复到独立目录后校验摘要，用当前对话读取历史任务，再核对远端作业。
+
+
+
+调用 backup\_\allowbreak{}create(destination, op\_\allowbreak{}id) 后读取返回的操作编号。备份在独立队列中执行，保存数据库一致性副本、项目、内容快照、导出包和处理日志，回执包含完整文件摘要。备份前释放任务操作权。
+
+
+
+恢复使用 alm --home /\allowbreak{}new/\allowbreak{}state restore /\allowbreak{}backup/\allowbreak{}archive.zip --sha256 RECEIPT\_\allowbreak{}SHA256。新目录恢复后可启动服务读取任务，执行队列保持等待。确认原控制服务停止后，调用 recovery\_\allowbreak{}activate(previous\_\allowbreak{}controller\_\allowbreak{}stopped=true, op\_\allowbreak{}id=...)；本机原服务仍在响应时不会接续。原作业编号、失败、费用与需求都保留，工具连接按新目录重新安装。
 
 
 
@@ -481,7 +514,23 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \subsection{已有证据}
 
 
-35 项本地软件检查通过，包括实际 stdio MCP 工具调用、独立服务进程、服务重启后接续、重复派发、丢失回执、停止、规则、分析失败与结果保留。后续新增检查与安装验证继续记录。
+49 项本地软件检查通过，包括实际 stdio MCP 图文工具调用、独立服务进程、服务重启后接续、重复派发、丢失回执、停止、规则、分析失败与结果保留、DSH 配置保留、研究包重新导入、带真实记录的备份恢复，以及原始数据变化对下游图表和报告的传递。
+
+
+
+首个固定提交已安装到独立版本目录；macOS 后台实际启动并响应，Codex 工具配置与 skill 已安装。PR \#2 保存源码审核。DSH 接入使用用户指定的官方 Harness 安装，其 CLI 报告 0.1.7-rc.2。
+
+
+
+官方 DSH 已用既有模型配置完成两次独立会话：首次导入本地服务的实测响应数据，编写原生 Python，经过分析队列生成统计与图表，读取图片并导出；第二次恢复原始需求、核对并复用已有结果，重新导出并检查 16 个项目文件后完成交付。材料计算部分继续等待首次 Ni 运行。
+
+
+
+后台 Codex 第三次验证已完成，成功调用目标任务工具并核对实际交接文件；前两次失败及其产物保留。安装版本已创建带两个任务的备份并恢复，原服务运行时恢复副本保持等待，防止两个控制器同时推进任务。macOS 与 Linux 的远端检查按提交分别记录。
+
+
+
+原始数据、脚本、图表与报告保持依赖关系；改动局部需求后，未受影响的结果可以复用。后台每分钟保存带启动身份和时间的心跳，用于持续监视与重启核对。
 
 
 
@@ -492,7 +541,7 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \subsection{尚未交付}
 
 
-安装后的 Ni 完整研究、独立使用者验收、DSH 内完整操作、后台 Codex 实际接续、科学反例全覆盖、36 次故障恢复、24 项研究和七天监视。固定版本包、PDF 手册及源码 PR 正在形成。
+安装后的 Ni 完整研究、独立使用者验收、双平台材料计算流程、科学反例全覆盖、36 次故障恢复、24 项研究和七天监视。PDF 手册与可编辑源稿已生成，随交付进展更新。
 
 
 

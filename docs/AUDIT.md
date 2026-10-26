@@ -60,3 +60,9 @@ The requirement patch included an unrelated earlier context after a later sectio
 ## 2026-10-27 — Repeated macOS service replacement failure
 
 A second installed upgrade returned service_install_failed and restored the previous daemon. The wrapper now preserved that failure, but launchctl stderr was still missing. Two failures require a common-cause check: preserve launchctl diagnostics, wait for service removal before registering the replacement, and compare the live interpreter with the target, rather than only comparing plist contents. Also found that adding archive metadata invalidated unrelated plots; scope requirement invalidation to affected requirement IDs and retain calculations when scientific constraints are unchanged.
+
+## 2026-10-27 — Derived result freshness
+
+Two targeted checks failed: editing original data outside the service left a downstream report preview marked current, and file_patch marked only direct outputs stale. The existing completion pass caught transitive changes later, but previews could appear current in between. Propagate known file changes immediately, check the full source chain when previewing, and let new verified registrations supersede old stale records at the same path.
+
+The test and CI lookups used nonexistent filenames. Use the file inventory first; process and socket coverage is in test_process_integration.py. No execution state or project content was affected.

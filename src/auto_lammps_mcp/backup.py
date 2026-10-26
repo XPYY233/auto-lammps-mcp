@@ -94,7 +94,7 @@ def restore_backup(archive_path, expected_sha256, destination):
             require(db.execute("PRAGMA integrity_check").fetchone()[0] == "ok", "恢复数据库校验失败")
             require(db.execute("PRAGMA user_version").fetchone()[0] == 1, "备份数据库需要对应版本的软件")
             db.execute("DELETE FROM leases")
-            db.execute("DELETE FROM settings WHERE key LIKE 'process:%' OR key IN ('launchd','hosts','host_calls','background_receipt')")
+            db.execute("DELETE FROM settings WHERE key LIKE 'process:%' OR key IN ('launchd','hosts','host_calls','background_receipt','service_heartbeat')")
             context = dict(source_home=metadata["source_home"], source_host=metadata["source_host"], backup_sha256=expected_sha256,
                            restored_at=time.time(), pending=True)
             db.execute("INSERT OR REPLACE INTO settings VALUES('recovery',?)", (encode(context),))

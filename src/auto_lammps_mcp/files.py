@@ -56,7 +56,8 @@ def manifest(store, task_id, paths=None):
 
 def invalidate(store, db, task_id, current):
     rows = db.execute("SELECT * FROM artifacts WHERE task_id=? AND stale=0", (task_id,)).fetchall()
-    stale_paths = {r[0] for r in db.execute("SELECT path FROM artifacts WHERE task_id=? AND stale=1", (task_id,))}
+    latest = {r["path"]: r for r in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid", (task_id,))}
+    stale_paths = {path for path, row in latest.items() if row["stale"]}
     remaining = list(rows)
     while remaining:
         changed = []
@@ -66,11 +67,59 @@ def invalidate(store, db, task_id, current):
             if set(sources) & stale_paths or any(current.get(name, {}).get("sha256") != sha for name, sha in all_files.items()):
                 db.execute("UPDATE artifacts SET stale=1 WHERE id=?", (row["id"],))
                 store.event(db, task_id, "artifact_stale", dict(artifact_id=row["id"]))
-                stale_paths.add(row["path"])
+                if latest[row["path"]]["id"] == row["id"]:
+                    stale_paths.add(row["path"])
                 changed.append(row)
         if not changed:
             break
         remaining = [r for r in remaining if r not in changed]
+
+
+def invalidate_paths(store, db, task_id, changed_paths):
+    """Propagate a known native edit without rehashing unrelated project files."""
+    affected = set(changed_paths)
+    remaining = list(db.execute("SELECT * FROM artifacts WHERE task_id=? AND stale=0", (task_id,)))
+    latest = {r["path"]: r["id"] for r in db.execute("SELECT id,path FROM artifacts WHERE task_id=? ORDER BY created,rowid", (task_id,))}
+    while remaining:
+        changed = []
+        for row in remaining:
+            if row["path"] in affected or set(json.loads(row["sources"])) & affected:
+                db.execute("UPDATE artifacts SET stale=1 WHERE id=?", (row["id"],))
+                store.event(db, task_id, "artifact_stale", dict(artifact_id=row["id"]))
+                if latest[row["path"]] == row["id"]:
+                    affected.add(row["path"])
+                changed.append(row)
+        if not changed:
+            break
+        remaining = [row for row in remaining if row not in changed]
+
+
+def preview_stale(store, task_id, path):
+    with store.connect() as db:
+        latest = {r["path"]: r for r in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid", (task_id,))}
+    hashes, checked = {}, {}
+
+    def current_hash(name):
+        if name not in hashes:
+            file = store.path(task_id, name)
+            hashes[name] = file_hash(file) if file.is_file() else None
+        return hashes[name]
+
+    def visit(name, visiting):
+        if name in checked:
+            return checked[name]
+        if name in visiting:
+            return True
+        row = latest.get(name)
+        if row is None:
+            return False
+        stale = bool(row["stale"]) or current_hash(name) != row["sha256"]
+        for source, sha in json.loads(row["sources"]).items():
+            stale = stale or current_hash(source) != sha or (source != name and visit(source, visiting | {name}))
+        checked[name] = stale
+        return stale
+
+    return visit(path, set())
 
 
 def import_directory(store, task_id, source):

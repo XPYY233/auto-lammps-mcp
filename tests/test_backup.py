@@ -18,6 +18,7 @@ def test_backup_restore_preserves_populated_data_and_holds_execution(tmp_path):
     with original.store.transaction() as db:
         original.store.event(db, task["id"], "retained_failure", {"attempt": 1, "cost": 12.3})
         original.store.set_setting(db, "process:old", dict(pid=1, started="old process"))
+        original.store.set_setting(db, "service_heartbeat", dict(boot_id="old-controller", observed_at=time.time()))
     request = original.backup_create(str(tmp_path / "archive.zip"), "backup")
     Worker(original).work_one()
     outcome = original.operation_get(request["operation_id"])
@@ -33,6 +34,7 @@ def test_backup_restore_preserves_populated_data_and_holds_execution(tmp_path):
     assert any(e["kind"] == "retained_failure" for e in recovered["events"])
     assert restored.doctor()["recovery"]["pending"] is True
     assert restored.store.setting("process:old") is None
+    assert restored.doctor()["daemon"]["heartbeat"] is None
     assert restored.operation_get(request["operation_id"])["state"] == "interrupted"
     assert restored.recovery_activate(True, "activate")["activated"]
     assert restored.recovery_activate(True, "activate")["activated"]
