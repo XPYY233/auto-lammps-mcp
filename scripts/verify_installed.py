@@ -148,11 +148,19 @@ async def verify(home, incoming):
             complete = await invoke("completion_check", task_id=tid, revision=task["revision"], op_id="complete")
             assert complete["complete"], complete
             next_task = await invoke("task_create", title="Handoff receiver", request="Continue the original project", requirements=[dict(id="analysis", description="further analysis")], op_id="next")
-            imported = await finished(await invoke("project_import", task_id=next_task["id"], revision=next_task["revision"], source=exported["path"], op_id="restore-handoff"))
+            import_request = await invoke("project_import", task_id=next_task["id"], revision=next_task["revision"], source=exported["path"], op_id="restore-handoff")
+            imported = await finished(import_request)
             assert imported["original_request"] == task["request"]
             reread = await invoke("file_read", task_id=next_task["id"], path=statistics)
             assert json.loads(reread["text"]) == actual
-            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "failed_analysis_evidence", "native_analysis", "prior_result_binding", "storage_optimization", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
+            receiver = await invoke("task_get", task_id=next_task["id"])
+            lease = await invoke("task_claim", task_id=receiver["id"], owner="installed-reader")
+            followup = await invoke("background_request", task_id=receiver["id"], revision=receiver["revision"], instruction="Read the imported project after import completes", after_operations=[import_request["operation_id"]], op_id="saved-followup")
+            pending = await invoke("task_get", task_id=receiver["id"])
+            assert pending["executor"]["owner"] == "installed-reader"
+            assert pending["waiting_background"][0]["operation_id"] == followup["operation_id"]
+            await invoke("task_release", task_id=receiver["id"], token=lease["token"])
+            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "failed_analysis_evidence", "native_analysis", "prior_result_binding", "storage_optimization", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport", "continuation_saved_during_lease"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
 
 
 def main():

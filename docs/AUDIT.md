@@ -248,3 +248,7 @@ Issue #28 tracks executor cleanup after confirmed background termination and an 
 The recovered agent discovered a README row-count mismatch after starting export. Its attempt to save background_request was rejected by the export worker's lease, so the text saying a background follow-up remained did not establish a queued operation. Issue #28 also needs request persistence while another worker owns the task: recording an intent must not compete with file mutation. Preserve the rejected call and archive; record the remaining correction explicitly before any final completion.
 
 A local log reader encountered a non-JSON diagnostic line and a guessed store.py path. Filter diagnostics when reading the JSON event stream; the actual persistence module is core.py.
+
+## 2026-10-27 — Persisted continuation dependencies
+
+Issue #28's observed lease_conflict came from using the file-writer lease to validate a saved continuation intent. Validate task revision and same-task operation dependencies while preserving the active lease, then persist the intent. The worker waits for terminal dependency states, including failures, before starting Codex. Task pause/stop and background hold continue to govern dispatch.

@@ -186,6 +186,10 @@ class Service:
                         executor.update(dict(operation))
                 result["executor"] = executor
             result["active_background"] = [dict(row) for row in db.execute("SELECT id AS operation_id,state,updated FROM queue WHERE task_id=? AND kind='decision' AND state='running' ORDER BY created", (task_id,))]
+            result["waiting_background"] = []
+            for pending in db.execute("SELECT id,payload FROM queue WHERE task_id=? AND kind='decision' AND state='pending' ORDER BY created", (task_id,)):
+                dependencies = json.loads(pending["payload"]).get("after_operations", [])
+                result["waiting_background"].append(dict(operation_id=pending["id"], after_operations=dependencies))
             result["automation"] = self.background_status(db, task_id)
             result["runs"] = [dict(row) for row in db.execute("SELECT * FROM runs WHERE task_id=? ORDER BY created", (task_id,))]
             result["artifacts"] = [dict(row) for row in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created", (task_id,))]
@@ -777,16 +781,30 @@ class Service:
         return dict(resources=results)
 
     @public
-    def background_request(self, task_id: str, revision: int, instruction: str, op_id: str, expected_outputs: list[str] | None = None) -> dict:
-        """Persist a concrete continuation request for background Codex. automation reports whether the project and shared service allow dispatch; a held request remains saved until task_background enables it."""
+    def background_request(self, task_id: str, revision: int, instruction: str, op_id: str, expected_outputs: list[str] | None = None, after_operations: list[str] | None = None) -> dict:
+        """Save a continuation intent even while another executor owns this task. after_operations lists this task's queued operations to finish before Codex starts; failed dependencies also wake it for diagnosis. End the model turn after receiving the saved operation ID. expected_outputs contains only concrete project-relative file paths. Task hold/pause still controls dispatch."""
         require(instruction.strip(), "需要接续任务说明")
+        require(after_operations is None or isinstance(after_operations, list), "after_operations 使用操作编号列表")
+        dependencies = after_operations or []
+        require(isinstance(dependencies, list) and len(dependencies) <= 100 and all(isinstance(x, str) and x for x in dependencies), "after_operations 使用最多 100 个操作编号")
+        require(len(set(dependencies)) == len(dependencies), "after_operations 不能重复")
         for path in expected_outputs or []:
             self.store.path(task_id, path)
         def apply(db):
-            self.store.task(db, task_id, revision)
+            task = self.store.task(db, task_id)
+            require(task["revision"] == revision, "任务已更新", "revision_conflict", "重新读取任务并检查差异")
+            for dependency in dependencies:
+                row = db.execute("SELECT task_id FROM queue WHERE id=?", (dependency,)).fetchone()
+                require(row and row["task_id"] == task_id, "等待的操作必须属于当前任务", "invalid_dependency", "使用 task_records 查找本任务操作")
             self.store.bump(db, task_id)
-            return dict(**self.store.queue(db, task_id, "decision", dict(events=[dict(reason="user_request", instruction=instruction)], expected_outputs=expected_outputs or [])), automation=self.background_status(db, task_id))
-        return self.store.mutate(op_id, dict(method="background_request", task_id=task_id, revision=revision, instruction=instruction, expected_outputs=expected_outputs), apply)
+            payload = dict(events=[dict(reason="user_request", instruction=instruction)], expected_outputs=expected_outputs or [])
+            if after_operations is not None:
+                payload["after_operations"] = dependencies
+            return dict(**self.store.queue(db, task_id, "decision", payload), automation=self.background_status(db, task_id), waiting_for=dependencies)
+        arguments = dict(method="background_request", task_id=task_id, revision=revision, instruction=instruction, expected_outputs=expected_outputs)
+        if after_operations is not None:
+            arguments["after_operations"] = after_operations
+        return self.store.mutate(op_id, arguments, apply)
 
     @public
     def legacy_inspect(self, database: str) -> dict:
