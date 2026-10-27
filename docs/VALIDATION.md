@@ -61,3 +61,7 @@ The recovered background turn completed on the same a7 runtime. The four-page PD
 ## 2026-10-27 — Existing resource library
 
 Issue #32 adds import of existing potential records and author-project indexes, preserving original metadata and source files. Three focused checks cover byte integrity, bounded native-code reading, repeated imports, material search, paging, existing-code bindings, incomplete records and path escape rejection. All 118 software checks and the public-tree/review-register checks passed. Installed-resource acceptance follows the active DSH Ni workflow; the running study remains on its recorded installed version.
+
+## a10 原生命令与真实运行交接
+
+129 项软件检查通过，公开树检查与 45 条审核登记一致。新增检查覆盖三个 compute-current 失败模式、dump 与 reduce/thermo 正确路径、动态依赖、官方文档缓存完整性与分页、固定输入快照，以及带集群名称、失败记录和费用的导出重导入。实际 Ni 第四次作业完成，报告与图表已生成；修复版本安装后继续原成果导出，保留此前导出失败。

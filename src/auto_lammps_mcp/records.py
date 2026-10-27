@@ -5,7 +5,7 @@ from pathlib import Path
 
 def decoded_record(row):
     record = dict(row)
-    for key in ("environment", "rules", "evidence", "cluster", "sources", "requirements", "checks",
+    for key in ("environment", "rules", "evidence", "sources", "requirements", "checks",
                 "payload", "result", "dependencies", "specification", "data"):
         if isinstance(record.get(key), str):
             record[key] = json.loads(record[key])

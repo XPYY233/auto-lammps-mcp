@@ -262,3 +262,15 @@ The installed catalog returned no resources although the previous product had po
 
 The first import tests returned zero entries because the identifier hash received a string instead of bytes; per-entry errors retained this failure. Encode the canonical identity before hashing. Re-run valid import, corruption, traversal, pagination and unchanged-source checks, followed by the installed workflow. Initial inventory reads also referenced obsolete module names; actual module paths are now taken from the checkout file list.
 
+
+## 2026-10-27 — Native LAMMPS command guidance
+
+The Ni task repeated a write_dump compute-current error across three production attempts. The first repairs added run 0 and changed write_data ordering, but did not establish that the referenced per-atom compute was consumed at the current step. The original official write_dump and compute pe/atom pages describe that requirement and the reduce/thermo alternative. Preserve all failed runs; inspect the engine-matched docs before the next change.
+
+v1 scientific_adapters/candidate_tools supplied official-document-derived workflow guidance. The new native-script tools did not expose that guidance or an engine-version command reader. Issue #34 adds cached official references and line-level native input diagnostics linked to the submitted snapshot.
+
+Initial developer lookups used obsolete adapter module names and guessed ASSETS/API filenames; the actual deployed source and current file inventory resolved them. gh pr diff does not support --stat. GitHub integration returned 403 for repository writes; the existing authenticated CLI completed the authorized updates. No repository or scientific history was replaced.
+
+The new snapshot-review regression initially called a nonexistent snapshot_create helper. The service uses queued project_snapshot; update the test to wait for that real operation before checking frozen inputs. Seven command/reference checks already passed.
+
+The completed Ni run reached analysis and report delivery, then project_export failed with JSONDecodeError. decoded_record treated runs.cluster (a plain SSH alias) as JSON; prior export fixtures had no execution records. Decode only the actual JSON columns and exercise export/reimport with a retained Slurm run and its failure/accounting evidence. The source simulation and all analyses remain valid files; retry only export after installation. The developer review-check lookup also used an obsolete script name; render_review_traceability.py is the current checker.
