@@ -498,8 +498,22 @@ class Service:
         return self.store.mutate(op_id, dict(method="operation_retry", operation_id=operation_id), apply)
 
     @public
+    def lammps_reference(self, command: str, engine_version: str, offset: int = 0, limit: int = 4096) -> dict:
+        """Read cached official Syntax, Examples and Restrictions for the actual engine version, e.g. command='compute pe/atom', engine_version='28Mar2023'. Follow next_offset until more=false. Fetches only the requested official LAMMPS page and retains its source/hash; use before writing or repairing native inputs."""
+        from .lammps_reference import read_reference
+        return read_reference(self.store.home, command, engine_version, offset, limit)
+
+    @public
+    def lammps_input_review(self, task_id: str, path: str, engine_version: str = "") -> dict:
+        """Read an existing native input and report known compute-current mistakes with line numbers, content hash and official references. Read dependencies for dynamic control flow, then verify on accounted HPC. No script rewriting or physics execution."""
+        from .lammps_reference import review_text
+        file = self.store.path(task_id, path)
+        require(file.is_file() and file.stat().st_size <= 2 * 1024 * 1024, "输入应为最多 2 MiB 的原生文本文件")
+        return dict(path=path, **review_text(file.read_text(), engine_version))
+
+    @public
     def run_prepare(self, task_id: str, revision: int, snapshot_id: str, entry: str, intent: str, condition_id: str, sample_id: str, op_id: str, purpose: str = "research", parent_id: str | None = None, token: str | None = None) -> dict:
-        """Freeze a Slurm execution intent, input, environment and rules. Native entry is a project-relative shell script."""
+        """Freeze a Slurm execution intent, input, environment and rules. Native entry is a project-relative shell script. Automatically review literal -in/-i inputs; read lammps_reference for the actual engine before generation or repairs. Known compute-current errors return source lines before dispatch."""
         require(purpose in ("research", "retry", "continuation", "environment_check"), "执行目的无效")
         require(intent and condition_id and sample_id, "需要执行意图、工况和独立样本编号")
         config = self.store.setting("cluster")
@@ -518,12 +532,17 @@ class Service:
             duplicate = db.execute("SELECT * FROM runs WHERE task_id=? AND (intent=? OR (snapshot_id IN (SELECT id FROM snapshots WHERE digest=? AND task_id=?) AND entry=? AND condition_id=? AND sample_id=? AND purpose=? AND parent_id IS ?))", (task_id, intent, snap["digest"], task_id, entry, condition_id, sample_id, purpose, parent_id)).fetchone()
             if duplicate:
                 return dict(duplicate)
+            from .lammps_reference import review_snapshot
+            review = review_snapshot(self.store, json.loads(snap["manifest"]), entry)
+            if review["errors"]:
+                raise Fault("lammps_input_error", "输入存在已知的 compute 求值时序错误", "按行号读取官方说明，修正原生文件并建立新快照", evidence=review)
             run_id, now = identifier("run"), time.time()
             environment = {key: config[key] for key in ("ssh_alias", "remote_root", "account", "partition", "environment_script")}
             environment["fingerprint"] = digest(encode(environment).encode())
             remote = config["remote_root"].rstrip("/") + "/" + task_id + "/" + run_id
             db.execute("INSERT INTO runs(id,task_id,intent,snapshot_id,environment,rules,entry,state,cluster,remote_dir,condition_id,sample_id,purpose,parent_id,created,updated) VALUES(?,?,?,?,?,?,?,'prepared',?,?,?,?,?,?,?,?)",
                        (run_id, task_id, intent, snapshot_id, encode(environment), encode(task["policy"]), entry, config["ssh_alias"], remote, condition_id, sample_id, purpose, parent_id, now, now))
+            db.execute("UPDATE runs SET evidence=? WHERE id=?", (encode(dict(input_review=review)), run_id))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "run_prepared", dict(run_id=run_id, rules=task["policy"], snapshot_id=snapshot_id))
             return dict(db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone())

@@ -10,6 +10,26 @@ from auto_lammps_mcp.service import Service
 from auto_lammps_mcp.worker import Worker
 
 
+def test_export_run_alias_and_failure_accounting(service, task, worker, tmp_path):
+    from conftest import prepare
+    run = prepare(service, worker, task)
+    with service.store.transaction() as db:
+        db.execute("UPDATE runs SET state='failed',job_id='12345',evidence=? WHERE id=?",
+                   (json.dumps({'exit_code': '1:0', 'core_seconds': 256, 'reason': 'compute not current'}), run['id']))
+    detailed = service.task_get(task['id'], include_details=True)
+    assert detailed['runs'][0]['cluster'] == 'cluster'
+    exported = worker.export(task['id'])
+    with zipfile.ZipFile(exported['path']) as archive:
+        record = json.loads(archive.read('research-record.json'))
+        assert record['runs'][0]['cluster'] == 'cluster'
+        assert record['runs'][0]['evidence']['core_seconds'] == 256
+    destination = Service(tmp_path / 'received')
+    target = destination.task_create('Continue', 'Keep all attempts', [{'id': 'history', 'description': 'all run history'}], 'create')
+    imported = import_project(destination.store, target['id'], exported['path'])
+    retained = json.loads((destination.store.root(target['id']) / imported['original_record']).read_text())
+    assert retained['runs'] == detailed['runs']
+
+
 def test_export_import_preserves_native_files_and_research_history(tmp_path):
     source = Service(tmp_path / "source")
     task = source.task_create("Ni", "Analyze earlier results and retain the fit", [{"id": "plot", "description": "curve"}], "create")
