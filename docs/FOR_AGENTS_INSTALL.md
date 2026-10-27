@@ -17,7 +17,35 @@
 
 ## 安装固定版本
 
-在干净源代码目录运行 `python3 scripts/install.py --source . --host codex`。已下载安装包使用 `--wheel /absolute/path/package.whl --sha256 RELEASE_SHA256`。
+### 先选择同一套发布文件
+
+从 [Releases](https://github.com/XPYY233/auto-lammps-mcp/releases) 选择已发布版本，记录标签、源码提交和安装包摘要。公开候选版本也显示在该列表中。README 的开发版本号说明当前源码进度，安装包版本以所选发布记录为准。
+
+从该版本的发布附件取得 `install.py`、wheel、`SHA256SUMS` 和 `release.json`；核对安装器与 wheel 的 SHA-256。读取相同标签下的本指南和 skill，例如发布页的源码入口指向 `blob/<tag>/docs/FOR_AGENTS_INSTALL.md`。保存文件实际位置后继续安装。
+
+若用户需要当前源码中的新增能力，先展示与发布包的具体区别，选择固定 Git 提交并记录验证状态。已有可用安装先检查，保留原任务和配置。
+
+### 使用发布 wheel
+
+使用下载好的安装器及 wheel；下列路径与摘要由实际发布附件替换，host 选择当前平台：
+
+```sh
+python3 /absolute/path/install.py \
+  --wheel /absolute/path/auto_lammps_mcp-VERSION-py3-none-any.whl \
+  --sha256 VERIFIED_WHEEL_SHA256 --host codex
+```
+
+DSH 使用 `--host dsh`，并添加下文的 `--dsh-runtime` 与 `--dsh-profile`。安装器检查 wheel 摘要后建立独立版本环境。
+
+### 使用固定源码
+
+从仓库克隆并检出所选发布标签或完整提交，在这个干净的 Git 检出目录运行：
+
+```sh
+python3 scripts/install.py --source . --host codex
+```
+
+源码安装通过 Git 保存确切提交身份；已有用户修改的目录继续保留，另建干净检出用于安装。
 
 安装器在独立版本目录建立环境，保存 installation-progress.json。重复执行复用已完成环境，包与连接成功后再切换 current。后续命令使用返回的绝对 binary 路径。
 
@@ -25,7 +53,7 @@
 
 ## 平台内接入
 
-Codex：安装器通过现有 `codex mcp add` 注册 auto-lammps，并安装 skill。当前会话清单未刷新时，新建工作对话并粘贴：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”实际调用 MCP doctor 与 task_list，再核对 host_calls。
+Codex：安装器通过现有 `codex mcp add` 注册 auto-lammps，并安装 skill。当前会话清单未刷新时，新建工作对话并粘贴：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”实际调用 MCP doctor 与 task_list，确认本次 doctor 的 current_connection.state 为 current；host_calls 保留历史调用记录。
 
 DSH 使用官方 DeepSeek Harness 的现有安装。运行 `python3 scripts/install.py --source . --host dsh --dsh-runtime /absolute/path/to/deepseek-harness --dsh-profile web`；runtime 也可以是已安装 dsh 命令的绝对路径。安装器检查实际版本，在所选 profile 中添加独立的 MCP 配置块，保留原模型设置，备份原文件并检查组合结果。配置失败会恢复原文件。已有 API 凭据继续由 DSH 管理。
 

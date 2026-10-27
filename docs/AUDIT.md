@@ -1,5 +1,11 @@
 # Development audit
 
+## 2026-10-27 — Public onboarding entry
+
+The public README already contained the approved installation prompt, but its short usage section did not explain first-use choices, background behavior, cross-computer continuation or the difference between the published alpha.7 package and a10 source. Issue #38 expands those user paths while retaining the exact existing prompt. Installation guidance now selects matching release files and uses the current MCP connection receipt. Validate prompt identity, links, real installer arguments and the rendered public README; retain independent-user acceptance as a separate pending outcome.
+
+The first rendered-anchor check compared percent-encoded Chinese links with decoded heading IDs and reported a false missing target. Decode link fragments before comparing the actual GitHub HTML; the README target itself is unchanged.
+
 ## 2026-10-26 — repository bootstrap
 
 - GitHub connector issue creation returned 403 for the new repository. No issue was created through that connector. Authenticated CLI created issue #1 successfully.
