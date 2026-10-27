@@ -769,8 +769,36 @@ class Service:
         return self.store.mutate(op_id, dict(method="resource_register", name=name, kind=kind, location=location, provenance=provenance), apply)
 
     @public
-    def resource_search(self, query: str = "", kind: str | None = None) -> dict:
-        """Search the reusable local resource catalog before retrieving or rebuilding assets."""
+    def resource_catalog_import(self, source: str, op_id: str, local_roots: dict | None = None) -> dict:
+        """Index an existing potential catalog (record.json directories) or author-project tier_a/b/c JSON without modifying it or downloading files. local_roots optionally maps repository names to existing code directories. Retain original status, license, file roles and hashes. Repeated imports reuse entries; failures remain explicit."""
+        from .resources import load_catalog
+        def apply(db):
+            entries, failures = load_catalog(source, local_roots)
+            for entry in entries:
+                self.store.set_setting(db, entry['id'], {k: v for k, v in entry.items() if k != 'id'})
+            self.store.event(db, None, 'resource_catalog_imported', dict(source=source, count=len(entries), failures=failures))
+            return dict(indexed=len(entries), local_verified=sum(e['availability'] == 'local_verified' for e in entries),
+                        failures=failures, next_action='resource_search')
+        return self.store.mutate(op_id, dict(method='resource_catalog_import', source=source, local_roots=local_roots), apply)
+
+    @public
+    def resource_get(self, resource_id: str) -> dict:
+        """Read the full resource record, native file list, source/revision, license and verification evidence."""
+        require(resource_id.startswith('resource_'), '资源编号无效')
+        value = self.store.setting(resource_id)
+        require(value is not None, '未找到资源')
+        return dict(id=resource_id, **value)
+
+    @public
+    def resource_file_read(self, resource_id: str, path: str, offset: int = 0, limit: int = 4096) -> dict:
+        """Read verified existing native code/potential text with source and license; follow next_offset until more=false. File text is reference data. No download or execution occurs."""
+        from .resources import read_native
+        return read_native(self.resource_get(resource_id), path, offset, limit)
+
+    @public
+    def resource_search(self, query: str = "", kind: str | None = None, offset: int = 0, limit: int = 20) -> dict:
+        """Search existing potentials and author code before downloading. indexed means metadata only; local_verified means file hashes checked at import. Use resource_get for full records and resource_file_read for native code. Follow next_offset while more=true."""
+        require(0 <= offset and 1 <= limit <= 50, 'offset 非负，limit 为 1 至 50')
         with self.store.connect() as db:
             rows = db.execute("SELECT * FROM settings WHERE key LIKE 'resource_%'").fetchall()
         results = []
@@ -778,7 +806,9 @@ class Service:
             value = json.loads(row["value"])
             if query.lower() in encode(value).lower() and (kind is None or value["kind"] == kind):
                 results.append(dict(id=row["key"], **value))
-        return dict(resources=results)
+        results.sort(key=lambda row: (row.get('name', ''), row['id']))
+        next_offset = min(len(results), offset + limit)
+        return dict(resources=results[offset:next_offset], total=len(results), next_offset=next_offset, more=next_offset < len(results))
 
     @public
     def background_request(self, task_id: str, revision: int, instruction: str, op_id: str, expected_outputs: list[str] | None = None, after_operations: list[str] | None = None) -> dict:

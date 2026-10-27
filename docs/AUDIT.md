@@ -252,3 +252,9 @@ A local log reader encountered a non-JSON diagnostic line and a guessed store.py
 ## 2026-10-27 — Persisted continuation dependencies
 
 Issue #28's observed lease_conflict came from using the file-writer lease to validate a saved continuation intent. Validate task revision and same-task operation dependencies while preserving the active lease, then persist the intent. The worker waits for terminal dependency states, including failures, before starting Codex. Task pause/stop and background hold continue to govern dispatch.
+# 2026-10-27 — Existing resource catalog integration
+
+The installed catalog returned no resources although the previous product had potential records and author-code indexes. This prevented ordinary resource discovery before research. Issue #32 adds read-only catalog import, file verification, bounded native-code reading and repeated-import reconciliation.
+
+The first import tests returned zero entries because the identifier hash received a string instead of bytes; per-entry errors retained this failure. Encode the canonical identity before hashing. Re-run valid import, corruption, traversal, pagination and unchanged-source checks, followed by the installed workflow. Initial inventory reads also referenced obsolete module names; actual module paths are now taken from the checkout file list.
+
