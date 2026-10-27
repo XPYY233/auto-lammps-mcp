@@ -72,3 +72,24 @@ def test_resource_import_reports_unsafe_and_incomplete_entries(service, tmp_path
     catalog.write_text(json.dumps({'tier_a': [{'repo': 'author/missing'}]}))
     result = service.resource_catalog_import(str(catalog), 'incomplete')
     assert result['indexed'] == 0 and len(result['failures']) == 1
+
+
+def test_nist_fixed_version_and_element_search(service, tmp_path):
+    p = tmp_path / 'nist.json'
+    p.write_text(json.dumps({'tier_a': [{'repo': 'Si-reference', 'commit': '', 'source': {'type': 'nist_ipr', 'version': 'fixed'}, 'source_url': 'https://example.org/fixed/Si', 'repository_role': 'potential_library', 'elements': ['Si'], 'units': 'metal'}]}))
+    assert service.resource_catalog_import(str(p), 'nist')['indexed'] == 1
+    assert service.resource_search('Ni')['total'] == 0
+    result = service.resource_search('Si', kind='potential')['resources'][0]
+    assert result['provenance']['source']['revision'] == 'fixed'
+    assert result['location'] == 'https://example.org/fixed/Si'
+
+
+def test_collection_with_actual_run_identity_completes(service, task, worker, scheduler):
+    from conftest import prepare, revision
+    run = prepare(service, worker, task)
+    scheduler.collect = lambda r: {'run_id': r['id'], 'directory': 'existing-output', 'files': []}
+    with service.store.transaction() as db:
+        op = service.store.queue(db, task['id'], 'collect', {'run_id': run['id']})
+    worker.work_one()
+    assert service.operation_get(op['operation_id'])['state'] == 'completed'
+    assert scheduler.submissions == 0

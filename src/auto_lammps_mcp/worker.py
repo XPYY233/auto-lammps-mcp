@@ -448,7 +448,7 @@ class Worker:
             for run in runs:
                 if kind == "collect":
                     result = self.slurm.collect(run)
-                    self.decision(task_id, "results_collected", dict(run_id=run["id"], **result))
+                    self.decision(task_id, "results_collected", {**result, "run_id": run["id"]})
                 elif kind == "reconcile":
                     job_id = self.slurm.reconcile(run)
                     result = dict(job_id=job_id, state="found" if job_id else "unknown")

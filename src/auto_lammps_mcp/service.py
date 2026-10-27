@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 from pathlib import Path
 import time
 
@@ -804,7 +805,10 @@ class Service:
         results = []
         for row in rows:
             value = json.loads(row["value"])
-            if query.lower() in encode(value).lower() and (kind is None or value["kind"] == kind):
+            matches = query.lower() in encode(value).lower()
+            if re.fullmatch(r'[A-Z][a-z]?', query):
+                matches = query in value.get('provenance', {}).get('elements', []) or bool(re.search(r'\b' + re.escape(query) + r'\b', value.get('name', '')))
+            if matches and (kind is None or value["kind"] == kind):
                 results.append(dict(id=row["key"], **value))
         results.sort(key=lambda row: (row.get('name', ''), row['id']))
         next_offset = min(len(results), offset + limit)

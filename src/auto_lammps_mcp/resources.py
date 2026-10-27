@@ -69,8 +69,10 @@ def load_catalog(source, local_roots=None):
     for tier, rows in groups.items():
         for number, raw in enumerate(rows):
             try:
-                require(isinstance(raw, dict) and raw.get('repo') and raw.get('commit'), '项目缺少仓库与固定版本')
-                repo, commit = raw['repo'], raw['commit']
+                require(isinstance(raw, dict) and raw.get('repo'), '项目缺少仓库与固定版本')
+                original_source = raw.get('source') if isinstance(raw.get('source'), dict) else {}
+                repo, commit = raw['repo'], raw.get('commit') or original_source.get('version')
+                require(commit, '项目缺少仓库与固定版本')
                 files = [dict(role=role, name=name) for role, key in [('code', 'inputs'), ('potential', 'potentials')]
                          for name in raw.get(key, [])]
                 location = local_roots.get(repo)
@@ -78,9 +80,10 @@ def load_catalog(source, local_roots=None):
                     location = str(Path(location).expanduser().resolve())
                     files = check_files(Path(location), files)
                 add([repo, commit, tier], dict(name=raw.get('source_label') or raw.get('title') or repo,
-                    kind='author_project', location=location or f'https://github.com/{repo}/tree/{commit}',
+                    kind='potential' if raw.get('repository_role') == 'potential_library' else 'author_project',
+                    location=location or raw.get('source_url') or f'https://github.com/{repo}/tree/{commit}',
                     availability='local_verified' if location and files else 'indexed', files=files,
-                    provenance={**raw, 'source': dict(repository=repo, revision=commit),
+                    provenance={**raw, 'source': {**original_source, 'repository': repo, 'revision': commit},
                                 'license': raw.get('license') or '未记录', 'original_tier': tier,
                                 'catalog_path': str(source), 'catalog_sha256': catalog_hash}))
             except (Fault, ValueError, KeyError, TypeError, OSError) as exc:
