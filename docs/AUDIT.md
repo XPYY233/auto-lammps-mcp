@@ -1,5 +1,19 @@
 # Development audit
 
+## 2026-10-27 — Public onboarding entry
+
+The public README already contained the approved installation prompt, but its short usage section did not explain first-use choices, background behavior, cross-computer continuation or the difference between the published alpha.7 package and a10 source. Issue #38 expands those user paths while retaining the exact existing prompt. Installation guidance now selects matching release files and uses the current MCP connection receipt. Validate prompt identity, links, real installer arguments and the rendered public README; retain independent-user acceptance as a separate pending outcome.
+
+The first rendered-anchor check compared percent-encoded Chinese links with decoded heading IDs and reported a false missing target. Decode link fragments before comparing the actual GitHub HTML; the README target itself is unchanged.
+
+Inspecting the repeated failure showed that the Markdown API returns headings without repository-page anchor IDs. Use the actual repository HTML to verify navigation. Browser loading timed out; the system Python request then failed certificate-chain validation. Keep TLS verification enabled and use the existing curl trust configuration for the public page read. These checks did not change the running application or research tasks.
+
+The curl repository-page request also timed out. Validation used the working GitHub API: rendered Markdown contains the complete prompt and all five navigation headings; their fragments match the rendered heading text. The fixed prompt is byte-identical to the previous README and matches the approved plan after whitespace normalization. All 23 relative file links and the real installer arguments were checked. macOS/Linux CI passed for the documentation changes; direct browser visual inspection was unavailable in this run.
+
+Publishing the audit follow-up failed with an HTTP/2 framing error; GitHub still pointed to the prior checked commit. Retry the normal fast-forward push with HTTP/1.1 scoped to that command, then verify the PR head before relying on its checks.
+
+The HTTP/1.1 Git push then failed to connect. The repository API remained reachable. Publish the audit file through the authenticated Contents API with the observed blob identity and branch, preserve the existing commits, and verify the resulting PR head and CI before merging.
+
 ## 2026-10-26 — repository bootstrap
 
 - GitHub connector issue creation returned 403 for the new repository. No issue was created through that connector. Authenticated CLI created issue #1 successfully.
