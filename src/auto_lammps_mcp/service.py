@@ -889,21 +889,29 @@ class Service(ResearchOperations):
 
     @public
     def resource_search(self, query: str = "", kind: str | None = None, offset: int = 0, limit: int = 20) -> dict:
-        """Search existing potentials and author code before downloading. indexed means metadata only; local_verified means file hashes checked at import. Use resource_get for full records and resource_file_read for native code. Follow next_offset while more=true."""
+        """Search existing potentials and native examples using keywords and Chinese/English aliases. catalog_total distinguishes no matches from an empty catalog; retry fewer terms or query='' to inspect it. indexed is metadata; resource_get rechecks files. Read examples with resource_file_read and follow next_offset while more=true."""
         require(0 <= offset and 1 <= limit <= 50, 'offset 非负，limit 为 1 至 50')
         with self.store.connect() as db:
             rows = db.execute("SELECT * FROM settings WHERE key LIKE 'resource_%'").fetchall()
+        from .research_store import tokens
+        wanted = tokens(query)
         results = []
+        catalog_total = 0
         for row in rows:
             value = json.loads(row["value"])
-            matches = query.lower() in encode(value).lower()
+            if kind is not None and value['kind'] != kind:
+                continue
+            catalog_total += 1
+            matched = wanted & tokens(encode(value))
+            matches = not wanted or bool(matched)
             if re.fullmatch(r'[A-Z][a-z]?', query):
                 matches = query in value.get('provenance', {}).get('elements', []) or bool(re.search(r'\b' + re.escape(query) + r'\b', value.get('name', '')))
             if matches and (kind is None or value["kind"] == kind):
-                results.append(dict(id=row["key"], **value))
-        results.sort(key=lambda row: (row.get('name', ''), row['id']))
+                results.append(dict(id=row["key"], **value, matched_terms=sorted(matched)))
+        results.sort(key=lambda row: (-len(row['matched_terms']), row.get('name', ''), row['id']))
         next_offset = min(len(results), offset + limit)
-        return dict(resources=results[offset:next_offset], total=len(results), next_offset=next_offset, more=next_offset < len(results))
+        return dict(resources=results[offset:next_offset], total=len(results), catalog_total=catalog_total,
+                    next_offset=next_offset, more=next_offset < len(results))
 
     @public
     def background_request(self, task_id: str, revision: int, instruction: str, op_id: str, expected_outputs: list[str] | None = None, after_operations: list[str] | None = None) -> dict:

@@ -2,6 +2,10 @@
 
 Save the user's words and required results with `task_create`. Clarify scientific ambiguities together, in plain language. Preserve answered questions. Resolve ambiguous task names using material, date and stage before writing.
 
+For "先讨论" or pause, save task_control pause before advancing an existing task. Summarize reusable files, observed failures and the two or three scientific choices needed next. Read evidence for that discussion; defer new analyses and reports until that work is requested. Finding no search matches is not an empty catalog: inspect catalog_total and retry fewer terms or an empty query. Identify the actual historical resource combination and the user's reference combination separately.
+
+Keep observed behavior separate from its explanation: no site hop within an observed time window does not establish pinning or rule out slower migration. Report the sampled window and the remaining competing explanations. Compute derived parameter changes from their formula and units rather than intuition. A passed numeric check covers its stated inputs and conditions, not arbitrary new directions, energies or sizes.
+
 Read [local memory and validation reuse](memory-reuse.md). task_get/research_context returns prior methods, failures and verification. Match existing evidence before scheduling preflight. Same-condition repeats use existing validation; changed conditions need only the affected checks.
 
 Give each deliverable an id and description. Use kind='archive' when the user requires an exported result package. project_export links the actual ZIP to that requirement; a handoff note alone does not satisfy it. Run completion_check after the export finishes, with no analysis or export still pending.

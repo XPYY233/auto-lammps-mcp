@@ -1,6 +1,15 @@
 from auto_lammps_mcp.verification import run_checks
 
 
+def test_resource_search_handles_natural_keywords_and_reports_catalog_size(service, tmp_path):
+    path = tmp_path / 'W.eam'; path.write_text('native potential')
+    resource = service.resource_register('Marinica EAM3 W potential', 'potential', str(path), {'source': 'fixture', 'license': 'test', 'elements': ['W']}, 'register')
+    assert service.resource_search('tungsten W Marinica EAM')['resources'][0]['id'] == resource['id']
+    assert service.resource_search('钨势函数')['resources'][0]['id'] == resource['id']
+    empty = service.resource_search('not-present-name')
+    assert empty['total'] == 0 and empty['catalog_total'] == 1
+
+
 def test_registered_native_file_is_readable_and_bundle_checks_current_bytes(service, tmp_path):
     path = tmp_path / 'pot'
     path.write_text('pair_style eam/fs\n')
