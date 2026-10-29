@@ -1,5 +1,7 @@
 # Development audit
 
+- Candidate packaging with --no-isolation failed because the source-test interpreter has no hatchling backend. No package was installed. Use the declared isolated build environment and retain the failed build log; runtime/source checks are unaffected.
+
 - The full repair suite passed 201 checks. A documentation patch used an unverified P2 heading and was rejected atomically; no partial edits occurred. The actual heading was read and the patch reapplied. Production staging also selects the latest receipt per component so superseded passing measurements do not block a newer consistent runtime.
 
 - The corrected focused suite passed 37 checks. A follow-up search included a guessed environment.py; the capture API is in research.py. Subsequent source searches use the actual module inventory.
