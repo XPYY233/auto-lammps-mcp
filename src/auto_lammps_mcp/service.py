@@ -862,13 +862,20 @@ class Service(ResearchOperations):
             for key in value['members']:
                 member = self.store.setting(key)
                 require(member, '组合中的资源记录缺失')
-                members.append(dict(id=key, **member))
+                members.append(self.resource_get(key))
             result['member_records'] = members
-            result['member_metadata_current'] = all(digest(encode({k: v for k, v in m.items() if k != 'id'}).encode()) == value['member_versions'].get(m['id']) for m in members)
-        if value.get('availability') == 'local_verified':
+            result['member_metadata_current'] = all(digest(encode(self.store.setting(m['id'])).encode()) == value['member_versions'].get(m['id']) for m in members)
+            result['files_current'] = all(m.get('files_current') is True for m in members)
+            result['next_action'] = '通过 resource_file_read 读取成员的原生文件，按当前条件核对验证依据'
+        # Adapt historical single-file registrations without rewriting their identity.
+        if value.get('sha256') and not value.get('files'):
+            path = Path(value['location']).expanduser()
+            result.update(file_root=str(path.parent), availability='local_verified',
+                          files=[dict(name=path.name, role=value['kind'], sha256=value['sha256'])])
+        if result.get('availability') == 'local_verified':
             from .resources import check_files
             try:
-                check_files(Path(value['location']), value['files'])
+                result['files'] = check_files(Path(result.get('file_root', result['location'])), result['files'])
                 result['files_current'] = True
             except (Fault, OSError) as exc:
                 result.update(files_current=False, file_error=str(exc))

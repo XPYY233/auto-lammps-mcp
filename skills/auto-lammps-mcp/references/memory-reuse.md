@@ -6,6 +6,8 @@ memory_search uses aliases and conditions within the task's access scope; memory
 
 Find complete potential/method combinations with resource_search/resource_get. resource_bundle links existing member files, native invocation, element mapping, short-range parameters, provenance, license and applicable conditions. Check actual members and revisions. Ordinary research may learn licensed author code. Formal B retains its separate source boundary.
 
+Directly registered native files expose file_root and files for resource_file_read. A bundle returns each member's current file check as well as its metadata version. Require files_current before using a member. For a measured failure, memory retains the actual value, criterion, receipt and source hashes as observed evidence; its physical explanation remains a candidate until tested. Keep a user's reference combination distinct from the combination actually used in an earlier job.
+
 Freeze all research inputs using project_snapshot(paths=[...]); exclude results. validation_plan components list id, scope, files, condition_keys, checks. Include every dependency and every scientific condition. Keep immutable engine/version evidence in the input bundle and conditions. Separate numerical, environment, output and geometry dependencies so a changed condition affects the right component.
 
 Always call validation_match before arranging new physical checks. ready=true permits production; a partial match specifies the remaining components. A new plan can use reuse_from to retain identical, still valid measured components. New material, potential, method or unrecognized edits require matching their real differences. Do not infer a validated parameter range from two endpoints.

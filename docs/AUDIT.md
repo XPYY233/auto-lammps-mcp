@@ -1,5 +1,9 @@
 # Development audit
 
+- P1 source staging through a text patch changed final newlines and the author's CRLF input. Git blob verification caught every mismatch before registration. Restore exact connector-returned bytes through a JSON transfer, compare each Git blob SHA with its fixed upstream revision, then register the bundle.
+
+- P1 resource inspection found that directly registered potential files have a hash but no readable file manifest, and bundle reads compare only stored metadata without checking member files. A previously measured failure is also omitted from automatic failure memory because measured_review_failed is not indexed. Add regressions for direct native reads, a deleted/changed bundle member, and cross-task retrieval of a measured failure before accepting W resource reuse.
+
 - The full installed suite passed 168 tests and failed one client-identity test; the same identity test passed alone. The earlier host-installation test temporarily changes sys.executable and leaves runtime_identity's cached installation identity behind. Clear that cache before and after this fixture's installation call, then rerun the installed suite. No running service or research state was changed by the failed test.
 
 - P0 candidate ae6c274efb10f9b5 passed the MCP replay, then the focused test command stopped at collection because it named test_memory_reuse.py; the actual file is test_research_memory.py. The source traceability command likewise used a guessed filename; the workflow's render_review_traceability.py --check passed. Use the installed full suite and the observed workflow entry points; retain the first verification log.

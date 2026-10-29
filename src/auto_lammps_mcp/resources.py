@@ -97,7 +97,7 @@ def read_native(value, path, offset, limit):
     require(0 <= offset and 1 <= limit <= 8192, 'offset 非负，limit 为 1 至 8192 个字符')
     expected = next((f for f in value.get('files', []) if f['name'] == path), None)
     require(expected is not None, '文件未在该资源清单中登记')
-    file = contained_file(Path(value['location']), path)
+    file = contained_file(Path(value.get('file_root', value['location'])), path)
     require(file.stat().st_size <= 16 * 1024 * 1024, '大文件使用原生分析工具读取')
     require(file_hash(file) == expected['sha256'], '资源文件摘要发生变化', 'resource_changed', '重新核对原资源及版本')
     try:

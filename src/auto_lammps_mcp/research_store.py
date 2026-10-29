@@ -86,17 +86,24 @@ def save_memory(db, value, reason):
 
 def remember_event(db, task_id, kind, data, seq):
     if not task_id or kind not in {'task_created', 'task_updated', 'decision_needed',
-                                  'research_completed', 'artifact_review_failed', 'validation_checked'}:
+                                  'research_completed', 'artifact_review_failed', 'validation_checked', 'measured_review_failed'}:
         return
     task = db.execute('SELECT title,request,constraints_json FROM tasks WHERE id=?', (task_id,)).fetchone()
     if not task:
         return
-    category = 'failure' if kind in ('decision_needed', 'artifact_review_failed') else 'task'
+    category = 'failure' if kind in ('decision_needed', 'artifact_review_failed', 'measured_review_failed') or kind == 'validation_checked' and not data.get('passed') else 'task'
     # Store short factual pointers, not copied credentials or arbitrary command output.
     summary = task['request'] if kind == 'task_created' else kind + ': ' + str(data.get('reason', data.get('component', '')))
+    evidence = {'event_seq': seq}
+    if data.get('receipt_id'):
+        receipt = db.execute('SELECT result FROM check_receipts WHERE id=? AND task_id=?', (data['receipt_id'], task_id)).fetchone()
+        if receipt:
+            receipt = json.loads(receipt[0])
+            evidence.update(receipt_id=receipt['id'], files=receipt['sources'])
+            summary += ' ' + encode([dict(specification=c['specification'], measured=c.get('measured'), error=c.get('error'), passed=c['passed']) for c in receipt['checks']])
     save_memory(db, dict(id='memory_event_' + str(seq), task_id=task_id, kind=category,
                         status='observed', title=task['title'], summary=summary[:3000],
-                        conditions=json.loads(task['constraints_json']), evidence={'event_seq': seq}, source_event=seq), kind)
+                        conditions=json.loads(task['constraints_json']), evidence=evidence, source_event=seq), kind)
 
 
 def evidence_current(store, task_id, sources):
@@ -122,11 +129,11 @@ def search_memory(store, db, task_id, query='', limit=5, verify=True):
         value = match[3]
         current = evidence_current(store, value['task_id'], value['evidence'].get('files', {})) if verify else None
         receipt_id = value['evidence'].get('receipt_id')
-        if receipt_id and verify:
+        if receipt_id and verify and value['status'] == 'verified':
             from .verification import receipt_current
             current = current and receipt_current(store, db, value['task_id'], receipt_id)
         value.update(evidence_current=current,
-                     reuse='reference' if value['status'] != 'verified' else 'check_conditions' if current is not False else 'evidence_changed')
+                     reuse='evidence_changed' if current is False else 'reference' if value['status'] != 'verified' else 'check_conditions')
         selected.append(value)
     return dict(items=selected, total=len(matches),
                 next_action='memory_get 读取来源；validation_match 判断当前输入的覆盖，授权读取当前任务')
