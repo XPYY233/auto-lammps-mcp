@@ -1,6 +1,7 @@
 # Auto-LAMMPS MCP development
 
-At the start of every work turn, read the entire `docs/APPROVED_PLAN.md`, then `docs/PLAN_AMENDMENTS.md` and `docs/PROGRESS.md`. Reconcile the initial plan with later user corrections before choosing work. Do not replace this reading with a summary.
+At the start of every work turn and after context restoration, read the entire `docs/APPROVED_PLAN.md` and `docs/APPROVED_CAPABILITY_PLAN.md`, then `docs/PLAN_AMENDMENTS.md` and `docs/PROGRESS.md`. Load both full plans into the working context before choosing work; summaries and remembered plans do not replace this reading. Apply later user corrections.
+For the capability-improvement work, identify the current P0–P4 stage, its unmet completion conditions, and which condition the next action closes. Report code implementation, source tests, installed-candidate checks and complete user-flow acceptance separately. Prioritize the earliest unmet stage; a focused later-stage check must have an explicit prerequisite purpose. Existing-data reports do not close memory, validation-reuse or batch acceptance. User-facing DSH acceptance must start in a visible official session whose title and location the user can see.
 Use the repository skill in `skills/auto-lammps-mcp/SKILL.md` for research usage.
 
 This is a new project with a new skill. v1.0 supplies reusable assets and failure evidence. The seven historical interface/roadmap images no longer require repeated review.

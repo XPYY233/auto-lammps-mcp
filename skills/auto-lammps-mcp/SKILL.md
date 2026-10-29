@@ -35,4 +35,6 @@ Show task name, completed work, current stage, latest evidence time, next action
 
 ## Project development
 
-At every development work turn read the entire original [approved plan](references/APPROVED_PLAN.md), then [amendments](references/PLAN_AMENDMENTS.md) and the checkout's current progress. Apply later user corrections. This is a new project using v1.0 assets and lessons; the seven historical images need no repeated review.
+At every development work turn and after context restoration, read the entire original [approved plan](references/APPROVED_PLAN.md) and the entire [capability-improvement plan](references/APPROVED_CAPABILITY_PLAN.md), then [amendments](references/PLAN_AMENDMENTS.md) and the checkout's current progress. Load the full texts into the working context; summaries do not replace them. Apply later user corrections.
+
+Locate the current P0–P4 stage and the completion condition the next action addresses. Prioritize the earliest unmet stage; give a prerequisite purpose for any focused later-stage check. Distinguish implemented code, source tests, installed checks and complete user-flow acceptance. A report from existing logs does not establish memory reuse or batch acceptance. For user-facing DSH acceptance, verify the visible official session title and location before starting. This is a new project using v1.0 assets and lessons; the seven historical images need no repeated review. Keep the README's fixed installation prompt unchanged.
