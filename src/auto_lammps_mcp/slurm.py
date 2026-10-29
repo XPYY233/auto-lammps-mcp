@@ -14,10 +14,36 @@ from .files import atomic_write, materialize
 
 ACTIVE = ("dispatching", "unknown", "queued", "running", "cancelling")
 TERMINAL = ("completed", "failed", "cancelled", "timeout")
+SYSTEM_PROFILE = '/etc/profile'
 STATES = {"PENDING": "queued", "CONFIGURING": "queued", "RUNNING": "running", "COMPLETING": "running",
           "SUSPENDED": "running", "REQUEUED": "queued", "COMPLETED": "completed", "FAILED": "failed",
           "CANCELLED": "cancelled", "TIMEOUT": "timeout", "OUT_OF_MEMORY": "failed", "NODE_FAIL": "failed",
           "PREEMPTED": "failed", "BOOT_FAIL": "failed", "DEADLINE": "timeout"}
+
+
+def environment_setup(script, next_phase):
+    """Load profiles with normal source semantics; fail on module/setup errors.
+
+    Profiles commonly contain optional interactive probes that return nonzero.
+    Only sourced files get that normal context; the configured commands remain
+    strict. Remove these temporary wrappers before starting the native entry.
+    """
+    return '\n'.join([
+        'set +u', 'set -Eeo pipefail', 'alm_phase=system_profile',
+        "trap 'alm_status=$?; if [ \"$alm_status\" -ne 0 ]; then printf \"ALM_DIAGNOSTIC phase=%s line=%s exit_code=%s\\n\" \"$alm_phase\" \"$LINENO\" \"$alm_status\" >&2; fi' EXIT",
+        '_alm_source() {',
+        '  local alm_source_flags=$- alm_source_status',
+        '  set +e',
+        '  if builtin source "$@"; then alm_source_status=0; else alm_source_status=$?; fi',
+        '  case "$alm_source_flags" in *e*) set -e ;; esac',
+        '  return "$alm_source_status"',
+        '}',
+        'source() { _alm_source "$@"; }', '.() { _alm_source "$@"; }',
+        'source ' + shlex.quote(SYSTEM_PROFILE),
+        'alm_phase=configured_environment', script,
+        'unset -f source . _alm_source', 'set -Eeo pipefail',
+        'alm_phase=' + shlex.quote(next_phase),
+    ])
 
 
 class SSH:
@@ -28,7 +54,14 @@ class SSH:
         except subprocess.TimeoutExpired as exc:
             raise Fault("connection_timeout", "远端操作未返回回执", "核对远端状态后接续", "unknown") from exc
         if result.returncode:
-            raise Fault("remote_command_failed", result.stderr[-8000:] or result.stdout[-8000:], "读取已保存操作并核对远端状态", "unknown")
+            evidence = dict(exit_code=result.returncode, stdout=result.stdout[-8000:], stderr=result.stderr[-8000:])
+            markers = re.findall(r'ALM_DIAGNOSTIC phase=([a-z_]+) line=(\d+) exit_code=(-?\d+)', result.stderr)
+            if markers:
+                evidence.update(phase=markers[-1][0], line=int(markers[-1][1]))
+            location = '，阶段 ' + evidence['phase'] if 'phase' in evidence else ''
+            detail = evidence['stderr'] or evidence['stdout'] or '远端没有输出诊断文本'
+            raise Fault("remote_command_failed", f"远端命令退出（状态 {result.returncode}{location}）：\n{detail}",
+                        "读取已保存操作的 evidence，按失败阶段核对远端状态", "unknown", evidence=evidence)
         return result.stdout
 
     def transfer(self, alias, local, remote, upload):
@@ -52,9 +85,14 @@ class Slurm:
         source = Path(__file__).with_name('runtime_probe.py').read_text().split("if __name__ == '__main__':")[0]
         spec = dict(commands=commands, files=files)
         source += '\nprint("ALM_RUNTIME=" + json.dumps(inspect(' + repr(spec) + '), sort_keys=True))\n'
-        script = '\n'.join(['set -eo pipefail', 'source /etc/profile', config['environment_script'],
+        script = '\n'.join([environment_setup(config['environment_script'], 'runtime_identity'),
                             "python3 - <<'ALM_RUNTIME_PROBE'", source, 'ALM_RUNTIME_PROBE'])
-        output = self.ssh.command(config['ssh_alias'], script, timeout=120)
+        try:
+            output = self.ssh.command(config['ssh_alias'], script, timeout=120)
+        except Fault as exc:
+            raise Fault(exc.code, '引擎文件身份读取失败（未启动引擎）：' + str(exc),
+                        '读取 evidence 中的阶段、退出码和诊断，修正环境配置后重新读取文件身份；引擎启动检查使用记账 HPC',
+                        'partial', evidence={**(exc.evidence or {}), 'engine_invoked': False}) from exc
         lines = [line[len('ALM_RUNTIME='):] for line in output.splitlines() if line.startswith('ALM_RUNTIME=')]
         require(len(lines) == 1, '未取得完整的引擎文件身份', 'runtime_unavailable')
         measured = json.loads(lines[0])
@@ -104,7 +142,7 @@ class Slurm:
             script = "\n".join(["#!/bin/bash", f"#SBATCH --job-name={run['id']}", f"#SBATCH --account={environment['account']}",
                 f"#SBATCH --partition={environment['partition']}", "#SBATCH --nodes=1", f"#SBATCH --ntasks={rules['cores']}",
                 f"#SBATCH --mem={rules['memory_mib']}M", f"#SBATCH --time={walltime}", "#SBATCH --output=.alm-slurm-%j.out", "#SBATCH --export=NONE",
-                "set -eo pipefail", "source /etc/profile", environment["environment_script"],
+                environment_setup(environment["environment_script"], 'job_entry'),
                 "export SLURM_EXPORT_ENV=ALL", "set -u", "cd " + shlex.quote(run["remote_dir"]),
                 command, ""])
             atomic_write(root / ".alm-job.sh", script.encode())

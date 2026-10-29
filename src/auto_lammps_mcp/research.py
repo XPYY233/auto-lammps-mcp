@@ -22,7 +22,7 @@ class ResearchOperations:
     @public
     def environment_capture(self, task_id: str, revision: int, commands: list[str], op_id: str,
                             files: list[str] | None = None, token: str | None = None) -> dict:
-        """Read remote installed engine/launcher bytes and resolved shared libraries; no engine invocation or physics. commands lists actual executables used by the native entry, e.g. ['lmp','mpirun'] or absolute paths. files lists extra absolute plugin/container/runtime dependencies. Returns an operation; use its runtime id in validation_plan. Repeating this capture measures changes without a new preflight job."""
+        """Read remote installed engine/launcher bytes and resolved shared libraries; no engine invocation or physics. commands lists actual executables used by the native entry, e.g. ['lmp','mpirun'] or absolute paths. files lists extra absolute plugin/container/runtime dependencies. Returns an operation; use its runtime id in validation_plan. Repeating this capture measures changes without a new preflight job. Failures retain phase/exit_code in error.evidence; diagnose profile/module/file-reading failure from that receipt. Engine startup checks use accounted HPC."""
         from pathlib import PurePosixPath
         files = files or []
         require(commands and len(commands) <= 16 and len(files) <= 64, '列出实际引擎和启动器，以及必要的外部依赖')
