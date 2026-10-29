@@ -158,8 +158,11 @@ def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=Non
         store.event(db, task_id, 'validation_checked', dict(receipt_id=value['id'], component=component, passed=passed))
         if not passed:
             affected = []
+            failed_paths = {c['specification']['path'] for c in results if not c['passed']}
             latest = {r['path']: r for r in db.execute('SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid', (task_id,))}
             for artifact in latest.values():
+                if not failed_paths.intersection({artifact['path'], *json.loads(artifact['sources'])}):
+                    continue
                 if any(c.get('receipt_id') and not receipt_current(store, db, task_id, c['receipt_id'], artifact['path'])
                        for c in json.loads(artifact['checks'])):
                     affected.append(artifact['id'])

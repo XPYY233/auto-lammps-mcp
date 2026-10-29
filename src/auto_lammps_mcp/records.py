@@ -78,7 +78,8 @@ def task_summary(task):
         run.pop("environment", None)
         run.pop("rules", None)
     for artifact in task["artifacts"]:
-        artifact["checks_passed"] = all(check["passed"] for check in artifact.pop("checks"))
+        checks = artifact.pop('checks')
+        artifact['checks_passed'] = bool(checks) and not artifact.get('stale', False) and all(check.get('current_passed', False) for check in checks)
         artifact["source_count"] = len(artifact.pop("sources"))
     for work in task["work"]:
         if work.get("result"):

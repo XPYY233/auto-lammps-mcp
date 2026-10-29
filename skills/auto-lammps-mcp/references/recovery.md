@@ -4,6 +4,8 @@ Show task name, completed work, current stage, latest evidence time, next action
 
 Pause also holds queued analysis, import, snapshot, export and storage work. Logs, collection and measured diagnostic checks remain available. A new failed measured check reopens dependent completed results; a later file-existence check cannot clear that numerical failure. Read the current receipt and preserve the original failed evidence.
 
+Use task_get.artifacts[].checks_passed for the current verdict. Detailed checks retain their original passed value and add current_passed. research_metrics.completion_recorded describes current completion; historical_completion_recorded preserves an earlier completion event after a failed review reopens the task.
+
 After a failed operation, read its error.evidence. Failed analyses retain a receipt with input hashes, the actual log_path for file_read, exit code, partial outputs and missing outputs. A script that has already run reports effect=partial. Correct the native file and submit a new analysis operation; preserve the failed operation and its outputs.
 
 Read task_get.executor and active_background before taking over a repair. An active background operation may temporarily release its lease while awaiting analysis; follow that operation's progress. Re-read the task revision before a later write. A task-specific instruction should be handled within that task; keep other projects' shared service preferences intact.

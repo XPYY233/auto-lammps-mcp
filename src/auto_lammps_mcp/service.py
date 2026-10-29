@@ -221,6 +221,11 @@ class Service(ResearchOperations):
         for artifact in result["artifacts"]:
             for key in ("sources", "requirements", "checks"):
                 artifact[key] = json.loads(artifact[key])
+        from .verification import receipt_current
+        with self.store.connect() as db:
+            for artifact in result['artifacts']:
+                for check in artifact['checks']:
+                    check['current_passed'] = bool(check.get('receipt_id') and receipt_current(self.store, db, task_id, check['receipt_id'], artifact['path']))
         result["next_action"] = {
             "completed": "查看已登记成果，或提出追加分析",
             "paused": "后续派发已暂停；查看当前作业，准备继续时恢复任务",

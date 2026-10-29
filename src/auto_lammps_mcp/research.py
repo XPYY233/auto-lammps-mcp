@@ -104,7 +104,8 @@ class ResearchOperations:
             first = db.execute("SELECT min(created) FROM events WHERE task_id=? AND kind='dispatch_started'", (task_id,)).fetchone()[0]
             completed = db.execute("SELECT 1 FROM events WHERE task_id=? AND kind='research_completed'", (task_id,)).fetchone()
             return dict(task_id=task_id, initiated_studies=1, groups=groups, current_state=task['state'],
-                        completion_recorded=bool(completed), seconds_to_first_dispatch=first-task['created'] if first else None,
+                        completion_recorded=bool(completed and task['state'] == 'completed'),
+                        historical_completion_recorded=bool(completed), seconds_to_first_dispatch=first-task['created'] if first else None,
                         model_calls=None, tool_calls=None, human_interventions=None, host_trace_required=True)
 
     @public

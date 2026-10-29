@@ -17,6 +17,14 @@ def test_failed_recheck_invalidates_earlier_pass_without_reregistration(service,
     assert not service.check_get(task['id'], passed['id'])['current_passed']
     assert not service.completion_check(task['id'], revision(service, task), 'rechecked')['complete']
     assert service.task_get(task['id'])['state'] == 'active'
+    assert not service.task_get(task['id'])['artifacts'][0]['checks_passed']
+    assert not service.research_metrics(task['id'])['completion_recorded']
+    assert service.research_metrics(task['id'])['historical_completion_recorded']
+    reviews = lambda: [e for e in service.task_get(task['id'], True)['events'] if e['kind'] == 'measured_review_failed']
+    before = len(reviews())
+    (root / 'unrelated.json').write_text('{"value":2}')
+    run_checks(service.store, task['id'], [dict(kind='json', path='unrelated.json', bounds={'value': {'max': 1}})])
+    assert len(reviews()) == before
     run_checks(service.store, task['id'], [dict(kind='file', path='metrics.json')])
     assert not service.check_get(task['id'], passed['id'])['current_passed']
 

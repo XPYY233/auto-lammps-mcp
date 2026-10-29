@@ -34,7 +34,17 @@ async def verify(home, source=None):
                     current = await invoke('operation_get', operation_id=op['operation_id'])
                     if current['state'] in ('completed', 'failed', 'interrupted'):
                         assert current['state'] == 'completed', current
-                        return current['result']
+                        result = current['result']
+                        if isinstance(result.get('checks'), dict):
+                            checks, offset = [], 0
+                            while True:
+                                page = await invoke('operation_read', operation_id=op['operation_id'], path=['result', 'checks'], offset=offset, limit=50)
+                                checks.extend(item['value'] for item in page['items'])
+                                if not page['more']:
+                                    break
+                                offset = page['next_offset']
+                            result['checks'] = checks
+                        return result
                     await asyncio.sleep(.1)
                 raise AssertionError('P0 operation timeout')
 
@@ -62,6 +72,8 @@ async def verify(home, source=None):
             assert not failed['passed']
             assert not (await invoke('check_get', task_id=tid, receipt_id=first['id']))['current_passed']
             assert (await invoke('task_get', task_id=tid))['state'] == 'active'
+            assert not (await invoke('task_get', task_id=tid))['artifacts'][0]['checks_passed']
+            assert not (await invoke('research_metrics', task_id=tid))['completion_recorded']
             assert not (await mutate('completion_check', 'current-completion'))['complete']
             current = await invoke('task_get', task_id=tid)
             invalid = await client.call_tool('check_run', dict(task_id=tid, revision=current['revision'], checks=[dict(kind='json', path='metrics.json', bounds={'drift': {'maximum': 1}})], op_id='invalid-criterion'))
