@@ -14,6 +14,9 @@ def snapshot(service, worker, task, tag):
 
 def plan(service, worker, task, budget=100):
     service.setup_configure('cluster', dict(ssh_alias='cluster', remote_root='/project/research', account='research', partition='cpu', environment_script='module load engine'), 'cluster')
+    capture = service.environment_capture(task['id'], revision(service, task), ['lmp'], 'runtime-capture')
+    worker.work_one()
+    runtime = service.operation_get(capture['operation_id'])['result']
     root = service.store.root(task['id'])
     (root / 'run.sh').write_text('lmp -in in.lmp\n')
     (root / 'in.lmp').write_text('variable seed index 12345\nunits metal\n')
@@ -26,7 +29,7 @@ def plan(service, worker, task, budget=100):
         dict(id='numerics', scope='numerics', files=['in.lmp', 'W.eam'], condition_keys=['temperature'], checks=[dict(kind='thermo', path='log.lammps', max_abs_drift=1, min_rows=2)]),
         dict(id='outputs', scope='outputs', files=['in.lmp'], condition_keys=[], checks=[dict(kind='thermo', path='log.lammps', columns=['Time', 'TotEng'], min_rows=2)]),
     ]
-    spec = service.validation_plan(task['id'], revision(service, task), sid, 'run.sh', components, 'plan', variations=[dict(path='in.lmp', variable='seed', min=1, max=100000)], budget_core_hours=budget)
+    spec = service.validation_plan(task['id'], revision(service, task), sid, 'run.sh', components, 'plan', variations=[dict(path='in.lmp', variable='seed', min=1, max=100000)], budget_core_hours=budget, runtime_id=runtime['id'])
     return sid, spec
 
 
@@ -41,6 +44,7 @@ def qualify(service, worker, scheduler, task):
     root = service.store.root(task['id']) / 'runs' / run['id']
     root.mkdir(parents=True)
     (root / 'log.lammps').write_text('LAMMPS fixture\nStep Time TotEng\n0 0 -100\n1 .1 -100.1\nLoop time\n')
+    (root / '.alm-runtime.json').write_text(json.dumps(dict(passed=True, fingerprint=spec['specification']['runtime']['fingerprint'])))
     worker.work_one()
     for c in spec['specification']['components']:
         op = service.validation_check(task['id'], revision(service, task), pid, c['id'], 'check-' + c['id'], run_id=run['id'], data_root='' if c['scope'] == 'static' else 'runs/' + run['id'])

@@ -36,7 +36,7 @@ class Worker:
         with self.store.transaction() as db:
             self.store.event(db, None, "service_started", dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at))
             db.execute("UPDATE runs SET state='unknown' WHERE state='dispatching'")
-            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','optimize','collect','reconcile','cancel','connection_check','log_read','check')")
+            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','optimize','collect','reconcile','cancel','connection_check','environment_capture','log_read','check')")
             rows = db.execute("SELECT id,task_id,kind FROM queue WHERE state='running'").fetchall()
             for row in rows:
                 db.execute("UPDATE queue SET state='interrupted',updated=? WHERE id=?", (time.time(), row["id"]))
@@ -426,6 +426,15 @@ class Worker:
         from .records import restored_paths
         payload = restored_paths(self.store, json.loads(work["payload"]))
         kind, task_id = work["kind"], work["task_id"]
+        if kind == 'environment_capture':
+            from .runtime_evidence import remember, selection
+            selected = selection(payload['config'], payload['commands'], payload['files'])
+            try:
+                measured = self.slurm.inspect_runtime(payload['config'], payload['commands'], payload['files'])
+            except Exception as exc:
+                remember(self.store, task_id, selected, dict(fingerprint=None, error=str(exc)))
+                raise
+            return remember(self.store, task_id, selected, measured)
         if kind == 'check':
             from .verification import run_checks
             return run_checks(self.store, task_id, **payload, operation_id=work['id'])
@@ -483,6 +492,7 @@ class Worker:
                         spec = json.loads(binding[0])
                         names = {'runs/' + run['id'] + '/' + c['path'] for component in spec['components']
                                  if component['scope'] in ('environment', 'numerics', 'outputs') for c in component['checks']}
+                        names.add('runs/' + run['id'] + '/.alm-runtime.json')
                         result['verification_sources'] = {name: file_hash(self.store.path(task_id, name)) for name in names if self.store.path(task_id, name).is_file()}
                     self.decision(task_id, "results_collected", {**result, "run_id": run["id"]})
                 elif kind == "reconcile":

@@ -77,6 +77,14 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
                 differences.append('condition:' + key)
         if environment(store) != spec['environment'] and component['scope'] in ('environment', 'numerics', 'outputs'):
             differences.append('environment')
+        if component['scope'] in ('environment', 'numerics', 'outputs'):
+            from .runtime_evidence import current as current_runtime
+            runtime = spec.get('runtime')
+            latest = current_runtime(store, runtime) if runtime else None
+            if not runtime or not latest:
+                differences.append('runtime_missing')
+            elif latest['fingerprint'] != runtime['fingerprint']:
+                differences.append('runtime_changed')
         if new_inputs:
             differences.extend('new_input:' + x for x in new_inputs)
         receipt = db.execute('SELECT * FROM check_receipts WHERE plan_id=? AND component=? ORDER BY created DESC,rowid DESC LIMIT 1',
@@ -97,6 +105,7 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
                                differences=differences, receipt_id=receipt['id'] if receipt else None))
     ready = bool(components) and all(c['ready'] for c in components)
     return dict(plan_id=plan_id, source_task_id=row['task_id'], ready=ready,
+                runtime_observed_at=spec.get('runtime', {}).get('observed_at'), runtime_rechecked_before_dispatch=True,
                 reuse='direct' if ready else 'partial' if any(c['ready'] for c in components) else 'needs_validation',
                 components=components, parameters=parameters, receipt_ids=used,
                 missing=[c['id'] for c in components if not c['ready']],
@@ -126,6 +135,9 @@ def dispatch_gate(store, db, run):
         require(run['purpose'] == 'environment_check', '正式计算需要关联验证方案', 'validation_required', '调用 validation_plan 或复用已有验证')
         return None
     match = match_plan(store, db, run['task_id'], run['snapshot_id'], binding['plan_id'])
+    actual_env = json.loads(run['environment']) if isinstance(run['environment'], str) else run['environment']
+    require(actual_env['environment_script'] == environment(store)['environment_script'],
+            '已准备作业的启动环境与当前配置不一致', 'validation_changed', '保留原作业，按新环境准备新执行意图')
     if binding['stage'] == 'production':
         require(match['ready'], '当前输入存在未完成的验证项', 'validation_required', match['next_action'])
         scopes = {c['scope'] for c in match['components']}
@@ -136,7 +148,7 @@ def dispatch_gate(store, db, run):
         require(plan['active'], '验证方案已停用')
         # Preflight may lack measurements but must use the fixed input and conditions.
         forbidden = [d for c in match['components'] for d in c['differences']
-                     if d.startswith(('file:', 'condition:', 'environment', 'new_input:', 'new_condition:', 'plan_disabled'))]
+                     if d.startswith(('file:', 'condition:', 'environment', 'runtime', 'new_input:', 'new_condition:', 'plan_disabled'))]
         require(not forbidden, '预验证输入已变化，请建立对应的新方案', 'validation_changed', ', '.join(forbidden))
         rules = json.loads(run['rules']) if isinstance(run['rules'], str) else run['rules']
         reserve_budget(store, db, binding['plan_id'], run['id'], rules['cores'] * rules['wall_seconds'] / 3600)

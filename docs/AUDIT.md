@@ -1,5 +1,9 @@
 # Development audit
 
+- P2 browser control could list the visible official DSH tab but failed to attach with browser.user unavailable. The documented alternate binding had the same failure; one computer-use session reset restored attachment and the current page. No DSH prompt or research action was issued during recovery. Preserve the existing conversation and use a separate visible P2 session.
+
+- P2 source inspection named test_slurm.py and test_environment.py before checking the test inventory; those files do not exist. The actual transport/process and reuse tests were located with rg --files. No execution or research state changed.
+
 - On 2026-10-29 the user accepted P1 against its original criterion and authorized P2. Retain the earlier attempts and their observations below. Reading existing data is an interaction-scope issue, the timestamp interpretation belongs to P4, and component-level reuse belongs to P2. The earlier decision to keep P1 open expanded its acceptance boundary; the user's decision supersedes that stage conclusion. Subsequent stage completion or blockers are reported to the user for a decision.
 
 - Initial P2 inspection found that validation.environment compares only environment_script. An unchanged initialization command does not establish unchanged engine bytes. This remains an implementation gap to address with existing run/environment evidence and a focused change-detection regression. The 13 existing reuse tests pass; they do not cover engine replacement at an unchanged command.

@@ -47,13 +47,44 @@ class Slurm:
         script = "set -e\n" + "command -v sbatch\ncommand -v sacct\ncommand -v rsync\n" + "mkdir -p " + shlex.quote(config["remote_root"]) + "\ntest -w " + shlex.quote(config["remote_root"]) + "\nsinfo -h -o '%P|%a|%l'\n"
         return dict(output=self.ssh.command(config["ssh_alias"], script), ssh_alias=config["ssh_alias"])
 
+    def inspect_runtime(self, config, commands, files):
+        # Execute only the byte-reading helper, never a scientific executable.
+        source = Path(__file__).with_name('runtime_probe.py').read_text().split("if __name__ == '__main__':")[0]
+        spec = dict(commands=commands, files=files)
+        source += '\nprint("ALM_RUNTIME=" + json.dumps(inspect(' + repr(spec) + '), sort_keys=True))\n'
+        script = '\n'.join(['set -eo pipefail', 'source /etc/profile', config['environment_script'],
+                            "python3 - <<'ALM_RUNTIME_PROBE'", source, 'ALM_RUNTIME_PROBE'])
+        output = self.ssh.command(config['ssh_alias'], script, timeout=120)
+        lines = [line[len('ALM_RUNTIME='):] for line in output.splitlines() if line.startswith('ALM_RUNTIME=')]
+        require(len(lines) == 1, '未取得完整的引擎文件身份', 'runtime_unavailable')
+        measured = json.loads(lines[0])
+        from .runtime_probe import fingerprint
+        require(measured.get('identity') and measured.get('fingerprint') == fingerprint(measured['identity']), '引擎身份回执不完整')
+        return measured
+
     def stage(self, run):
         environment = json.loads(run["environment"])
         rules = json.loads(run["rules"])
         with self.store.connect() as db:
             row = db.execute("SELECT manifest FROM snapshots WHERE id=?", (run["snapshot_id"],)).fetchone()
             plan = db.execute('SELECT p.specification FROM validation_plans p JOIN run_validations v ON v.plan_id=p.id WHERE v.run_id=?', (run['id'],)).fetchone()
-        monitor = json.loads(plan[0]).get('monitor', []) if plan else []
+        specification = json.loads(plan[0]) if plan else {}
+        monitor = specification.get('monitor', [])
+        runtime = specification.get('runtime')
+        if plan:
+            require(runtime, '验证方案缺少实际引擎身份', 'runtime_required')
+            from .runtime_evidence import remember, selection
+            selected = runtime['selection']
+            try:
+                measured = self.inspect_runtime(environment, selected['commands'], selected['files'])
+            except Exception as exc:
+                remember(self.store, run['task_id'], selection(environment, selected['commands'], selected['files']),
+                         dict(fingerprint=None, error=str(exc)))
+                raise
+            remember(self.store, run['task_id'], selection(environment, selected['commands'], selected['files']), measured)
+            require(measured['fingerprint'] == runtime['fingerprint'],
+                    '引擎、启动器或运行库已变化；保留无关检查，只补受影响的环境、数值和输出检查',
+                    'runtime_changed', '读取 validation_match，重新读取环境身份并建立复用方案')
         with tempfile.TemporaryDirectory(prefix="alm-stage-") as directory:
             root = Path(directory)
             materialize(self.store, json.loads(row[0]), root)
@@ -62,6 +93,11 @@ class Slurm:
                 atomic_write(root / '.alm-guard.py', Path(__file__).with_name('node_guard.py').read_bytes())
                 atomic_write(root / '.alm-guard-spec.json', encode(dict(checks=monitor)).encode())
                 command = 'python3 .alm-guard.py .alm-guard-spec.json ' + shlex.quote(run['entry'])
+            if runtime:
+                atomic_write(root / '.alm-runtime-probe.py', Path(__file__).with_name('runtime_probe.py').read_bytes())
+                atomic_write(root / '.alm-runtime-spec.json', encode(dict(commands=runtime['selection']['commands'],
+                    files=runtime['selection']['files'], expected=runtime['fingerprint'])).encode())
+                command = 'python3 .alm-runtime-probe.py .alm-runtime-spec.json .alm-runtime.json\n' + command
             seconds = rules["wall_seconds"]
             walltime = f"{seconds // 86400}-{seconds % 86400 // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
             # Environment setup intentionally precedes nounset: module initializers may inspect unset variables.
