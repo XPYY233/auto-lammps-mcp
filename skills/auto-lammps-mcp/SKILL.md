@@ -13,6 +13,7 @@ Read the linked guide before its phase. Resolve paths against this skill's direc
 
 - Installing, connecting or upgrading: [installation](references/installation.md). Call MCP `doctor`; current_connection.state must be `current` to confirm this conversation's connection. CLI calls and historical host_calls do not confirm it.
 - Starting or changing research: [research](references/research.md). Preserve the user's words, fixed conditions and required results; import complete projects and write native scripts.
+- Reusing work or adding repeats: [memory and validation](references/memory-reuse.md). Search local evidence, verify changed components only, then prepare production batches.
 - Monitoring, controlling or recovering: [recovery](references/recovery.md). Read durable state and evidence; preserve failures and reuse uncertain operation IDs.
 - Analyzing, showing or handing off results: [delivery](references/delivery.md). Link real files to requirements, export the actual package, then run completion_check.
 

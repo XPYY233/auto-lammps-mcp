@@ -1,0 +1,183 @@
+"""Execute fixed checks on actual files; callers never supply the verdict."""
+from __future__ import annotations
+
+import csv
+import json
+import math
+import time
+
+from .core import Fault, encode, identifier, require
+from .files import file_hash
+from .research_store import evidence_current, save_memory
+from .science import inspect_dump, thermo_blocks
+
+CHECK_VERSION = '1'
+OPTIONS = {
+ 'file': {'min_bytes', 'contains'},
+ 'csv': {'columns', 'min_rows', 'bounds'},
+ 'thermo': {'columns', 'min_rows', 'block', 'energy_column', 'max_abs_drift', 'time_column'},
+ 'trajectory': {'columns', 'min_frames', 'atoms'},
+ 'energy_jump': {'before_block', 'after_block', 'column', 'expected', 'tolerance'},
+ 'json': {'values', 'bounds'},
+}
+
+
+def validate_checks(checks):
+    require(isinstance(checks, list) and 1 <= len(checks) <= 100, '需要 1 至 100 项实际文件检查')
+    for check in checks:
+        require(isinstance(check, dict) and check.get('kind') in OPTIONS and isinstance(check.get('path'), str),
+                '检查需要 kind 和项目相对 path；支持 file、csv、thermo、trajectory、energy_jump')
+        require(set(check) <= {'kind', 'path', 'unit', 'basis'} | OPTIONS[check['kind']], '检查包含未知参数')
+        for key in ('min_rows', 'min_frames', 'min_bytes', 'atoms'):
+            if key in check:
+                require(type(check[key]) is int and check[key] > 0, key + ' 应为正整数')
+        for key in ('max_abs_drift', 'tolerance'):
+            if key in check:
+                require(type(check[key]) in (int, float) and math.isfinite(check[key]) and check[key] >= 0,
+                        key + ' 应为非负有限数')
+        if check['kind'] == 'energy_jump':
+            require(all(k in check for k in ('before_block', 'after_block', 'expected', 'tolerance')),
+                    '注入能量检查需要明确前后段、期望值和容差')
+
+
+def execute_check(path, spec):
+    kind = spec['kind']
+    require(path.is_file() and path.stat().st_size > 0, '检查文件缺失或为空')
+    if kind == 'file':
+        measured = dict(bytes=path.stat().st_size)
+        texts = spec.get('contains', [])
+        require(isinstance(texts, list) and all(isinstance(x, str) for x in texts), 'contains 应为文本列表')
+        content = path.read_text() if texts else ''
+        measured['missing_text'] = [x for x in texts if x not in content]
+        return measured, measured['bytes'] >= spec.get('min_bytes', 1) and not measured['missing_text']
+    if kind == 'json':
+        document = json.loads(path.read_text())
+        require(spec.get('values') or spec.get('bounds'), 'JSON 检查需要 values 或 bounds')
+        def field(name):
+            value = document
+            for part in name.split('.'):
+                value = value[int(part)] if isinstance(value, list) else value[part]
+            return value
+        actual, passed = {}, True
+        for key, expected in spec.get('values', {}).items():
+            actual[key] = field(key)
+            passed = passed and actual[key] == expected
+        for key, bounds in spec.get('bounds', {}).items():
+            value = field(key)
+            require(type(value) in (int, float) and math.isfinite(value), '实测量需要有限数')
+            actual[key] = value
+            passed = passed and bounds.get('min', -math.inf) <= value <= bounds.get('max', math.inf)
+        return actual, passed
+    if kind == 'trajectory':
+        report = inspect_dump(path)
+        frames = report['frames']
+        measured = dict(frame_count=report['frame_count'], checked_frames=len(frames),
+                        identity_changes=sum(f['identity_changed'] for f in frames),
+                        atom_counts=sorted({f['atoms'] for f in frames}),
+                        missing_columns=sorted(set(spec.get('columns', [])) - set.intersection(*(set(f['columns']) for f in frames))))
+        passed = len(frames) >= spec.get('min_frames', 1) and not measured['identity_changes'] and not measured['missing_columns']
+        if 'atoms' in spec:
+            passed = passed and measured['atom_counts'] == [spec['atoms']]
+        return measured, passed
+    if kind == 'csv':
+        with path.open(newline='') as stream:
+            reader = csv.DictReader(stream)
+            columns, rows = reader.fieldnames or [], list(reader)
+        missing = set(spec.get('columns', [])) - set(columns)
+        measured = dict(rows=len(rows), columns=columns, missing_columns=sorted(missing), bounds={})
+        passed = not missing and len(rows) >= spec.get('min_rows', 1)
+        for column, bounds in spec.get('bounds', {}).items():
+            require(column in columns and isinstance(bounds, dict) and set(bounds) <= {'min', 'max'}, '列或上下界无效')
+            values = [float(row[column]) for row in rows]
+            require(values and all(math.isfinite(x) for x in values), '数据列包含非有限数或没有采样')
+            measured['bounds'][column] = dict(min=min(values), max=max(values))
+            passed = passed and min(values) >= bounds.get('min', -math.inf) and max(values) <= bounds.get('max', math.inf)
+        return measured, passed
+    blocks = thermo_blocks(path)
+    require(blocks and all(b['rows'] for b in blocks), '热力学输出不完整')
+    if kind == 'energy_jump':
+        before, after = blocks[spec['before_block']], blocks[spec['after_block']]
+        column = spec.get('column', 'TotEng')
+        value = after['rows'][0][after['columns'].index(column)] - before['rows'][-1][before['columns'].index(column)]
+        measured = dict(delta=value, expected=spec['expected'], absolute_error=abs(value - spec['expected']))
+        # Preserve repeated Step values across blocks; injection has two states at one time.
+        return measured, measured['absolute_error'] <= spec['tolerance']
+    selected = [blocks[spec['block']]] if 'block' in spec else blocks
+    measured, passed = [], True
+    for block in selected:
+        columns, rows = block['columns'], block['rows']
+        missing = set(spec.get('columns', [])) - set(columns)
+        item = dict(rows=len(rows), columns=columns, first_line=block['first_line'], missing_columns=sorted(missing))
+        passed = passed and not missing and len(rows) >= spec.get('min_rows', 1)
+        if 'max_abs_drift' in spec:
+            column = spec.get('energy_column', 'TotEng')
+            values = [r[columns.index(column)] for r in rows]
+            item['max_abs_drift'] = max(abs(x - values[0]) for x in values)
+            passed = passed and item['max_abs_drift'] <= spec['max_abs_drift']
+        if 'time_column' in spec:
+            values = [r[columns.index(spec['time_column'])] for r in rows]
+            item['time_monotonic'] = all(b >= a for a, b in zip(values, values[1:]))
+            item['physical_time'] = [values[0], values[-1]]
+            passed = passed and item['time_monotonic']
+        measured.append(item)
+    return dict(blocks=measured, checked_blocks=len(selected), total_blocks=len(blocks)), passed
+
+
+def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=None, operation_id=None):
+    validate_checks(checks)
+    receipt_id = 'check_' + operation_id if operation_id else identifier('check')
+    with store.connect() as db:
+        existing = db.execute('SELECT result FROM check_receipts WHERE id=?', (receipt_id,)).fetchone()
+        if existing:
+            return json.loads(existing[0])
+    paths = set(artifacts) | {c['path'] for c in checks}
+    sources = {p: file_hash(store.path(task_id, p)) for p in paths if store.path(task_id, p).is_file()}
+    results = []
+    for check in checks:
+        try:
+            measured, passed = execute_check(store.path(task_id, check['path']), check)
+            results.append(dict(specification=check, measured=measured, passed=bool(passed)))
+        except (Fault, ValueError, IndexError, KeyError, OSError) as exc:
+            results.append(dict(specification=check, passed=False, error=str(exc)))
+    current = len(sources) == len(paths) and evidence_current(store, task_id, sources)
+    passed = current and all(r['passed'] for r in results)
+    value = dict(id=receipt_id, task_id=task_id, plan_id=plan_id, component=component,
+                 checker_version=CHECK_VERSION, checks=results, passed=passed, sources=sources,
+                 artifacts=list(artifacts), evidence_current=current, created=time.time())
+    with store.transaction() as db:
+        db.execute('INSERT INTO check_receipts VALUES(?,?,?,?,?,?,?,?,?)',
+                   (value['id'], task_id, plan_id, component, encode(checks), encode(value), encode(sources), int(passed), value['created']))
+        store.event(db, task_id, 'validation_checked', dict(receipt_id=value['id'], component=component, passed=passed))
+        if plan_id and passed:
+            task = store.task(db, task_id)
+            save_memory(db, dict(id='memory_' + value['id'], task_id=task_id, kind='validation', status='verified',
+                                 title=task['title'] + ' / ' + str(component), summary='服务执行检查通过：' + str(component),
+                                 conditions=task['constraints_json'], evidence=dict(receipt_id=value['id'], plan_id=plan_id, files=sources), source_event=None),
+                        'service_executed_check')
+    return value
+
+
+def receipt_current(store, db, task_id, receipt_id, artifact=None):
+    row = db.execute('SELECT * FROM check_receipts WHERE id=? AND task_id=?', (receipt_id, task_id)).fetchone()
+    if not row:
+        return False
+    sources = json.loads(row['sources'])
+    if row['plan_id']:
+        plan = db.execute('SELECT active FROM validation_plans WHERE id=?', (row['plan_id'],)).fetchone()
+        if not plan or not plan[0]:
+            return False
+        suspended = db.execute('SELECT value FROM settings WHERE key=?', ('validation_suspended:' + row['plan_id'],)).fetchone()
+        if suspended and row['component'] in json.loads(suspended[0]):
+            return False
+        latest = db.execute('SELECT passed FROM check_receipts WHERE plan_id=? AND component=? ORDER BY created DESC,rowid DESC LIMIT 1', (row['plan_id'], row['component'])).fetchone()
+        if latest and not latest[0]:
+            return False
+    if json.loads(row['result']).get('checker_version') != CHECK_VERSION:
+        return False
+    previous = json.loads(row['result']).get('reused_from')
+    if previous:
+        original = db.execute('SELECT task_id FROM check_receipts WHERE id=?', (previous,)).fetchone()
+        if not original or not receipt_current(store, db, original[0], previous):
+            return False
+    return bool(row['passed'] and (artifact is None or artifact in sources)
+                and evidence_current(store, task_id, sources))

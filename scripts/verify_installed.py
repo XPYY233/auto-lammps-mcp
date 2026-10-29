@@ -91,7 +91,11 @@ async def verify(home, incoming):
             assert actual == {"count": 3, "mean": 4.0}, actual
             (root / "content-check.json").write_text(json.dumps(dict(actual=actual, expected_mean=4.0)))
             task = await invoke("task_get", task_id=tid)
-            registered = await invoke("artifact_register", task_id=tid, revision=task["revision"], path=plot, sources=["values.csv", "analyze.py", statistics], requirement_ids=["plot"], checks=[dict(passed=True, method="Three input rows and mean 4; PNG decoder response", evidence="content-check.json")], op_id="register")
+            checking = await invoke('check_run', task_id=tid, revision=task['revision'], checks=[dict(kind='json', path=statistics, values={'count': 3, 'mean': 4.0})], artifacts=[plot], op_id='measured-check')
+            measured = await finished(checking)
+            assert measured['passed']
+            task = await invoke('task_get', task_id=tid)
+            registered = await invoke("artifact_register", task_id=tid, revision=task["revision"], path=plot, sources=["values.csv", "analyze.py", statistics], requirement_ids=["plot"], checks=[dict(receipt_id=measured['id'])], op_id="register")
             preview = await client.call_tool("artifact_preview", dict(task_id=tid, path=plot))
             assert not preview.isError
             assert any(item.type == "image" for item in preview.content)
@@ -127,7 +131,12 @@ async def verify(home, incoming):
                         offset = page["next_offset"]
                     assert stored == entries
             current = await invoke("task_get", task_id=tid)
-            assert len(current["work"]) == 5 and current["record_counts"]["work"] > 30
+            if isinstance(current['work'], list):
+                assert len(current['work']) == 5
+            else:
+                recent = await invoke('task_records', task_id=tid, kind='work', limit=5)
+                assert 0 < len(recent['records']) <= 5 and recent['more']
+            assert current["record_counts"]["work"] > 30
             optimized = await finished(await invoke("project_optimize", task_id=tid, revision=current["revision"], op_id="optimize-storage"))
             assert optimized["files_preserved"]
             current = await invoke("task_get", task_id=tid)

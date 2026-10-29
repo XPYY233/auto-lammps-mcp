@@ -36,7 +36,7 @@ class Worker:
         with self.store.transaction() as db:
             self.store.event(db, None, "service_started", dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at))
             db.execute("UPDATE runs SET state='unknown' WHERE state='dispatching'")
-            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','optimize','collect','reconcile','cancel','connection_check','log_read')")
+            db.execute("UPDATE queue SET state='pending',token=NULL,lease_until=NULL WHERE state='running' AND kind IN ('snapshot','import','export','optimize','collect','reconcile','cancel','connection_check','log_read','check')")
             rows = db.execute("SELECT id,task_id,kind FROM queue WHERE state='running'").fetchall()
             for row in rows:
                 db.execute("UPDATE queue SET state='interrupted',updated=? WHERE id=?", (time.time(), row["id"]))
@@ -220,12 +220,14 @@ class Worker:
 
     def _dispatch_one(self):
         with self.store.transaction() as db:
-            row = db.execute("SELECT r.* FROM runs r JOIN tasks t ON t.id=r.task_id WHERE r.state='pending' AND t.state='active' ORDER BY r.created LIMIT 1").fetchone()
+            row = db.execute("SELECT r.* FROM runs r JOIN tasks t ON t.id=r.task_id LEFT JOIN batch_members m ON m.run_id=r.id LEFT JOIN batches b ON b.id=m.batch_id WHERE r.state='pending' AND t.state='active' AND (b.id IS NULL OR b.state='active') ORDER BY r.created LIMIT 1").fetchone()
             if not row:
                 return
             run = dict(row)
             active = db.execute("SELECT count(*) FROM runs WHERE cluster=? AND state IN ('dispatching','unknown','queued','running','cancelling')", (run["cluster"],)).fetchone()[0]
             if active:
+                return
+            if not self.check_dispatch(db, run):
                 return
             # Staging contains no sbatch. It can be repeated after interruption.
         started, finished = time.time(), threading.Event()
@@ -251,6 +253,8 @@ class Worker:
             if latest["rules"] != run["rules"]:
                 self.store.event(db, run["task_id"], "staging_rules_changed", dict(run_id=run["id"], next_action="按最新规则重新准备输入"))
                 return
+            if not self.check_dispatch(db, run):
+                return
             db.execute("UPDATE runs SET state='dispatching',updated=? WHERE id=?", (time.time(), run["id"]))
             self.store.event(db, run["task_id"], "dispatch_started", dict(run_id=run["id"]))
         try:
@@ -267,6 +271,21 @@ class Worker:
             latest = db.execute("SELECT evidence FROM runs WHERE id=?", (run["id"],)).fetchone()[0]
             if task["state"] == "stopping" or json.loads(latest).get("cancel_requested"):
                 self.store.queue(db, run["task_id"], "cancel", dict(run_id=run["id"]))
+
+    def check_dispatch(self, db, run):
+        from .validation import dispatch_gate
+        batch = db.execute('SELECT b.state FROM batches b JOIN batch_members m ON m.batch_id=b.id WHERE m.run_id=?', (run['id'],)).fetchone()
+        if batch and batch[0] != 'active':
+            return False
+        try:
+            task = self.store.task(db, run['task_id'])
+            require(task['policy']['authorized'] and encode(task['policy']) == run['rules'], '当前授权或规则已变化')
+            dispatch_gate(self.store, db, run)
+            return True
+        except Fault as exc:
+            db.execute("UPDATE runs SET state='prepared',updated=? WHERE id=?", (time.time(), run['id']))
+            self.store.event(db, run['task_id'], 'validation_dispatch_held', dict(run_id=run['id'], error=exc.as_dict()))
+            return False
 
     def poll(self):
         with self.store.connect() as db:
@@ -405,6 +424,9 @@ class Worker:
         from .records import restored_paths
         payload = restored_paths(self.store, json.loads(work["payload"]))
         kind, task_id = work["kind"], work["task_id"]
+        if kind == 'check':
+            from .verification import run_checks
+            return run_checks(self.store, task_id, **payload, operation_id=work['id'])
         if kind == "optimize":
             from .files import optimize_storage
             return optimize_storage(self.store, task_id, work["token"])
@@ -427,6 +449,11 @@ class Worker:
             with self.store.transaction() as db:
                 self.store.task(db, task_id, token=work["token"])
                 self.store.bump(db, task_id)
+                if result.get('original_record'):
+                    from .research_store import save_memory
+                    save_memory(db, dict(id=identifier('memory'), task_id=task_id, kind='result', status='observed',
+                        title='导入的既有研究', summary=result['original_request'], conditions={},
+                        evidence=dict(original_task=result.get('original_task'), files={result['original_record']: file_hash(self.store.path(task_id, result['original_record']))}), source_event=None), 'project_import')
             return result
         if kind == "connection_check":
             result = self.slurm.connection_check(self.store.setting("cluster"))
@@ -448,6 +475,13 @@ class Worker:
             for run in runs:
                 if kind == "collect":
                     result = self.slurm.collect(run)
+                    with self.store.connect() as db:
+                        binding = db.execute('SELECT p.specification FROM validation_plans p JOIN run_validations v ON v.plan_id=p.id WHERE v.run_id=?', (run['id'],)).fetchone()
+                    if binding:
+                        spec = json.loads(binding[0])
+                        names = {'runs/' + run['id'] + '/' + c['path'] for component in spec['components']
+                                 if component['scope'] in ('environment', 'numerics', 'outputs') for c in component['checks']}
+                        result['verification_sources'] = {name: file_hash(self.store.path(task_id, name)) for name in names if self.store.path(task_id, name).is_file()}
                     self.decision(task_id, "results_collected", {**result, "run_id": run["id"]})
                 elif kind == "reconcile":
                     job_id = self.slurm.reconcile(run)

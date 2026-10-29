@@ -57,6 +57,9 @@ def inspect_dump(path):
             count = int(stream.readline())
             require(count > 0 and stream.readline().startswith("ITEM: BOX BOUNDS"), "轨迹盒子信息无效")
             box = [stream.readline().strip() for _ in range(3)]
+            for bounds in box:
+                numbers = [float(x) for x in bounds.split()]
+                require(len(numbers) >= 2 and all(math.isfinite(x) for x in numbers) and numbers[1] > numbers[0], '轨迹盒子范围无效')
             header = stream.readline().split()
             require(header[:2] == ["ITEM:", "ATOMS"], "轨迹缺少逐原子数据")
             columns = header[2:]
@@ -65,6 +68,7 @@ def inspect_dump(path):
             for _ in range(count):
                 values = stream.readline().split()
                 require(len(values) == len(columns), "轨迹帧不完整")
+                require(all(math.isfinite(float(x)) for name, x in zip(columns, values) if name != 'element'), '轨迹包含非有限原子数据')
                 atom = int(values[columns.index("id")])
                 require(atom not in frame_ids, "同一帧存在重复原子身份")
                 frame_ids.add(atom)

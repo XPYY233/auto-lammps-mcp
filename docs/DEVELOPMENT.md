@@ -1,5 +1,9 @@
 # 项目开发与交付
 
+新增能力见[本地记忆与验证复用](MEMORY_REUSE.md)。`research_store.py` 定义版本化记忆与 schema 2，`research.py` 提供公共接口，`validation.py` 比较快照和实测组件，`verification.py` 执行固定检查，`checkers.py` 关联原生检查程序，`node_guard.py` 在计算节点增量监视。Service、CLI、MCP 共用这些接口；Worker 在上传前和派发前再次检查。
+
+新接口参数从 `help(method)` 生成。新增数据由事务和 op_id 管理；批次成员拥有独立快照、样本、种子和作业，复用原验证回执。变更只允许声明的种子归一化；所有其他差异明确返回。回执失效沿引用关系传播。
+
 已有 Agent 直接写科研脚本并根据反馈修正；服务承担持久执行、监视、恢复、分析和交接。
 
 | 模块 | 职责 |

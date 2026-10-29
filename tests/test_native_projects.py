@@ -42,10 +42,12 @@ def test_path_escape_and_external_symlink_rejected(service, task, tmp_path):
 
 
 def register(service, task, name, sources, rid, op):
+    from auto_lammps_mcp.verification import run_checks
     root = service.store.root(task["id"])
     (root / name).write_text("artifact")
     (root / "check.json").write_text('{"passed":true}')
-    return service.artifact_register(task["id"], revision(service, task), name, sources, [rid], [{"passed": True, "method": "fixture validation", "evidence": "check.json"}], op)
+    receipt = run_checks(service.store, task['id'], [dict(kind='file', path=name, contains=['artifact'])], artifacts=sources)
+    return service.artifact_register(task["id"], revision(service, task), name, sources, [rid], [dict(receipt_id=receipt['id'])], op)
 
 
 def test_missing_user_output_cannot_complete(service, task):

@@ -93,7 +93,9 @@ def test_new_delivery_requirement_keeps_existing_plot_valid(tmp_path):
     root = service.store.root(task["id"])
     (root / "curve.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     (root / "check.txt").write_text("verified curve data")
-    result = service.artifact_register(task["id"], 1, "curve.svg", [], ["plot"], [{"passed": True, "method": "verify", "evidence": "check.txt"}], "register")
+    from auto_lammps_mcp.verification import run_checks
+    receipt = run_checks(service.store, task['id'], [dict(kind='file', path='curve.svg', contains=['<svg'])])
+    result = service.artifact_register(task["id"], 1, "curve.svg", [], ["plot"], [dict(receipt_id=receipt['id'])], "register")
     updated = service.task_update(task["id"], result["revision"], {"requirements": requirements + [{"id": "zip", "description": "archive", "kind": "archive"}]}, "also export", "add-requirement")
     assert not service.task_get(task["id"])["artifacts"][0]["stale"]
     check = service.completion_check(task["id"], updated["revision"], "check")

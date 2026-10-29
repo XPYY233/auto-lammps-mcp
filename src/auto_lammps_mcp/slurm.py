@@ -52,9 +52,16 @@ class Slurm:
         rules = json.loads(run["rules"])
         with self.store.connect() as db:
             row = db.execute("SELECT manifest FROM snapshots WHERE id=?", (run["snapshot_id"],)).fetchone()
+            plan = db.execute('SELECT p.specification FROM validation_plans p JOIN run_validations v ON v.plan_id=p.id WHERE v.run_id=?', (run['id'],)).fetchone()
+        monitor = json.loads(plan[0]).get('monitor', []) if plan else []
         with tempfile.TemporaryDirectory(prefix="alm-stage-") as directory:
             root = Path(directory)
             materialize(self.store, json.loads(row[0]), root)
+            command = 'bash ' + shlex.quote(run['entry'])
+            if monitor:
+                atomic_write(root / '.alm-guard.py', Path(__file__).with_name('node_guard.py').read_bytes())
+                atomic_write(root / '.alm-guard-spec.json', encode(dict(checks=monitor)).encode())
+                command = 'python3 .alm-guard.py .alm-guard-spec.json ' + shlex.quote(run['entry'])
             seconds = rules["wall_seconds"]
             walltime = f"{seconds // 86400}-{seconds % 86400 // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
             # Environment setup intentionally precedes nounset: module initializers may inspect unset variables.
@@ -63,7 +70,7 @@ class Slurm:
                 f"#SBATCH --mem={rules['memory_mib']}M", f"#SBATCH --time={walltime}", "#SBATCH --output=.alm-slurm-%j.out", "#SBATCH --export=NONE",
                 "set -eo pipefail", "source /etc/profile", environment["environment_script"],
                 "export SLURM_EXPORT_ENV=ALL", "set -u", "cd " + shlex.quote(run["remote_dir"]),
-                "bash " + shlex.quote(run["entry"]), ""])
+                command, ""])
             atomic_write(root / ".alm-job.sh", script.encode())
             atomic_write(root / ".alm-input.json", encode(dict(run_id=run["id"], snapshot_id=run["snapshot_id"], rules=rules, environment=environment)).encode())
             self.ssh.command(run["cluster"], "mkdir -p " + shlex.quote(run["remote_dir"]))
@@ -86,7 +93,7 @@ class Slurm:
         require(all(re.fullmatch(r"[0-9]+", x) for x in ids), "作业编号无效")
         if not ids:
             return {}
-        requests = [dict(run_id=r["id"], root=r["remote_dir"], paths=["log.lammps", ".alm-slurm-" + r["job_id"] + ".out"]) for r in runs if r["job_id"]]
+        requests = [dict(run_id=r["id"], root=r["remote_dir"], paths=["log.lammps", '.alm-guard.json', ".alm-slurm-" + r["job_id"] + ".out"]) for r in runs if r["job_id"]]
         output = self.ssh.command(alias, "sacct -n -P -X -j " + ",".join(ids) + " --format=JobIDRaw,State,ExitCode,ElapsedRaw,AllocCPUS,JobName%100,Submit\n" + self.output_script(requests))
         progress = self.output_records(output)
         found = {}

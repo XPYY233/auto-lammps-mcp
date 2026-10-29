@@ -1,5 +1,11 @@
 # 当前交付记录
 
+## 2026-10-29 能力改进候选
+
+[Issue #40](https://github.com/XPYY233/auto-lammps-mcp/issues/40) 的独立分支已实现本地记忆、组件验证匹配、预算累计、批次身份和控制、实测成果回执、正反样例检查程序登记与节点能量监视。阶段说明接回 skill 和 MCP。原固定安装提示词保持原文。
+
+源码检查当前147项通过；固定安装包、官方 DSH 调用和真实 W 数据回放正在核验。真实新研究、20次物理重复以及原计划整体规模指标继续按各自验收证据登记。
+
 日期：2026-10-27。主任务：[Issue #1](https://github.com/XPYY233/auto-lammps-mcp/issues/1)。开发版本：0.1.0a10；已发布版本：[0.1.0-alpha.7](https://github.com/XPYY233/auto-lammps-mcp/releases/tag/v0.1.0-alpha.7)。
 
 ## 公开使用入口

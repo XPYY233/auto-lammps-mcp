@@ -1,13 +1,15 @@
 from conftest import revision
+from auto_lammps_mcp.verification import run_checks
 
 
 def review(service, task, path, passed, tag):
     root = service.store.root(task['id'])
     (root / path).write_text('A conclusion with its measured evidence')
     evidence = tag + '.json'
-    (root / evidence).write_text('{"passed":' + str(passed).lower() + '}')
+    (root / evidence).write_text('stable' if passed else 'drift')
+    receipt = run_checks(service.store, task['id'], [dict(kind='file', path=evidence, contains=['stable'])], artifacts=[path])
     return service.artifact_register(task['id'], revision(service, task), path, [], ['curve'],
-                                     [dict(passed=passed, method=tag, evidence=evidence)], tag)
+                                     [dict(receipt_id=receipt['id'])], tag)
 
 
 def test_later_failed_review_reopens_unchanged_report_and_retains_verdicts(service, task):

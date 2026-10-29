@@ -10,6 +10,7 @@ import time
 from . import __version__
 from .core import Store, Fault, digest, encode, identifier, require
 from .files import file_hash, invalidate, manifest, patch_file
+from .research import ResearchOperations
 
 
 def public(fn):
@@ -17,7 +18,7 @@ def public(fn):
     return fn
 
 
-class Service:
+class Service(ResearchOperations):
     def __init__(self, home=None):
         self.store = Store(home)
 
@@ -28,7 +29,14 @@ class Service:
             inspect.signature(target).bind(**arguments)
         except TypeError as exc:
             raise Fault("invalid_arguments", str(exc), "调用 help 查看参数") from exc
-        return target(**arguments)
+        result = target(**arguments)
+        if method in {'task_create', 'file_patch', 'lammps_input_review', 'run_prepare', 'analysis_submit'}:
+            task_id = arguments.get('task_id') or (result.get('id') if method == 'task_create' else None)
+            if task_id:
+                from .research_store import stage_context
+                with self.store.connect() as db:
+                    result['research_context'] = stage_context(self.store, db, task_id)
+        return result
 
     @public
     def help(self, method: str = "", offset: int = 0, limit: int = 10) -> dict:
@@ -223,7 +231,17 @@ class Service:
         if include_details:
             for name in ("runs", "work", "events", "stages"):
                 result[name] = [decoded_record(row) for row in result[name]]
-        return restored_paths(self.store, result if include_details else task_summary(result))
+        output = result if include_details else task_summary(result)
+        from .research_store import stage_context
+        with self.store.connect() as db:
+            output['research_context'] = stage_context(self.store, db, task_id)
+            if include_details:
+                output['research_history'] = {table: [dict(r) for r in db.execute('SELECT * FROM ' + table + ' WHERE task_id=?', (task_id,))]
+                                              for table in ('memories', 'validation_plans', 'check_receipts', 'batches')}
+                output['research_history']['batch_members'] = [dict(r) for r in db.execute('SELECT m.* FROM batch_members m JOIN batches b ON b.id=m.batch_id WHERE b.task_id=?', (task_id,))]
+                output['research_history']['memory_versions'] = [dict(r) for r in db.execute('SELECT v.* FROM memory_versions v JOIN memories m ON m.id=v.id WHERE m.task_id=?', (task_id,))]
+                output['research_history']['run_validations'] = [dict(r) for r in db.execute('SELECT v.* FROM run_validations v JOIN runs r ON r.id=v.run_id WHERE r.task_id=?', (task_id,))]
+        return restored_paths(self.store, output)
 
     def background_status(self, db, task_id):
         def setting(key, default):
@@ -317,7 +335,10 @@ class Service:
             for name, value in changes.items():
                 column = "constraints_json" if name == "constraints" else name
                 if name == "policy":
-                    require(set(value) <= {"authorized", "authorization", "source", "cores", "memory_mib", "wall_seconds", "submission_limit"}, "规则字段无效")
+                    require(set(value) <= {"authorized", "authorization", "source", "cores", "memory_mib", "wall_seconds", "submission_limit", "preflight_core_hours"}, "规则字段无效")
+                    if 'preflight_core_hours' in value:
+                        import math
+                        require(type(value['preflight_core_hours']) in (int, float) and math.isfinite(value['preflight_core_hours']) and value['preflight_core_hours'] > 0, '预验证预算应为正数')
                     value = {**task["policy"], **value, "effective_at": time.time()}
                     require(value["cores"] == 32 and value["memory_mib"] == 8192 and 1 <= value["wall_seconds"] <= 604800, "当前执行配置为 32 核、8 GiB，时限最长七天")
                     require(value["submission_limit"] is None or type(value["submission_limit"]) is int and value["submission_limit"] > 0, "提交上限应为正整数或空")
@@ -512,9 +533,10 @@ class Service:
         return dict(path=path, **review_text(file.read_text(), engine_version))
 
     @public
-    def run_prepare(self, task_id: str, revision: int, snapshot_id: str, entry: str, intent: str, condition_id: str, sample_id: str, op_id: str, purpose: str = "research", parent_id: str | None = None, token: str | None = None) -> dict:
+    def run_prepare(self, task_id: str, revision: int, snapshot_id: str, entry: str, intent: str, condition_id: str, sample_id: str, op_id: str, purpose: str = "research", parent_id: str | None = None, token: str | None = None, validation_id: str | None = None, stage: str = "production") -> dict:
         """Freeze a Slurm execution intent, input, environment and rules. Native entry is a project-relative shell script. Automatically review literal -in/-i inputs; read lammps_reference for the actual engine before generation or repairs. Known compute-current errors return source lines before dispatch."""
         require(purpose in ("research", "retry", "continuation", "environment_check"), "执行目的无效")
+        require(stage in ("preflight", "production"), "stage 使用 preflight 或 production")
         require(intent and condition_id and sample_id, "需要执行意图、工况和独立样本编号")
         config = self.store.setting("cluster")
         require(config, "尚未配置集群", "setup_required", "调用 setup_configure")
@@ -543,10 +565,16 @@ class Service:
             db.execute("INSERT INTO runs(id,task_id,intent,snapshot_id,environment,rules,entry,state,cluster,remote_dir,condition_id,sample_id,purpose,parent_id,created,updated) VALUES(?,?,?,?,?,?,?,'prepared',?,?,?,?,?,?,?,?)",
                        (run_id, task_id, intent, snapshot_id, encode(environment), encode(task["policy"]), entry, config["ssh_alias"], remote, condition_id, sample_id, purpose, parent_id, now, now))
             db.execute("UPDATE runs SET evidence=? WHERE id=?", (encode(dict(input_review=review)), run_id))
+            if validation_id:
+                from .validation import match_plan
+                coverage = match_plan(self.store, db, task_id, snapshot_id, validation_id)
+                specification = json.loads(db.execute("SELECT specification FROM validation_plans WHERE id=?", (validation_id,)).fetchone()[0])
+                require(specification['entry'] == entry, '执行入口与验证方案不一致')
+                db.execute('INSERT INTO run_validations VALUES(?,?,?,?,0)', (run_id, validation_id, stage, encode(coverage)))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "run_prepared", dict(run_id=run_id, rules=task["policy"], snapshot_id=snapshot_id))
             return dict(db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone())
-        return self.store.mutate(op_id, dict(method="run_prepare", task_id=task_id, revision=revision, snapshot_id=snapshot_id, entry=entry, intent=intent, condition_id=condition_id, sample_id=sample_id, purpose=purpose, parent_id=parent_id, token=token), apply)
+        return self.store.mutate(op_id, dict(method="run_prepare", task_id=task_id, revision=revision, snapshot_id=snapshot_id, entry=entry, intent=intent, condition_id=condition_id, sample_id=sample_id, purpose=purpose, parent_id=parent_id, token=token, validation_id=validation_id, stage=stage), apply)
 
     @public
     def run_submit(self, run_id: str, revision: int, op_id: str, token: str | None = None) -> dict:
@@ -565,9 +593,11 @@ class Service:
             limit = policy.get("submission_limit")
             require(limit is None or used < limit, "本任务提交次数已用完；诊断与分析仍可继续", "submission_limit", "读取日志、诊断或分析已有结果")
             env = json.loads(row["environment"])
-            if row["purpose"] != "environment_check":
+            if row["purpose"] != "environment_check" and not db.execute('SELECT 1 FROM run_validations WHERE run_id=?', (run_id,)).fetchone():
                 verified = self.store.setting("environment:" + env["fingerprint"])
                 require(verified, "该启动环境尚未通过计算节点验证", "environment_unverified", "先提交 environment_check 并核验实际输出")
+            from .validation import dispatch_gate
+            dispatch_gate(self.store, db, {**dict(row), 'rules': encode(policy)})
             db.execute("UPDATE runs SET state='pending',rules=?,updated=? WHERE id=?", (encode(policy), time.time(), run_id))
             db.execute("UPDATE tasks SET state='active' WHERE id=?", (task["id"],))
             self.store.bump(db, task["id"])
@@ -673,8 +703,7 @@ class Service:
         """Link an actual output to the user's requirement IDs, source files and verification evidence.
 
         path, sources and checks[].evidence are project-relative. The service reads their hashes; do not calculate or repeat hashes in the request.
-        Each check is {'passed': true/false, 'method': 'what was checked', 'evidence': 'path/to/check-result.json'}.
-        Create the evidence file from actual analysis/inspection first. Checks must address the requirement's scientific and file-content criteria.
+        Each check is {'receipt_id': 'check_...'} from check_run/check_get. The receipt must include this artifact and its actual sources. Service-derived measurements determine passed. Historical passed/method/evidence claims are retained as unverified and cannot complete a requirement.
         The latest registration for this path supplies its current checks and complete requirement_ids. Earlier verdicts remain in history.
         A failed current check blocks its linked requirements and reopens a completed task; record corrected evidence before re-reviewing.
         An analysis result path normally starts with analysis/<operation_id>/. Returns the new task revision.
@@ -682,19 +711,31 @@ class Service:
         def apply(db):
             task = self.store.task(db, task_id, revision, token)
             require(set(requirement_ids) <= {r["id"] for r in task["requirements"]}, "成果要求编号不存在")
-            require(checks and all(type(c.get("passed")) is bool and c.get("method") and c.get("evidence") for c in checks), "检查需要结果、方法和证据文件")
+            require(checks, "检查需要服务回执")
+            from .verification import receipt_current
+            recorded, measured_sources = [], {}
+            for check in checks:
+                if check.get('receipt_id'):
+                    receipt = db.execute('SELECT * FROM check_receipts WHERE id=? AND task_id=?', (check['receipt_id'], task_id)).fetchone()
+                    require(receipt and path in json.loads(receipt['sources']), '检查回执必须绑定本任务成果')
+                    measured_sources.update(json.loads(receipt['sources']))
+                    recorded.append(dict(receipt_id=receipt['id'], passed=receipt_current(self.store, db, task_id, receipt['id'], path)))
+                else:
+                    require(type(check.get('passed')) is bool and check.get('method') and check.get('evidence'), '使用 check_run 产生服务检查回执')
+                    recorded.append({**check, 'claimed_passed': check['passed'], 'passed': False, 'status': 'historical_claim'})
             source_map = {}
-            for name in [*sources, *(c["evidence"] for c in checks)]:
+            for name in [*sources, *(c['evidence'] for c in checks if 'evidence' in c)]:
                 file = self.store.path(task_id, name)
                 require(file.is_file(), f"来源文件缺失: {name}")
                 source_map[name] = file_hash(file)
+            source_map.update(measured_sources)
             file = self.store.path(task_id, path)
             require(file.is_file() and file.stat().st_size > 0, "成果文件为空或缺失")
             aid = identifier("artifact")
-            db.execute("INSERT INTO artifacts(id,task_id,path,sha256,sources,requirements,checks,created) VALUES(?,?,?,?,?,?,?,?)", (aid, task_id, path, file_hash(file), encode(source_map), encode(requirement_ids), encode(checks), time.time()))
+            db.execute("INSERT INTO artifacts(id,task_id,path,sha256,sources,requirements,checks,created) VALUES(?,?,?,?,?,?,?,?)", (aid, task_id, path, file_hash(file), encode(source_map), encode(requirement_ids), encode(recorded), time.time()))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "artifact_registered", dict(artifact_id=aid, path=path))
-            if requirement_ids and not all(check["passed"] for check in checks):
+            if requirement_ids and not all(check["passed"] for check in recorded):
                 db.execute("UPDATE tasks SET state='active' WHERE id=? AND state='completed'", (task_id,))
                 self.store.event(db, task_id, "artifact_review_failed", dict(artifact_id=aid, path=path, requirements=requirement_ids))
             return dict(artifact_id=aid, path=str(file), revision=revision + 1)
@@ -713,10 +754,12 @@ class Service:
             for row in latest.values():
                 if row["stale"]:
                     continue
-                if all(check["passed"] for check in json.loads(row["checks"])):
+                from .verification import receipt_current
+                checks = json.loads(row['checks'])
+                if checks and all(check.get('receipt_id') and receipt_current(self.store, db, task_id, check['receipt_id'], row['path']) for check in checks):
                     satisfied.update(set(json.loads(row["requirements"])) - archive_ids)
                 else:
-                    failed_reviews.update(json.loads(row["requirements"]))
+                    failed_reviews.update(set(json.loads(row["requirements"])) - archive_ids)
             for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",)):
                 delivery = json.loads(row[0])
                 archive = self.store.home / "exports" / delivery["filename"]
@@ -726,7 +769,8 @@ class Service:
             active = db.execute("SELECT count(*) FROM runs WHERE task_id=? AND state IN ('pending','dispatching','unknown','queued','running','cancelling')", (task_id,)).fetchone()[0]
             active_work = db.execute("SELECT count(*) FROM queue WHERE task_id=? AND state IN ('pending','running') AND kind!='decision'", (task_id,)).fetchone()[0]
             complete = not missing and not active and not active_work
-            db.execute("UPDATE tasks SET state=? WHERE id=?", ("completed" if complete else task["state"] if task["state"] != "completed" else "active", task_id))
+            state = task['state'] if task['state'] in ('paused', 'stopping', 'stopped') else 'completed' if complete else 'active' if task['state'] == 'completed' else task['state']
+            db.execute("UPDATE tasks SET state=? WHERE id=?", (state, task_id))
             self.store.bump(db, task_id)
             result = dict(complete=complete, missing=missing, failed_reviews=sorted(failed_reviews), active_runs=active, active_work=active_work, revision=revision + 1)
             self.store.event(db, task_id, "research_completed" if complete else "deliverables_missing", result)
@@ -807,7 +851,23 @@ class Service:
         require(resource_id.startswith('resource_'), '资源编号无效')
         value = self.store.setting(resource_id)
         require(value is not None, '未找到资源')
-        return dict(id=resource_id, **value)
+        result = dict(id=resource_id, **value)
+        if value.get('members'):
+            members = []
+            for key in value['members']:
+                member = self.store.setting(key)
+                require(member, '组合中的资源记录缺失')
+                members.append(dict(id=key, **member))
+            result['member_records'] = members
+            result['member_metadata_current'] = all(digest(encode({k: v for k, v in m.items() if k != 'id'}).encode()) == value['member_versions'].get(m['id']) for m in members)
+        if value.get('availability') == 'local_verified':
+            from .resources import check_files
+            try:
+                check_files(Path(value['location']), value['files'])
+                result['files_current'] = True
+            except (Fault, OSError) as exc:
+                result.update(files_current=False, file_error=str(exc))
+        return result
 
     @public
     def resource_file_read(self, resource_id: str, path: str, offset: int = 0, limit: int = 4096) -> dict:

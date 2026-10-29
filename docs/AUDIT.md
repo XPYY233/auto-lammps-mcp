@@ -1,5 +1,19 @@
 # Development audit
 
+## 2026-10-29 — Memory and measured verification integration
+
+The first installed-wheel workflow reached the long-history check, then failed because added memory context caused the existing response limiter to return a link for recent work. Keep stage memory summaries short and follow task_records for paged history in the installed-flow check. The actual import, analysis, measured artifact registration and image preview had completed; no physics job was submitted. Preserve this failed candidate and verify a new package.
+
+The isolated skill validation process lacked PyYAML; install that development dependency and rerun the skill validator. The validator then passed. The regenerated manual compiled twice without overfull boxes.
+
+Two documentation batches were rejected before writing because they included abbreviated context lines. Retry with the actual full heading and no placeholder hunk. A focused test command named a nonexistent test file and collected no tests; the corrected explicit files passed 17 checks.
+
+The access-scope test attempted to change an existing task's fixed mode and was correctly rejected. Create a separate formal-B task for the isolation check. One audit patch matched only part of a line and was rejected without changing the file; apply the correction at the section heading.
+
+The first new regression set exposed fixture mistakes: the authorized task omitted its required source text, and retrieval assertions assumed a fixed rank despite another relevant observed memory. Correct those fixture assumptions and use the existing dispatch_one entry point. The temporary environment also inherited unrelated system packages; disable system-site inheritance and install the locked dependencies before the final package check.
+
+The first integration run passed 124 checks and failed five. Four tests still submitted caller-authored `passed` fields; they now need real service receipts. An archive test also showed an unverified text document incorrectly blocking an independently verified archive; archive requirements must use their actual export receipt. The MCP identity check loaded this worktree in the daemon and the old editable installation in its child process because the MCP client filters PYTHONPATH. Use a dedicated environment pointing to the candidate for both processes. No research submission occurred. Retest the affected flows after these changes.
+
 ## 2026-10-27 — Public onboarding entry
 
 The public README already contained the approved installation prompt, but its short usage section did not explain first-use choices, background behavior, cross-computer continuation or the difference between the published alpha.7 package and a10 source. Issue #38 expands those user paths while retaining the exact existing prompt. Installation guidance now selects matching release files and uses the current MCP connection receipt. Validate prompt identity, links, real installer arguments and the rendered public README; retain independent-user acceptance as a separate pending outcome.
@@ -290,3 +304,8 @@ The new snapshot-review regression initially called a nonexistent snapshot_creat
 The completed Ni run reached analysis and report delivery, then project_export failed with JSONDecodeError. decoded_record treated runs.cluster (a plain SSH alias) as JSON; prior export fixtures had no execution records. Decode only the actual JSON columns and exercise export/reimport with a retained Slurm run and its failure/accounting evidence. The source simulation and all analyses remain valid files; retry only export after installation. The developer review-check lookup also used an obsolete script name; render_review_traceability.py is the current checker.
 
 Installed a10 completed real Ni export, preserving the original environment check and all four production attempts. The host used official versioned command tools and recovered the same task. Independent report review corrected a 4.9 ps row mislabeled as the 5 ps endpoint, suppressed nonzero drift, total pressure mislabeled virial pressure, incomplete failed-run explanations, and report layout/source labels. A revised analysis also exposed a missing declared CSV; its failed receipt was retained and the same raw results were analyzed again. These findings remain part of the developer-assisted Ni workflow evidence; the independent-user milestone is still open.
+# 2026-10-29 — local memory and verification reuse
+
+- Development setup: the GitHub connector rejected issue creation with HTTP 403; the installed GitHub CLI account created issue #40 successfully. The managed-worktree tool could not attach this repository from the historical chat workspace; a separate ordinary Git worktree was created from current main. No existing checkout was switched.
+- Existing artifact checks accept caller-supplied `passed` values. This allows the checking criterion, implementation and claimed result to disagree. Replace acceptance with immutable service-executed receipts, preserving historical claims and requiring current evidence.
+- Existing tasks persist history but retrieval is limited to titles and raw resource metadata. Add scoped local memory and explicit validation coverage rather than repeating physical validation on every continuation.

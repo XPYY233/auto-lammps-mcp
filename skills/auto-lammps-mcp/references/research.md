@@ -2,6 +2,8 @@
 
 Save the user's words and required results with `task_create`. Clarify scientific ambiguities together, in plain language. Preserve answered questions. Resolve ambiguous task names using material, date and stage before writing.
 
+Read [local memory and validation reuse](memory-reuse.md). task_get/research_context returns prior methods, failures and verification. Match existing evidence before scheduling preflight. Same-condition repeats use existing validation; changed conditions need only the affected checks.
+
 Give each deliverable an id and description. Use kind='archive' when the user requires an exported result package. project_export links the actual ZIP to that requirement; a handoff note alone does not satisfy it. Run completion_check after the export finishes, with no analysis or export still pending.
 
 Check the resource catalog and existing projects. Write native LAMMPS, Python and shell files using ordinary file tools or `file_patch`. Import whole directories; preserve binary models, helpers and relative references. Derive file facts with the tools. Acquire a task lease before coordinated changes and release it before waiting for queued work.

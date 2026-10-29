@@ -148,6 +148,18 @@ def review_text(text, engine_version=''):
                 findings.append(dict(line=line, code='verify_output_timestep', severity='review',
                     message='核对消费该 compute 的输出频率覆盖 write_dump 所在步，且其间没有修改系统状态。',
                     commands=['write_dump', 'dump', 'thermo_style']))
+    if any('dt/reset' in words for _, words in commands):
+        findings.append(dict(line=0, code='adaptive_physical_time', severity='review',
+            message='可变步长使用 thermo 的 time 记录累计物理时间；检查 dt/reset 的位移、能量变化与步长上下限，并在代表性碰撞条件下核对。',
+            commands=['fix dt/reset', 'thermo_style']))
+    if any('zbl' in words for _, words in commands):
+        findings.append(dict(line=0, code='short_range_bundle', severity='review',
+            message='读取势文件配套短程组合、截断与元素映射。hybrid/overlay 的 ZBL 相互作用逐对配置；核对组合来源及能量、力的连接行为。',
+            commands=['pair_style zbl', 'pair_style hybrid']))
+    if any('nve' in words for _, words in commands):
+        findings.append(dict(line=0, code='phase_energy_balance', severity='review',
+            message='按积分、热浴和注入阶段固定能量检查区间与阈值。先验证时间步和输出，再用节点监视提前发现数值异常。',
+            commands=['fix nve', 'thermo_style']))
     references = []
     for command in sorted(topics):
         page = ALIASES.get(command, command.replace(' ', '_').replace('/', '_'))

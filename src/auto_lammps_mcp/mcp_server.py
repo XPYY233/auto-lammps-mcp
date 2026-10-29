@@ -18,7 +18,7 @@ from .transport import call
 def run(home, host="unknown"):
     from .identity import runtime_identity
     client_identity = {**runtime_identity(), "session_id": uuid.uuid4().hex}
-    app = FastMCP("auto-lammps", instructions="使用 help 和 doctor。先保存原始需求及成果清单；直接编辑原生文件，再建立快照。变更使用任务版本和唯一 op_id，重试复用同一编号。物理求值提交到已记账 HPC。任务结果、事件和操作编号可跨对话接续。")
+    app = FastMCP("auto-lammps", instructions="使用 help 和 doctor。保存用户原话与成果清单；task_get/research_context 自动检索本地记忆。集中询问尚未确定的科学选择。先复用成套资源与有效验证，只为缺项安排记账 HPC 预验证。直接编辑原生文件，建立快照；validation_match 覆盖后正式或 batch_submit 批量执行。暂停先保存 task_control。check_run 产生实测回执，再登记成果。变更绑定任务版本及唯一 op_id，重试复用原编号。")
     for name, fn in inspect.getmembers(Service, predicate=inspect.isfunction):
         if not getattr(fn, "public", False):
             continue
@@ -43,6 +43,7 @@ def run(home, host="unknown"):
             tool.__signature__ = signature
             return tool
         read_only = name in {"help", "doctor", "task_list", "task_get", "task_records", "events", "file_read", "artifact_preview", "operation_get", "operation_read", "response_read", "run_get", "run_log", "units_convert", "data_inspect", "resource_search", "resource_get", "resource_file_read", "legacy_inspect", "lammps_reference", "lammps_input_review"}
+        read_only = read_only or name in {'memory_search', 'memory_get', 'research_context', 'research_metrics', 'check_get', 'validation_match', 'batch_get'}
         app.add_tool(build(name, fn), name=name, description=inspect.getdoc(fn),
                      annotations=ToolAnnotations(readOnlyHint=read_only, destructiveHint=not read_only,
                                                  idempotentHint=read_only or "op_id" in inspect.signature(fn).parameters,
