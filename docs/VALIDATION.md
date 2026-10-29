@@ -1,5 +1,13 @@
 # 验证记录
 
+## 2026-10-29 — Memory, validation reuse and batch candidate
+
+Issue #40 / PR #41 adds service-measured checks, shared persistent memory, scoped validation reuse, cumulative preflight costs, independent batch identities and compute-node log monitoring. The regression suite covers 20 prepared production samples with zero additional preflights, plan revocation during staging, changed model/helper dependencies, duplicated seeds across plan versions, source changes, backup restoration and gzip trajectory identities/cell geometry.
+
+Installed wheel `126b289fcf2a45ebb3e725099494bfd13af6e7517e2c81c6afcf24587c15196b` completed the actual MCP import, failed-analysis recovery, plot preview, 514-file export and reimport journey, retaining 38 operations. Source commit `f21624b` passed four macOS/Linux CI checks. The official DSH runtime then received one natural-language request for existing W log analysis and completed four deliverables, a 46-file handoff and candidate method memory through 111 tool calls, with no intervening developer prompts and zero physical submissions.
+
+Independent review identified a scientific wording error: the first sampled output was called the first integration step. The original report and trace are retained. The delivery guide now distinguishes sampling from integration and correlated spread from mean uncertainty; a separate continuation verifies the correction and existing trajectory geometry. These execution records remain in the private acceptance directory, linked to source and installed package identities.
+
 日期：2026-10-27。验证按下列固定版本分别记录，源码、安装包和实际安装记录各自保存身份。
 
 | 用户流程 | 已执行结果 | 对应记录 |

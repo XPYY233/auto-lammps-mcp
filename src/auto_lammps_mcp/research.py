@@ -346,7 +346,7 @@ class ResearchOperations:
             members = []
             for index, sample in enumerate(samples):
                 require(variable['min'] <= sample['seed'] <= variable['max'], '随机种子超出验证允许范围')
-                existing = db.execute('SELECT m.sample_id,m.seed FROM batch_members m JOIN batches b ON b.id=m.batch_id WHERE b.task_id=? AND b.plan_id=? AND (m.sample_id=? OR m.seed=?)', (task_id, plan_id, sample['sample_id'], sample['seed'])).fetchone()
+                existing = db.execute('SELECT m.sample_id,m.seed FROM batch_members m JOIN batches b ON b.id=m.batch_id JOIN runs r ON r.id=m.run_id WHERE b.task_id=? AND r.condition_id=? AND (m.sample_id=? OR m.seed=?)', (task_id, digest(encode(task['constraints_json']).encode()), sample['sample_id'], sample['seed'])).fetchone()
                 require(not existing, '该任务已有相同样本或随机种子，先读取原批次')
                 pattern = r'(?m)^(\s*variable\s+' + re.escape(variable['variable']) + r'\s+(?:index|equal)\s+)[0-9]+'
                 content, count = re.subn(pattern, lambda m: m[1] + str(sample['seed']), raw)

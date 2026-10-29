@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import gzip
 import re
 from pint import UnitRegistry
 from .core import Fault, require
@@ -43,10 +44,44 @@ def thermo_blocks(path):
     return blocks
 
 
+def dump_cell(header, lines):
+    """Cell vectors are rows; invert LAMMPS enclosing bounds, never defect extents.
+
+    https://docs.lammps.org/Howto_triclinic.html#output-of-restricted-and-general-triclinic-boxes-in-a-dump-file
+    """
+    rows = [[float(x) for x in line.split()] for line in lines]
+    require(all(math.isfinite(x) for row in rows for x in row), '轨迹盒子范围无效')
+    flags = header.split()[3:]
+    if flags[:2] == ['abc', 'origin']:
+        require(all(len(r) == 4 for r in rows), '一般三斜盒需要向量与原点')
+        vectors, origin, boundary = [r[:3] for r in rows], [r[3] for r in rows], flags[2:]
+    else:
+        tilted = flags[:3] == ['xy', 'xz', 'yz']
+        require(all(len(r) == (3 if tilted else 2) for r in rows), '轨迹盒子字段数无效')
+        xlo, xhi = rows[0][:2]
+        ylo, yhi = rows[1][:2]
+        zlo, zhi = rows[2][:2]
+        xy, xz, yz = (r[2] for r in rows) if tilted else (0., 0., 0.)
+        xlo -= min(0., xy, xz, xy+xz)
+        xhi -= max(0., xy, xz, xy+xz)
+        ylo -= min(0., yz)
+        yhi -= max(0., yz)
+        require(xhi > xlo and yhi > ylo and zhi > zlo, '轨迹盒子范围无效')
+        vectors = [[xhi-xlo, 0., 0.], [xy, yhi-ylo, 0.], [xz, yz, zhi-zlo]]
+        origin, boundary = [xlo, ylo, zlo], flags[3:] if tilted else flags
+    a, b, c = vectors
+    volume = sum(a[i] * (b[(i+1)%3]*c[(i+2)%3] - b[(i+2)%3]*c[(i+1)%3]) for i in range(3))
+    require(volume > 0, '轨迹盒矩阵应为右手、非退化晶胞')
+    require(not boundary or (len(boundary) == 3 and all(len(x) == 2 and set(x) <= set('pfsm') for x in boundary)), '边界标记无效')
+    return dict(origin=origin, vectors=vectors, volume=volume, boundary=boundary,
+                periodic=[x == 'pp' for x in boundary] if boundary else None)
+
+
 def inspect_dump(path):
     """Inspect per-atom trajectory identities and columns without treating averages as local data."""
     frames, ids = [], None
-    with open(path) as stream:
+    opener = gzip.open if str(path).endswith('.gz') else open
+    with opener(path, 'rt') as stream:
         while True:
             line = stream.readline()
             if not line:
@@ -55,11 +90,10 @@ def inspect_dump(path):
             step = int(stream.readline())
             require(stream.readline().strip() == "ITEM: NUMBER OF ATOMS", "轨迹缺少原子数")
             count = int(stream.readline())
-            require(count > 0 and stream.readline().startswith("ITEM: BOX BOUNDS"), "轨迹盒子信息无效")
+            box_header = stream.readline()
+            require(count > 0 and box_header.startswith("ITEM: BOX BOUNDS"), "轨迹盒子信息无效")
             box = [stream.readline().strip() for _ in range(3)]
-            for bounds in box:
-                numbers = [float(x) for x in bounds.split()]
-                require(len(numbers) >= 2 and all(math.isfinite(x) for x in numbers) and numbers[1] > numbers[0], '轨迹盒子范围无效')
+            cell = dump_cell(box_header, box)
             header = stream.readline().split()
             require(header[:2] == ["ITEM:", "ATOMS"], "轨迹缺少逐原子数据")
             columns = header[2:]
@@ -73,7 +107,7 @@ def inspect_dump(path):
                 require(atom not in frame_ids, "同一帧存在重复原子身份")
                 frame_ids.add(atom)
             identity_changed = ids is not None and ids != frame_ids
-            frames.append(dict(step=step, atoms=count, columns=columns, box=box, identity_changed=identity_changed))
+            frames.append(dict(step=step, atoms=count, columns=columns, box=box, cell=cell, identity_changed=identity_changed))
             ids = frame_ids
     require(frames, "没有读到完整轨迹帧")
     return dict(frames=frames, frame_count=len(frames))

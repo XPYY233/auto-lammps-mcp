@@ -59,9 +59,9 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
     normalized, parameters = normalized_files(store, current, spec['variations'])
     conditions = task['constraints_json'] if conditions is None else conditions
     components, used = [], []
-    # Extra project outputs are harmless; a new executable/input dependency requires a new plan.
-    new_inputs = [p for p in current if p not in spec['snapshot_paths'] and
-                  (p.endswith(('.sh', '.in', '.lmp', '.data', '.eam', '.alloy', '.fs')) or p.startswith('in.'))]
+    # Snapshots explicitly select research inputs. Unknown extensions may be
+    # executable helpers or binary models, so none are silently ignored.
+    new_inputs = sorted(set(current) - set(spec['snapshot_paths']))
     for component in spec['components']:
         differences = []
         if not row['active']:

@@ -163,3 +163,29 @@ def test_suspend_one_component_preserves_unaffected_reuse(service, task, worker,
     cloned = service.validation_plan(task['id'], revision(service, task), sid, 'run.sh', spec['specification']['components'], 'clone', variations=spec['specification']['variations'], reuse_from=spec['plan_id'])
     assert set(cloned['reused']) == {'static', 'environment', 'outputs'}
     assert service.validation_match(task['id'], sid, cloned['plan_id'])['missing'] == ['numerics']
+
+
+@pytest.mark.parametrize('name', ['helper.py', 'model.bin', 'parameters.json'])
+def test_unrecognized_dependency_requires_new_validation(service, task, worker, scheduler, name):
+    sid, spec = qualify(service, worker, scheduler, task)
+    (service.store.root(task['id']) / name).write_bytes(b'new dependency')
+    op = service.project_snapshot(task['id'], revision(service, task), 'extra-input',
+                                  paths=['run.sh', 'in.lmp', 'W.eam', name])
+    worker.work_one()
+    changed = service.operation_get(op['operation_id'])['result']['snapshot_id']
+    coverage = service.validation_match(task['id'], changed, spec['plan_id'])
+    assert not coverage['ready']
+    assert all('new_input:' + name in c['differences'] for c in coverage['components'])
+
+
+def test_new_plan_cannot_recount_existing_independent_seed(service, task, worker, scheduler):
+    sid, spec = qualify(service, worker, scheduler, task)
+    batch = service.batch_prepare(task['id'], revision(service, task), spec['plan_id'], sid,
+                                  [dict(sample_id='first', seed=777)], 'first-batch')
+    cloned = service.validation_plan(task['id'], revision(service, task), sid, 'run.sh',
+        spec['specification']['components'], 'clone', variations=spec['specification']['variations'],
+        reuse_from=spec['plan_id'])
+    with pytest.raises(Fault, match='相同样本或随机种子'):
+        service.batch_prepare(task['id'], revision(service, task), cloned['plan_id'], sid,
+                              [dict(sample_id='second', seed=777)], 'duplicate')
+    assert len(service.batch_get(batch['batch_id'])['members']) == 1

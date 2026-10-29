@@ -8,7 +8,7 @@
 \begin{document}
 \title{Auto-LAMMPS MCP\\项目开发与交付手册}
 \author{Auto-LAMMPS}
-\date{2026年10月27日}
+\date{2026年10月29日}
 \maketitle
 从安装提示词进入现有 Agent 平台，完成科研执行、持续监视、分析和交接。
 \tableofcontents
@@ -1078,8 +1078,15 @@ Issue \#40 的独立分支已实现本地记忆、组件验证匹配、预算累
 
 
 
-源码检查当前147项通过；固定安装包、官方 DSH 调用和真实 W 数据回放正在核验。真实新研究、20次物理重复以及原计划整体规模指标继续按各自验收证据登记。
+源码检查扩展至154项。首个固定安装候选完成 MCP 接入、分析失败恢复、图像预览、514文件交接与重新导入；四项 macOS/\allowbreak{}Linux CI 通过。官方 DSH 从一句话完成真实 W 日志分析、四项成果与方法记忆，过程111次工具调用、开发者中途补充为零。独立复核发现首个输出采样被误述为首个积分步，正在用更新后的交付指南继续修正，并核对已有轨迹与周期几何。
 
+
+
+同条件20个独立样本、零新增预验证、暂停恢复和跨方案种子去重已通过软件回归。真实新研究、20次物理重复、跨平台新安装以及原计划整体规模指标仍需各自实测验收；本轮新增计算提交为零。源码与更新手册见 PR \#41。
+
+
+
+\subsection{2026-10-27 历史进展}
 
 
 日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a10；已发布版本：0.1.0-alpha.7。
@@ -1239,6 +1246,21 @@ Ni 第四次正式作业完成 15,000 步，官方 DSH 已生成五张图和中�
 
 \clearpage
 \section{验证记录}
+
+
+\subsection{2026-10-29 — Memory, validation reuse and batch candidate}
+
+
+Issue \#40 /\allowbreak{} PR \#41 adds service-measured checks, shared persistent memory, scoped validation reuse, cumulative preflight costs, independent batch identities and compute-node log monitoring. The regression suite covers 20 prepared production samples with zero additional preflights, plan revocation during staging, changed model/\allowbreak{}helper dependencies, duplicated seeds across plan versions, source changes, backup restoration and gzip trajectory identities/\allowbreak{}cell geometry.
+
+
+
+Installed wheel 126b289f\allowbreak{}cf2a45eb\allowbreak{}b3e72509\allowbreak{}9494bfd1\allowbreak{}3af6e751\allowbreak{}7e2c81c6\allowbreak{}afcf2458\allowbreak{}7c15196b completed the actual MCP import, failed-analysis recovery, plot preview, 514-file export and reimport journey, retaining 38 operations. Source commit f21624b passed four macOS/\allowbreak{}Linux CI checks. The official DSH runtime then received one natural-language request for existing W log analysis and completed four deliverables, a 46-file handoff and candidate method memory through 111 tool calls, with no intervening developer prompts and zero physical submissions.
+
+
+
+Independent review identified a scientific wording error: the first sampled output was called the first integration step. The original report and trace are retained. The delivery guide now distinguishes sampling from integration and correlated spread from mean uncertainty; a separate continuation verifies the correction and existing trajectory geometry. These execution records remain in the private acceptance directory, linked to source and installed package identities.
+
 
 
 日期：2026-10-27。验证按下列固定版本分别记录，源码、安装包和实际安装记录各自保存身份。
