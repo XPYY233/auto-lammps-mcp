@@ -1,5 +1,9 @@
 # Development audit
 
+- The full installed suite passed 168 tests and failed one client-identity test; the same identity test passed alone. The earlier host-installation test temporarily changes sys.executable and leaves runtime_identity's cached installation identity behind. Clear that cache before and after this fixture's installation call, then rerun the installed suite. No running service or research state was changed by the failed test.
+
+- P0 candidate ae6c274efb10f9b5 passed the MCP replay, then the focused test command stopped at collection because it named test_memory_reuse.py; the actual file is test_research_memory.py. The source traceability command likewise used a guessed filename; the workflow's render_review_traceability.py --check passed. Use the installed full suite and the observed workflow entry points; retain the first verification log.
+
 ## 2026-10-29 — Memory and measured verification integration
 
 The first installed-wheel workflow reached the long-history check, then failed because added memory context caused the existing response limiter to return a link for recent work. Keep stage memory summaries short and follow task_records for paged history in the installed-flow check. The actual import, analysis, measured artifact registration and image preview had completed; no physics job was submitted. Preserve this failed candidate and verify a new package.
