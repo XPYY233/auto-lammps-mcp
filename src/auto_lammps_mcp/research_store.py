@@ -52,7 +52,7 @@ def tokens(text):
     result.update(text[i:i + 2] for i in range(len(text) - 1)
                   if all('\u4e00' <= c <= '\u9fff' for c in text[i:i + 2]))
     for canonical, variants in ALIASES.items():
-        if canonical in result or any(v in result or (len(v) > 1 and v in text) for v in variants):
+        if canonical in result or any(v in result or (not v.isascii() and v in text) for v in variants):
             result.add(canonical)
     return result
 

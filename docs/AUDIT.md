@@ -1,5 +1,7 @@
 # Development audit
 
+- Installed keyword verification returned nickel among matches for Marinica: the shared alias expander matched the ASCII substring ni inside a surname. Match ASCII aliases as complete tokens, while retaining Chinese phrase matching. Regress Marinica/Ni and W/钨 before the next visible attempt.
+
 - P1 visible DSH attempt found the retained task and failure inputs, but resource_search('tungsten W Marinica EAM') returned zero because search required the entire string as one substring. DSH then incorrectly reported an empty catalog although nine records were present. The selected workspace was the historical Auto-LAMMPS checkout, so its old AGENTS rules reintroduced UI-image review. The response also inferred pinning from short-window site persistence, supplied an incorrect energy-to-speed scaling statement and overloaded the user with eight decision groups. Retain this visible attempt as failed P1 acceptance. Add keyword/alias resource matching, inspect the catalog on no hits, use the dedicated MCP acceptance workspace, and keep discussion scoped to existing evidence and two or three scientific choices.
 
 - P1 source staging through a text patch changed final newlines and the author's CRLF input. Git blob verification caught every mismatch before registration. Restore exact connector-returned bytes through a JSON transfer, compare each Git blob SHA with its fixed upstream revision, then register the bundle.

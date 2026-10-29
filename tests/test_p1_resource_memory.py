@@ -1,4 +1,11 @@
 from auto_lammps_mcp.verification import run_checks
+from auto_lammps_mcp.research_store import tokens
+
+
+def test_element_alias_is_not_a_substring_of_a_person_name():
+    assert 'nickel' not in tokens('Marinica W potential')
+    assert 'nickel' in tokens('Ni 势函数')
+    assert 'tungsten' in tokens('钨势函数')
 
 
 def test_resource_search_handles_natural_keywords_and_reports_catalog_size(service, tmp_path):
