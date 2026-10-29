@@ -1,5 +1,9 @@
 # Development audit
 
+- The first visible P2 DSH conversation loaded the skill, found the paused W task and reported that the separate acceptance service had no cluster configuration. After 18 steps the model transport exhausted five retries and the page reported DeepSeek Messages transport failed. No physical job was submitted. Preserve this conversation; check the existing network route and resume through its page after restoring transport. Cluster setup must be completed through the normal Agent/tool workflow using existing configuration.
+
+- Publishing P2 source a06df96 failed to connect to GitHub after 75 seconds. The local commit and installed candidate remain intact. Reconcile the remote head, then retry the same branch with a bounded network attempt; do not claim current CI from the earlier head.
+
 - P2 browser control could list the visible official DSH tab but failed to attach with browser.user unavailable. The documented alternate binding had the same failure; one computer-use session reset restored attachment and the current page. No DSH prompt or research action was issued during recovery. Preserve the existing conversation and use a separate visible P2 session.
 
 - P2 source inspection named test_slurm.py and test_environment.py before checking the test inventory; those files do not exist. The actual transport/process and reuse tests were located with rg --files. No execution or research state changed.
