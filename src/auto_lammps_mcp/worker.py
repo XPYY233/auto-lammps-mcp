@@ -238,7 +238,9 @@ class Worker:
             self.slurm.stage(run)
         except Exception as exc:
             with self.store.transaction() as db:
-                db.execute("UPDATE runs SET state='staging_failed',evidence=?,updated=? WHERE id=? AND state='pending'", (encode(dict(error=str(exc))), time.time(), run["id"]))
+                previous = json.loads(db.execute('SELECT evidence FROM runs WHERE id=?', (run['id'],)).fetchone()[0])
+                detail = exc.as_dict() if isinstance(exc, Fault) else dict(error=str(exc))
+                db.execute("UPDATE runs SET state='staging_failed',evidence=?,updated=? WHERE id=? AND state='pending'", (encode({**previous, **detail, 'error': str(exc)}), time.time(), run["id"]))
                 self.store.event(db, run["task_id"], "staging_failed", dict(run_id=run["id"], error=str(exc)))
             self.decision(run["task_id"], "staging_failed", dict(run_id=run["id"], error=str(exc)))
             return
@@ -494,6 +496,14 @@ class Worker:
                                  if component['scope'] in ('environment', 'numerics', 'outputs') for c in component['checks']}
                         names.add('runs/' + run['id'] + '/.alm-runtime.json')
                         result['verification_sources'] = {name: file_hash(self.store.path(task_id, name)) for name in names if self.store.path(task_id, name).is_file()}
+                        path = self.store.path(task_id, 'runs/' + run['id'] + '/.alm-runtime.json')
+                        if path.is_file():
+                            from .runtime_evidence import node_receipt, remember
+                            try:
+                                node = node_receipt(json.loads(path.read_text()), spec['runtime'], run['job_id'])
+                                remember(self.store, task_id, spec['runtime']['selection'], node)
+                            except (Fault, ValueError, KeyError) as exc:
+                                result['runtime_error'] = str(exc)
                     self.decision(task_id, "results_collected", {**result, "run_id": run["id"]})
                 elif kind == "reconcile":
                     job_id = self.slurm.reconcile(run)

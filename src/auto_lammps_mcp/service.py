@@ -334,17 +334,19 @@ class Service(ResearchOperations):
 
     @public
     def task_update(self, task_id: str, revision: int, changes: dict, reason: str, op_id: str, token: str | None = None) -> dict:
-        """Update goals, constraints or policy with an explicit reason; immutable original request is preserved."""
+        """Update goals, constraints or policy with an explicit reason; immutable original request is preserved. A preflight budget uses policy.preflight_core_hours plus preflight_budget_authorization containing the user's confirmation. Estimates are not authorization. A budget change requires a new confirmation; wall_seconds is the scheduler's reservation per job, not predicted usage."""
         require(set(changes) <= {"title", "requirements", "constraints", "policy"} and reason.strip(), "变更需要有效字段和原因")
         def apply(db):
             task = self.store.task(db, task_id, revision, token)
             for name, value in changes.items():
                 column = "constraints_json" if name == "constraints" else name
                 if name == "policy":
-                    require(set(value) <= {"authorized", "authorization", "source", "cores", "memory_mib", "wall_seconds", "submission_limit", "preflight_core_hours"}, "规则字段无效")
+                    require(set(value) <= {"authorized", "authorization", "source", "cores", "memory_mib", "wall_seconds", "submission_limit", "preflight_core_hours", "preflight_budget_authorization"}, "规则字段无效")
                     if 'preflight_core_hours' in value:
                         import math
                         require(type(value['preflight_core_hours']) in (int, float) and math.isfinite(value['preflight_core_hours']) and value['preflight_core_hours'] > 0, '预验证预算应为正数')
+                        require(isinstance(value.get('preflight_budget_authorization'), str) and value['preflight_budget_authorization'].strip(),
+                                '设置或扩大预验证预算需要同时保存用户确认原话', 'preflight_budget_confirmation')
                     value = {**task["policy"], **value, "effective_at": time.time()}
                     require(value["cores"] == 32 and value["memory_mib"] == 8192 and 1 <= value["wall_seconds"] <= 604800, "当前执行配置为 32 核、8 GiB，时限最长七天")
                     require(value["submission_limit"] is None or type(value["submission_limit"]) is int and value["submission_limit"] > 0, "提交上限应为正整数或空")
@@ -539,8 +541,8 @@ class Service(ResearchOperations):
         return dict(path=path, **review_text(file.read_text(), engine_version))
 
     @public
-    def run_prepare(self, task_id: str, revision: int, snapshot_id: str, entry: str, intent: str, condition_id: str, sample_id: str, op_id: str, purpose: str = "research", parent_id: str | None = None, token: str | None = None, validation_id: str | None = None, stage: str = "production") -> dict:
-        """Freeze a Slurm execution intent, input, environment and rules. Native entry is a project-relative shell script. Automatically review literal -in/-i inputs; read lammps_reference for the actual engine before generation or repairs. Known compute-current errors return source lines before dispatch."""
+    def run_prepare(self, task_id: str, revision: int, snapshot_id: str, entry: str, intent: str, condition_id: str, sample_id: str, op_id: str, purpose: str = "research", parent_id: str | None = None, token: str | None = None, validation_id: str | None = None, stage: str = "production", supersedes: str | None = None) -> dict:
+        """Freeze a Slurm execution intent, input, environment and rules. Returns revision for the next mutation. Exact repetition reuses the same run; changed validation_id/stage never silently returns an old binding. To replace a confirmed unsubmitted prepared/cancelled/staging_failed run, use a new intent and supersedes=old run_id, retaining the sample_id. Submitted/unknown runs must be reconciled first. Native entry is a project-relative shell script; read lammps_reference before generation. Literal -in/-i inputs are reviewed before dispatch."""
         require(purpose in ("research", "retry", "continuation", "environment_check"), "执行目的无效")
         require(stage in ("preflight", "production"), "stage 使用 preflight 或 production")
         require(intent and condition_id and sample_id, "需要执行意图、工况和独立样本编号")
@@ -557,20 +559,52 @@ class Service(ResearchOperations):
                 require(parent and parent["state"] in ("completed", "failed", "cancelled", "timeout"), "重试或续算需要已核对结束的原作业")
             else:
                 require(parent_id is None, "只有重试和续算使用 parent_id")
-            duplicate = db.execute("SELECT * FROM runs WHERE task_id=? AND (intent=? OR (snapshot_id IN (SELECT id FROM snapshots WHERE digest=? AND task_id=?) AND entry=? AND condition_id=? AND sample_id=? AND purpose=? AND parent_id IS ?))", (task_id, intent, snap["digest"], task_id, entry, condition_id, sample_id, purpose, parent_id)).fetchone()
-            if duplicate:
-                return dict(duplicate)
+            environment = {key: config[key] for key in ("ssh_alias", "remote_root", "account", "partition", "environment_script")}
+            environment["fingerprint"] = digest(encode(environment).encode())
+            replacement = None
+            if supersedes:
+                replacement = db.execute('SELECT * FROM runs WHERE id=? AND task_id=?', (supersedes, task_id)).fetchone()
+                require(replacement and replacement['state'] in ('prepared', 'cancelled_before_dispatch', 'staging_failed') and not replacement['job_id'],
+                        '只能接替已确认未派发的记录；在途作业先对账', 'run_reconcile_required')
+                require(intent != replacement['intent'], '接替使用新的执行意图，保留原意图和历史', 'intent_conflict')
+            candidates = db.execute("SELECT r.*,s.digest AS snapshot_digest,v.plan_id,v.stage FROM runs r JOIN snapshots s ON s.id=r.snapshot_id LEFT JOIN run_validations v ON v.run_id=r.id WHERE r.task_id=? AND (r.intent=? OR (r.condition_id=? AND r.sample_id=? AND r.purpose=? AND r.parent_id IS ?)) ORDER BY r.created DESC", (task_id, intent, condition_id, sample_id, purpose, parent_id)).fetchall()
+            for duplicate in candidates:
+                same_intent = duplicate['intent'] == intent
+                if not same_intent and (duplicate['stage'] or 'production') != stage:
+                    continue
+                if supersedes == duplicate['id']:
+                    continue
+                same = (duplicate['snapshot_digest'] == snap['digest'] and duplicate['entry'] == entry
+                        and duplicate['condition_id'] == condition_id and duplicate['sample_id'] == sample_id
+                        and duplicate['purpose'] == purpose and duplicate['parent_id'] == parent_id
+                        and duplicate['plan_id'] == validation_id and (duplicate['stage'] or 'production') == stage
+                        and json.loads(duplicate['environment']) == environment)
+                if same_intent:
+                    require(same, '该执行意图已绑定不同的输入、环境、方案或阶段', 'intent_conflict',
+                            '保留原记录；对未派发记录使用新 intent 和 supersedes=原 run_id')
+                if duplicate['state'] in ('cancelled_before_dispatch', 'staging_failed'):
+                    require(not same_intent, '该意图已结束且未派发', 'intent_closed', '使用新 intent 和 supersedes 接替；上传重试可用 run_action(retry_staging)')
+                    continue
+                if same:
+                    return {**dict(db.execute('SELECT * FROM runs WHERE id=?', (duplicate['id'],)).fetchone()),
+                            'revision': task['revision'], 'reused': True, 'next_action': 'run_submit' if duplicate['state'] == 'prepared' else 'run_get'}
+                # Retry/continuation have their own parent identity. A new plan
+                # must not hide a submitted or unknown job for the same sample.
+                require(False, '同一样本已有不同准备或在途记录：' + duplicate['id'], 'run_intent_conflict',
+                        '未派发记录通过 supersedes 接替；已派发记录先 run_get/reconcile，结束后使用 retry 或 continuation')
             from .lammps_reference import review_snapshot
             review = review_snapshot(self.store, json.loads(snap["manifest"]), entry)
             if review["errors"]:
                 raise Fault("lammps_input_error", "输入存在已知的 compute 求值时序错误", "按行号读取官方说明，修正原生文件并建立新快照", evidence=review)
             run_id, now = identifier("run"), time.time()
-            environment = {key: config[key] for key in ("ssh_alias", "remote_root", "account", "partition", "environment_script")}
-            environment["fingerprint"] = digest(encode(environment).encode())
             remote = config["remote_root"].rstrip("/") + "/" + task_id + "/" + run_id
             db.execute("INSERT INTO runs(id,task_id,intent,snapshot_id,environment,rules,entry,state,cluster,remote_dir,condition_id,sample_id,purpose,parent_id,created,updated) VALUES(?,?,?,?,?,?,?,'prepared',?,?,?,?,?,?,?,?)",
                        (run_id, task_id, intent, snapshot_id, encode(environment), encode(task["policy"]), entry, config["ssh_alias"], remote, condition_id, sample_id, purpose, parent_id, now, now))
-            db.execute("UPDATE runs SET evidence=? WHERE id=?", (encode(dict(input_review=review)), run_id))
+            db.execute("UPDATE runs SET evidence=? WHERE id=?", (encode(dict(input_review=review, supersedes=supersedes)), run_id))
+            if replacement:
+                if replacement['state'] == 'prepared':
+                    db.execute("UPDATE runs SET state='cancelled_before_dispatch',updated=? WHERE id=?", (now, supersedes))
+                self.store.event(db, task_id, 'run_replaced_before_dispatch', dict(previous_run_id=supersedes, run_id=run_id))
             if validation_id:
                 from .validation import match_plan
                 coverage = match_plan(self.store, db, task_id, snapshot_id, validation_id)
@@ -579,8 +613,8 @@ class Service(ResearchOperations):
                 db.execute('INSERT INTO run_validations VALUES(?,?,?,?,0)', (run_id, validation_id, stage, encode(coverage)))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "run_prepared", dict(run_id=run_id, rules=task["policy"], snapshot_id=snapshot_id))
-            return dict(db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone())
-        return self.store.mutate(op_id, dict(method="run_prepare", task_id=task_id, revision=revision, snapshot_id=snapshot_id, entry=entry, intent=intent, condition_id=condition_id, sample_id=sample_id, purpose=purpose, parent_id=parent_id, token=token, validation_id=validation_id, stage=stage), apply)
+            return {**dict(db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()), 'revision': revision + 1, 'reused': False, 'next_action': 'run_submit'}
+        return self.store.mutate(op_id, dict(method="run_prepare", task_id=task_id, revision=revision, snapshot_id=snapshot_id, entry=entry, intent=intent, condition_id=condition_id, sample_id=sample_id, purpose=purpose, parent_id=parent_id, token=token, validation_id=validation_id, stage=stage, supersedes=supersedes), apply)
 
     @public
     def run_submit(self, run_id: str, revision: int, op_id: str, token: str | None = None) -> dict:
@@ -589,7 +623,7 @@ class Service(ResearchOperations):
             row = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
             require(row, "找不到执行记录")
             if row["state"] != "prepared":
-                return dict(row)
+                return {**dict(row), 'revision': self.store.task(db, row['task_id'])['revision'], 'next_action': 'run_get'}
             task = self.store.task(db, row["task_id"], revision, token)
             require(task["state"] not in ("paused", "stopping", "stopped"), "任务已暂停或停止")
             policy = task["policy"]

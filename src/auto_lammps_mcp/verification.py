@@ -131,7 +131,7 @@ def execute_check(path, spec):
     return dict(blocks=measured, checked_blocks=len(selected), total_blocks=len(blocks)), passed
 
 
-def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=None, operation_id=None):
+def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=None, operation_id=None, compute_runtime=None):
     validate_checks(checks)
     receipt_id = 'check_' + operation_id if operation_id else identifier('check')
     with store.connect() as db:
@@ -151,7 +151,7 @@ def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=Non
     passed = current and all(r['passed'] for r in results)
     value = dict(id=receipt_id, task_id=task_id, plan_id=plan_id, component=component,
                  checker_version=CHECK_VERSION, checks=results, passed=passed, sources=sources,
-                 artifacts=list(artifacts), evidence_current=current, created=time.time())
+                 artifacts=list(artifacts), evidence_current=current, created=time.time(), compute_runtime=compute_runtime)
     with store.transaction() as db:
         db.execute('INSERT INTO check_receipts VALUES(?,?,?,?,?,?,?,?,?)',
                    (value['id'], task_id, plan_id, component, encode(checks), encode(value), encode(sources), int(passed), value['created']))

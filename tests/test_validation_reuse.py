@@ -22,7 +22,8 @@ def plan(service, worker, task, budget=100):
     (root / 'in.lmp').write_text('variable seed index 12345\nunits metal\n')
     (root / 'W.eam').write_text('test potential fixture')
     sid = snapshot(service, worker, task, 'inputs')
-    service.task_update(task['id'], revision(service, task), {'constraints': {'temperature': 300}, 'policy': {'authorized': True, 'authorization': 'start fixture', 'wall_seconds': 60}}, 'start fixture', 'authorize')
+    service.task_update(task['id'], revision(service, task), {'constraints': {'temperature': 300}, 'policy': {'authorized': True, 'authorization': 'start fixture', 'wall_seconds': 60,
+        'preflight_core_hours': 100, 'preflight_budget_authorization': 'User confirmed 100 core-hours for verification'}}, 'start fixture', 'authorize')
     components = [
         dict(id='static', scope='static', files=['run.sh', 'in.lmp', 'W.eam'], condition_keys=[], checks=[dict(kind='file', path='run.sh', contains=['-in in.lmp'])]),
         dict(id='environment', scope='environment', files=['run.sh'], condition_keys=[], checks=[dict(kind='file', path='log.lammps', contains=['LAMMPS fixture'])]),
@@ -44,7 +45,8 @@ def qualify(service, worker, scheduler, task):
     root = service.store.root(task['id']) / 'runs' / run['id']
     root.mkdir(parents=True)
     (root / 'log.lammps').write_text('LAMMPS fixture\nStep Time TotEng\n0 0 -100\n1 .1 -100.1\nLoop time\n')
-    (root / '.alm-runtime.json').write_text(json.dumps(dict(passed=True, fingerprint=spec['specification']['runtime']['fingerprint'])))
+    runtime = spec['specification']['runtime']
+    (root / '.alm-runtime.json').write_text(json.dumps({key: runtime[key] for key in ('identity', 'fingerprint')} | {'passed': True, 'role': 'compute', 'host': 'compute-fixture', 'job_id': '12345'}))
     worker.work_one()
     for c in spec['specification']['components']:
         op = service.validation_check(task['id'], revision(service, task), pid, c['id'], 'check-' + c['id'], run_id=run['id'], data_root='' if c['scope'] == 'static' else 'runs/' + run['id'])

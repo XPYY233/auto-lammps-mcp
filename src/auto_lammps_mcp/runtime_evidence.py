@@ -16,7 +16,8 @@ def remember(store, task_id, selected, measured):
                  **measured, observed_at=time.time())
     with store.transaction() as db:
         store.set_setting(db, value['id'], value)
-        store.set_setting(db, 'runtime_latest:' + digest(encode(selected).encode()), value['id'])
+        prefix = 'runtime_compute:' if measured.get('role') == 'compute' else 'runtime_latest:'
+        store.set_setting(db, prefix + digest(encode(selected).encode()), value['id'])
         store.event(db, task_id, 'runtime_observed', value)
     return value
 
@@ -29,7 +30,18 @@ def read(store, db, task_id, runtime_id):
     return value
 
 
-def current(store, record):
-    key = 'runtime_latest:' + digest(encode(record['selection']).encode())
+def current(store, record, role='login'):
+    key = ('runtime_compute:' if role == 'compute' else 'runtime_latest:') + digest(encode(record['selection']).encode())
     latest = store.setting(key)
     return store.setting(latest) if latest else None
+
+
+def node_receipt(value, runtime, job_id):
+    from .runtime_probe import fingerprint, program_identity
+    identity = value.get('identity')
+    require(identity and value.get('role') == 'compute' and str(value.get('job_id')) == str(job_id)
+            and value.get('fingerprint') == fingerprint(identity),
+            '需要该记账作业实际计算节点的完整环境回执', 'runtime_receipt')
+    require(program_identity(identity) == program_identity(runtime['identity']),
+            '计算节点引擎或显式依赖与准备时不同', 'runtime_changed')
+    return value

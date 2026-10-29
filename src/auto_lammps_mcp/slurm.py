@@ -105,7 +105,18 @@ class Slurm:
         rules = json.loads(run["rules"])
         with self.store.connect() as db:
             row = db.execute("SELECT manifest FROM snapshots WHERE id=?", (run["snapshot_id"],)).fetchone()
-            plan = db.execute('SELECT p.specification FROM validation_plans p JOIN run_validations v ON v.plan_id=p.id WHERE v.run_id=?', (run['id'],)).fetchone()
+            plan = db.execute('SELECT p.specification,p.id,v.stage FROM validation_plans p JOIN run_validations v ON v.plan_id=p.id WHERE v.run_id=?', (run['id'],)).fetchone()
+            node_identities = []
+            if plan and plan['stage'] == 'production':
+                from .verification import receipt_current
+                seen = set()
+                for receipt in db.execute('SELECT * FROM check_receipts WHERE plan_id=? ORDER BY created DESC,rowid DESC', (plan['id'],)):
+                    if receipt['component'] in seen:
+                        continue
+                    seen.add(receipt['component'])
+                    node = json.loads(receipt['result']).get('compute_runtime')
+                    if node and receipt_current(self.store, db, receipt['task_id'], receipt['id']):
+                        node_identities.append(node)
         specification = json.loads(plan[0]) if plan else {}
         monitor = specification.get('monitor', [])
         runtime = specification.get('runtime')
@@ -120,9 +131,13 @@ class Slurm:
                          dict(fingerprint=None, error=str(exc)))
                 raise
             remember(self.store, run['task_id'], selection(environment, selected['commands'], selected['files']), measured)
-            require(measured['fingerprint'] == runtime['fingerprint'],
-                    '引擎、启动器或运行库已变化；保留无关检查，只补受影响的环境、数值和输出检查',
+            from .runtime_probe import program_identity, differences
+            changed = differences(program_identity(runtime['identity']), program_identity(measured['identity']))
+            require(not changed, '引擎、启动器或显式依赖已变化：' + ', '.join(changed),
                     'runtime_changed', '读取 validation_match，重新读取环境身份并建立复用方案')
+            if plan['stage'] == 'production':
+                require(node_identities and len({n['fingerprint'] for n in node_identities}) == 1,
+                        '正式计算需要一致的计算节点环境验证', 'runtime_compute_required')
         with tempfile.TemporaryDirectory(prefix="alm-stage-") as directory:
             root = Path(directory)
             materialize(self.store, json.loads(row[0]), root)
@@ -133,8 +148,11 @@ class Slurm:
                 command = 'python3 .alm-guard.py .alm-guard-spec.json ' + shlex.quote(run['entry'])
             if runtime:
                 atomic_write(root / '.alm-runtime-probe.py', Path(__file__).with_name('runtime_probe.py').read_bytes())
+                node = node_identities[0] if node_identities else None
                 atomic_write(root / '.alm-runtime-spec.json', encode(dict(commands=runtime['selection']['commands'],
-                    files=runtime['selection']['files'], expected=runtime['fingerprint'])).encode())
+                    files=runtime['selection']['files'], role='compute', programs=program_identity(runtime['identity']),
+                    expected=node['fingerprint'] if node else None,
+                    expected_identity=node['identity'] if node else None)).encode())
                 command = 'python3 .alm-runtime-probe.py .alm-runtime-spec.json .alm-runtime.json\n' + command
             seconds = rules["wall_seconds"]
             walltime = f"{seconds // 86400}-{seconds % 86400 // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"

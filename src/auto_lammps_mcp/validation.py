@@ -45,7 +45,7 @@ def normalized_files(store, files, variations):
 def environment(store):
     cluster = store.setting('cluster', {})
     # Connection credentials and output locations do not determine numerical equivalence.
-    return {key: cluster.get(key) for key in ('environment_script',)}
+    return {key: cluster.get(key) for key in ('environment_script', 'partition')}
 
 
 def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
@@ -83,8 +83,12 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
             latest = current_runtime(store, runtime) if runtime else None
             if not runtime or not latest:
                 differences.append('runtime_missing')
-            elif latest['fingerprint'] != runtime['fingerprint']:
+            elif not latest.get('identity'):
                 differences.append('runtime_changed')
+            else:
+                from .runtime_probe import program_identity
+                if program_identity(latest['identity']) != program_identity(runtime['identity']):
+                    differences.append('runtime_changed')
         if new_inputs:
             differences.extend('new_input:' + x for x in new_inputs)
         receipt = db.execute('SELECT * FROM check_receipts WHERE plan_id=? AND component=? ORDER BY created DESC,rowid DESC LIMIT 1',
@@ -98,6 +102,13 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
             valid_receipt = receipt_current(store, db, receipt['task_id'], receipt['id'])
             if not valid_receipt:
                 differences.append('evidence_changed')
+            if component['scope'] in ('environment', 'numerics', 'outputs'):
+                node = json.loads(receipt['result']).get('compute_runtime')
+                latest_node = current_runtime(store, runtime, role='compute') if runtime else None
+                if not node:
+                    differences.append('runtime_compute_missing')
+                elif latest_node and latest_node.get('fingerprint') != node['fingerprint']:
+                    differences.append('runtime_compute_changed')
         ready = not differences
         if ready:
             used.append(receipt['id'])
@@ -112,11 +123,24 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
                 next_action='正式计算或批量重复' if ready else '只补 missing 列出的检查')
 
 
+def confirmed_budget(task):
+    policy = task['policy']
+    limit = policy.get('preflight_core_hours')
+    require(type(limit) in (int, float) and math.isfinite(limit) and limit > 0
+            and policy.get('preflight_budget_authorization'),
+            '尚未记录用户确认的预验证预算；估算和任务条件不能代替预算授权',
+            'preflight_budget_confirmation',
+            '保存 policy.preflight_core_hours 与 preflight_budget_authorization；100 核时是建议值')
+    return limit
+
+
 def reserve_budget(store, db, plan_id, run_id, requested):
     row = db.execute('SELECT specification,task_id FROM validation_plans WHERE id=?', (plan_id,)).fetchone()
-    limit = min(json.loads(row['specification'])['budget_core_hours'], store.task(db, row['task_id'])['policy'].get('preflight_core_hours', 100))
+    # Charge the requesting task, including when it reuses another task's plan.
+    task_id = db.execute('SELECT task_id FROM runs WHERE id=?', (run_id,)).fetchone()[0]
+    limit = min(json.loads(row['specification'])['budget_core_hours'], confirmed_budget(store.task(db, task_id)))
     used = 0.0
-    for run in db.execute("SELECT r.id,r.state,r.evidence,v.reserved_core_hours FROM runs r JOIN run_validations v ON v.run_id=r.id WHERE r.task_id=? AND v.stage='preflight' AND r.id!=?", (row['task_id'], run_id)):
+    for run in db.execute("SELECT r.id,r.state,r.evidence,v.reserved_core_hours FROM runs r JOIN run_validations v ON v.run_id=r.id WHERE r.task_id=? AND v.stage='preflight' AND r.id!=?", (task_id, run_id)):
         if run['state'] in ('prepared', 'cancelled_before_dispatch', 'staging_failed'):
             continue
         evidence = json.loads(run['evidence'])
@@ -125,7 +149,7 @@ def reserve_budget(store, db, plan_id, run_id, requested):
         used += float(seconds) / 3600 if seconds is not None else run['reserved_core_hours']
     require(math.isfinite(requested) and requested > 0 and used + requested <= limit + 1e-10,
             f'预验证预算不足：已用及保留 {used:.3f}，本次 {requested:.3f}，总额 {limit:.3f} 核时',
-            'preflight_budget', '保留证据，缩短本次验证或由用户调整验证方案预算')
+            'preflight_budget', '调度预留=核数×最长运行时限，与预计用量分开；按实际验证工作量缩短时限，扩大预算须保存新的用户确认')
     db.execute('UPDATE run_validations SET reserved_core_hours=? WHERE run_id=?', (requested, run_id))
 
 

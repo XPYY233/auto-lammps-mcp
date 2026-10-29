@@ -1,5 +1,13 @@
 # Development audit
 
+- The full repair suite passed 201 checks. A documentation patch used an unverified P2 heading and was rejected atomically; no partial edits occurred. The actual heading was read and the patch reapplied. Production staging also selects the latest receipt per component so superseded passing measurements do not block a newer consistent runtime.
+
+- The corrected focused suite passed 37 checks. A follow-up search included a guessed environment.py; the capture API is in research.py. Subsequent source searches use the actual module inventory.
+
+- The first focused run after separating login and compute evidence had 22 failures sharing one fixture cause: the simulated node receipt incorrectly included the stored discovery record's id/task_id, causing duplicate keyword arguments during collection. A bounded reproduction confirmed the collection exception. Use a probe-shaped node receipt, preserve the real collection integrity check, then rerun. An audit patch initially used a guessed heading and did not apply; the actual heading was read before this entry.
+
+- The user approved the three localized P2 repairs and visible acceptance continuation. An initial source read guessed test_runtime_identity.py; the actual test inventory must be used before editing or running checks. No task or execution state changed.
+
 - Read-only diagnosis of the new P2 runtime blocker sampled three connections through the configured login alias. They reached three different login hosts: two yielded the original runtime fingerprint and one yielded the later fingerprint, exactly matching the saved failed-dispatch comparison. Engine and launcher hashes were unchanged; differences were confined to six host system libraries. The application currently compares login-node library identity as if it were the target calculation environment. The proposed fix must separate discovery on login nodes from measured compute-node runtime evidence, retaining checks for actual engine and compute-runtime changes. No engine was invoked, no job submitted, and the task remains paused at revision 16.
 
 - The same read-only review confirmed the budget split: 20 core-hours is stored among task constraints, policy.preflight_core_hours is absent, and validation_plan/reserve_budget fall back to 100. This allowed a new 80-core-hour plan. Duplicate preparation checks input/sample/intent before validation binding, so an old cancelled record can be returned for a new plan. These are service-contract defects to address in the user's next blocker decision. One search named a nonexistent policy.py; the rules are implemented in service.py and validation.py, whose actual code was inspected.

@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 
@@ -19,6 +20,17 @@ PROBE_VERSION = 1
 
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+
+
+def program_identity(identity):
+    """Login-node system libraries are observations, not compute-node evidence."""
+    return {key: identity.get(key, {}) for key in ('commands', 'files')}
+
+
+def differences(expected, actual):
+    return [group + ':' + path for group in ('commands', 'files', 'libraries')
+            for path in sorted(set(expected.get(group, {})) | set(actual.get(group, {})))
+            if expected.get(group, {}).get(path) != actual.get(group, {}).get(path)]
 
 
 def describe(path):
@@ -64,14 +76,20 @@ def inspect(spec):
                 path = match[1]
                 libraries[path] = describe(path)
     identity = dict(probe_version=PROBE_VERSION, commands=commands, files=files, libraries=libraries)
-    return dict(identity=identity, fingerprint=fingerprint(identity))
+    return dict(identity=identity, fingerprint=fingerprint(identity),
+                host=socket.gethostname(), role=spec.get('role', 'login'),
+                job_id=os.environ.get('SLURM_JOB_ID') if spec.get('role') == 'compute' else None)
 
 
 def main():
     spec = json.loads(Path(sys.argv[1]).read_text())
     try:
         measured = inspect(spec)
-        measured['passed'] = not spec.get('expected') or measured['fingerprint'] == spec['expected']
+        expected_programs = spec.get('programs')
+        measured['differences'] = differences(expected_programs or {}, program_identity(measured['identity'])) if expected_programs else []
+        if spec.get('expected_identity'):
+            measured['differences'] += differences(spec['expected_identity'], measured['identity'])
+        measured['passed'] = not measured['differences'] and (not spec.get('expected') or measured['fingerprint'] == spec['expected'])
     except Exception as exc:
         measured = dict(passed=False, error=str(exc))
     Path(sys.argv[2]).write_text(json.dumps(measured, sort_keys=True) + '\n')

@@ -207,10 +207,10 @@ class ResearchOperations:
     @public
     def validation_plan(self, task_id: str, revision: int, snapshot_id: str, entry: str,
                         components: list[dict], op_id: str, variations: list[dict] | None = None,
-                        budget_core_hours: float = 100, reuse_from: str | None = None, token: str | None = None,
+                        budget_core_hours: float | None = None, reuse_from: str | None = None, token: str | None = None,
                         monitor: list[dict] | None = None, runtime_id: str | None = None) -> dict:
-        """Freeze native inputs and checks before preflight. runtime_id comes from environment_capture; reuse_from inherits its runtime if unchanged. Each component has id, scope (static/environment/numerics/outputs/analysis), files, condition_keys and checks. Conditions come from current task. variations permits explicit integer seed variables: path,variable,min,max. reuse_from copies only compatible measured components. Production requires static/environment/numerics/outputs. All physical checks use run_prepare(stage='preflight',validation_id=...)."""
-        require(math.isfinite(budget_core_hours) and budget_core_hours > 0, '预验证预算应为正数')
+        """Freeze native inputs and checks before preflight. Confirm policy.preflight_core_hours and preflight_budget_authorization first; omitted budget_core_hours uses that confirmed cap, not a default. runtime_id comes from login-node file discovery; actual compute-node runtime is established by accounted preflight and checked before production entry. Each component has id, scope (static/environment/numerics/outputs/analysis), files, condition_keys, checks. Cover all inputs and scientific conditions. variations permits integer seed variables: path,variable,min,max. reuse_from copies compatible measured components. Production requires static/environment/numerics/outputs. Physical checks use run_prepare(stage='preflight',validation_id=...)."""
+        require(budget_core_hours is None or (math.isfinite(budget_core_hours) and budget_core_hours > 0), '预验证预算应为正数')
         require(components and len({c.get('id') for c in components}) == len(components), '验证组件需要唯一 id')
         variations = variations or []
         if monitor:
@@ -232,7 +232,10 @@ class ResearchOperations:
             runtime = read_runtime(self.store, db, task_id, selected_runtime)
             require(runtime['selection']['environment_script'] == environment(self.store)['environment_script'],
                     '环境命令已变化，重新读取实际引擎身份')
-            require(budget_core_hours <= task['policy'].get('preflight_core_hours', 100), '超出当前预验证预算；用户调整后保存 policy.preflight_core_hours')
+            from .validation import confirmed_budget
+            limit = confirmed_budget(task)
+            budget = limit if budget_core_hours is None else budget_core_hours
+            require(budget <= limit, '超出当前确认的预验证预算；更换方案不会扩大预算', 'preflight_budget')
             require(entry in files, '研究入口不在快照中')
             normalized, parameters = normalized_files(self.store, files, variations)
             inputs = set()
@@ -249,7 +252,7 @@ class ResearchOperations:
             require(set().union(*(set(c['condition_keys']) for c in components)) == set(task['constraints_json']), '每项科学条件都需要关联至少一个验证组件')
             spec = dict(entry=entry, conditions=task['constraints_json'], components=components, variations=variations,
                         inputs={p: normalized[p] for p in sorted(inputs)}, snapshot_paths=sorted(files),
-                        environment=environment(self.store), runtime=runtime, budget_core_hours=budget_core_hours, monitor=monitor or [])
+                        environment=environment(self.store), runtime=runtime, budget_core_hours=budget, monitor=monitor or [])
             pid = identifier('validation')
             db.execute('INSERT INTO validation_plans VALUES(?,?,?,?,?,1,?)',
                        (pid, task_id, snapshot_id, encode(spec), digest(encode(spec).encode()), time.time()))
@@ -333,14 +336,19 @@ class ResearchOperations:
                 for check in c['checks']:
                     name = data_root.rstrip('/') + '/' + check['path']
                     require(name in hashes and self.store.path(task_id, name).is_file() and file_hash(self.store.path(task_id, name)) == hashes[name], '验证数据与回收回执不一致: ' + name)
+                from .runtime_evidence import node_receipt
+                measured_runtime = node_receipt(json.loads(self.store.path(task_id, runtime_path).read_text()), spec['runtime'], run['job_id'])
+                require(measured_runtime.get('passed'), '计算节点环境检查未通过')
             checks = [{**check, 'path': data_root.rstrip('/') + '/' + check['path'] if data_root else check['path']} for check in c['checks']]
             if c['scope'] in ('environment', 'numerics', 'outputs'):
                 checks.append(dict(kind='json', path=runtime_path,
-                                   values={'passed': True, 'fingerprint': spec['runtime']['fingerprint']}))
+                                   values={'passed': True, 'fingerprint': measured_runtime['fingerprint'],
+                                           'identity': measured_runtime['identity'], 'role': 'compute', 'job_id': measured_runtime['job_id']}))
             for check in checks:
                 self.store.path(task_id, check['path'])
             self.store.bump(db, task_id)
-            return self.store.queue(db, task_id, 'check', dict(checks=checks, artifacts=[], plan_id=plan_id, component=component_id))
+            return self.store.queue(db, task_id, 'check', dict(checks=checks, artifacts=[], plan_id=plan_id, component=component_id,
+                compute_runtime=measured_runtime if c['scope'] in ('environment', 'numerics', 'outputs') else None))
         return self.store.mutate(op_id, dict(method='validation_check', task_id=task_id, revision=revision, plan_id=plan_id,
             component_id=component_id, run_id=run_id, data_root=data_root, token=token), apply)
 
