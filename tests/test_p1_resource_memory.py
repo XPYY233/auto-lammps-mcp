@@ -23,6 +23,7 @@ def test_registered_native_file_is_readable_and_bundle_checks_current_bytes(serv
     resource = service.resource_register('W invocation', 'author_project', str(path), {'source': 'fixture', 'license': 'test'}, 'native')
     assert service.resource_file_read(resource['id'], 'pot')['text'] == path.read_text()
     bundle = service.resource_bundle([resource['id']], 'W resource set', {'source': 'fixture', 'license': 'test'}, 'bundle')
+    assert service.resource_get(resource['id'])['related_bundles'][0]['id'] == bundle['id']
     assert service.resource_get(bundle['id'])['files_current']
     path.write_text('changed invocation\n')
     result = service.resource_get(bundle['id'])

@@ -23,7 +23,7 @@ def bound_response(store, method, value):
         if not isinstance(item, dict) or depth > 1:
             return link(parts, item)
         result = dict(truncated=True, details=link(parts, item))
-        keys = sorted(item, key=lambda key: (isinstance(item[key], (dict, list)), key))
+        keys = sorted(item, key=lambda key: (key != 'interaction_guide', isinstance(item[key], (dict, list)), key))
         for key in keys:
             if key in result:
                 continue

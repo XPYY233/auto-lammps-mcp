@@ -8,6 +8,9 @@ import time
 from .core import digest, encode, identifier, require
 from .files import file_hash
 
+DISCUSSION_GUIDE = ('先讨论：定位任务后立即 task_control pause；已暂停则保持。先向用户展示可复用内容、依据和缺项，再问最多三项科学选择；不要等答完问卷才给摘要。'
+                    '历史报告标为历史结论，候选原因保留待查；科学通过依据当前 check_get/validation_match 的范围。读取 resource_get 的成套用法和元素映射后判断适用性，不能只凭名称排除多元素势。')
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memories (
  id TEXT PRIMARY KEY, task_id TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
@@ -146,7 +149,7 @@ def stage_context(store, db, task_id):
     memory['items'] = [dict(id=x['id'], task_id=x['task_id'], title=x['title'][:120], summary=x['summary'][:160],
                             kind=x['kind'], status=x['status'], reuse=x['reuse'], evidence_current=x['evidence_current'],
                             plan_id=x['evidence'].get('plan_id'), read='memory_get') for x in memory['items'][:3]]
-    return dict(memory=memory, confirmed_conditions=task['constraints_json'],
+    return dict(interaction_guide=DISCUSSION_GUIDE, memory=memory, confirmed_conditions=task['constraints_json'],
                 questions=['研究问题与必需成果是否明确？', '哪些条件固定，哪些希望获得建议？'],
                 workflow=['检索已有记忆与成套资源', '讨论科学选择', '匹配已有验证',
                           '只补缺项', '正式运行或批量重复', '分析核验并交付'],

@@ -13,12 +13,13 @@ from mcp.types import ToolAnnotations, CallToolResult, TextContent, ImageContent
 from .core import Fault, encode
 from .service import Service
 from .transport import call
+from .research_store import DISCUSSION_GUIDE
 
 
 def run(home, host="unknown"):
     from .identity import runtime_identity
     client_identity = {**runtime_identity(), "session_id": uuid.uuid4().hex}
-    app = FastMCP("auto-lammps", instructions="使用 help 和 doctor。保存用户原话与成果清单；task_get/research_context 自动检索本地记忆。集中询问尚未确定的科学选择。先复用成套资源与有效验证，只为缺项安排记账 HPC 预验证。直接编辑原生文件，建立快照；validation_match 覆盖后正式或 batch_submit 批量执行。暂停先保存 task_control。check_run 产生实测回执，再登记成果。变更绑定任务版本及唯一 op_id，重试复用原编号。")
+    app = FastMCP("auto-lammps", instructions=DISCUSSION_GUIDE + "使用 help 和 doctor。保存用户原话与成果清单；task_get/research_context 自动检索本地记忆。先复用成套资源与有效验证，只为缺项安排记账 HPC 预验证。直接编辑原生文件，建立快照；validation_match 覆盖后正式或 batch_submit 批量执行。check_run 产生实测回执，再登记成果。变更绑定任务版本及唯一 op_id，重试复用原编号。")
     for name, fn in inspect.getmembers(Service, predicate=inspect.isfunction):
         if not getattr(fn, "public", False):
             continue

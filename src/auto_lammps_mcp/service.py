@@ -237,8 +237,9 @@ class Service(ResearchOperations):
             for name in ("runs", "work", "events", "stages"):
                 result[name] = [decoded_record(row) for row in result[name]]
         output = result if include_details else task_summary(result)
-        from .research_store import stage_context
+        from .research_store import stage_context, DISCUSSION_GUIDE
         with self.store.connect() as db:
+            output['interaction_guide'] = DISCUSSION_GUIDE
             output['research_context'] = stage_context(self.store, db, task_id)
             if include_details:
                 output['research_history'] = {table: [dict(r) for r in db.execute('SELECT * FROM ' + table + ' WHERE task_id=?', (task_id,))]
@@ -852,11 +853,15 @@ class Service(ResearchOperations):
 
     @public
     def resource_get(self, resource_id: str) -> dict:
-        """Read the full resource record, native file list, source/revision, license and verification evidence."""
+        """Read native files, source/license, current hashes and related_bundles. Read the bundle's usage/element mapping before judging applicability; multi-element file names alone do not exclude single-element use. File verification and scientific validation are separate."""
         require(resource_id.startswith('resource_'), '资源编号无效')
         value = self.store.setting(resource_id)
         require(value is not None, '未找到资源')
         result = dict(id=resource_id, **value)
+        with self.store.connect() as db:
+            result['related_bundles'] = [dict(id=row['key'], name=bundle['name'], read='resource_get')
+                for row in db.execute("SELECT key,value FROM settings WHERE key LIKE 'resource_%'")
+                if resource_id in (bundle := json.loads(row['value'])).get('members', [])]
         if value.get('members'):
             members = []
             for key in value['members']:

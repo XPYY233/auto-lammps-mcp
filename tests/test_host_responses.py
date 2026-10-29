@@ -7,6 +7,15 @@ from auto_lammps_mcp.backup import create_backup
 from auto_lammps_mcp.responses import bound_response, bound_error
 
 
+def test_large_task_retains_discussion_guidance_before_history(service, task):
+    value = service.task_get(task['id'])
+    for i in range(25):
+        value['additional_' + str(i)] = 'large history ' * 500
+    summary = bound_response(service.store, 'task_get', value)
+    assert summary['interaction_guide'] == value['interaction_guide']
+    assert reconstruct(service, summary['response_id']) == value
+
+
 def reconstruct(service, response_id, path=None):
     path = path or []
     offset, text, items = 0, "", []

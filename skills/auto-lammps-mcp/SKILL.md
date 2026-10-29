@@ -19,6 +19,8 @@ Read the linked guide before its phase. Resolve paths against this skill's direc
 
 For continuation, start with task_list and task_get. Resolve ambiguous names before writing. Use help(method) for current parameters instead of inspecting implementation files. help() lists the first catalog page; follow next_offset while more is true to discover further tools. Acquire task ownership for coordinated mutations and release it while waiting for queued work.
 
+When the user says "先讨论", pause the identified task immediately (keep an already paused task paused). Read the research guide. Show reusable work, evidence and missing checks **before** asking at most three scientific questions. Do not hide that summary behind a questionnaire. Historical reports remain historical claims; check current receipts for scientific validation and keep candidate causes distinct from observed failures. Read related resource bundles and their element mappings before judging suitability; a multi-element potential can contain a relevant single-element mapping.
+
 ## Read complete results
 
 task_get gives compact progress and the original request. Page through task_records for run, artifact, work and stage history. operation_get returns one operation; large results preserve identifiers and supply operation_read links. Follow path and next_offset until more is false. Paths contain literal field names or array-index strings; snapshot files use ['result','files']. Text offsets count characters. Complete records remain in exports.
