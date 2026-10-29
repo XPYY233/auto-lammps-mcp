@@ -11,7 +11,7 @@ from .files import file_hash
 from .research_store import evidence_current, save_memory
 from .science import inspect_dump, thermo_blocks
 
-CHECK_VERSION = '1'
+CHECK_VERSION = '2'
 OPTIONS = {
  'file': {'min_bytes', 'contains'},
  'csv': {'columns', 'min_rows', 'bounds'},
@@ -35,6 +35,14 @@ def validate_checks(checks):
             if key in check:
                 require(type(check[key]) in (int, float) and math.isfinite(check[key]) and check[key] >= 0,
                         key + ' 应为非负有限数')
+        if 'bounds' in check:
+            require(isinstance(check['bounds'], dict) and check['bounds'], 'bounds 需要明确字段和上下界')
+            for field, bounds in check['bounds'].items():
+                require(isinstance(field, str) and field and isinstance(bounds, dict) and bounds
+                        and set(bounds) <= {'min', 'max'}, '上下界仅支持 min/max，至少填写一项')
+                require(all(type(x) in (int, float) and math.isfinite(x) for x in bounds.values()),
+                        '上下界需要有限数值')
+                require(bounds.get('min', -math.inf) <= bounds.get('max', math.inf), '下界不能超过上界')
         if check['kind'] == 'energy_jump':
             require(all(k in check for k in ('before_block', 'after_block', 'expected', 'tolerance')),
                     '注入能量检查需要明确前后段、期望值和容差')
@@ -148,6 +156,18 @@ def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=Non
         db.execute('INSERT INTO check_receipts VALUES(?,?,?,?,?,?,?,?,?)',
                    (value['id'], task_id, plan_id, component, encode(checks), encode(value), encode(sources), int(passed), value['created']))
         store.event(db, task_id, 'validation_checked', dict(receipt_id=value['id'], component=component, passed=passed))
+        if not passed:
+            affected = []
+            latest = {r['path']: r for r in db.execute('SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid', (task_id,))}
+            for artifact in latest.values():
+                if any(c.get('receipt_id') and not receipt_current(store, db, task_id, c['receipt_id'], artifact['path'])
+                       for c in json.loads(artifact['checks'])):
+                    affected.append(artifact['id'])
+            if affected:
+                changed = db.execute("UPDATE tasks SET state='active' WHERE id=? AND state='completed'", (task_id,)).rowcount
+                if changed:
+                    store.bump(db, task_id)
+                store.event(db, task_id, 'measured_review_failed', dict(receipt_id=value['id'], artifacts=affected))
         if plan_id and passed:
             task = store.task(db, task_id)
             save_memory(db, dict(id='memory_' + value['id'], task_id=task_id, kind='validation', status='verified',
@@ -173,6 +193,26 @@ def receipt_current(store, db, task_id, receipt_id, artifact=None):
         if latest and not latest[0]:
             return False
     if json.loads(row['result']).get('checker_version') != CHECK_VERSION:
+        return False
+    # Keep the latest scientific verdict for each measured quantity and source version.
+    # A file-existence check cannot clear a later failed numerical check.
+    latest_reviews = {}
+    for review in db.execute('SELECT sources,result FROM check_receipts WHERE task_id=? AND created>=? ORDER BY created,rowid',
+                             (task_id, row['created'])):
+        hashes, result = json.loads(review['sources']), json.loads(review['result'])
+        for check in result.get('checks', []):
+            spec = check['specification']
+            path = spec['path']
+            if path not in sources or hashes.get(path) != sources[path]:
+                continue
+            # Threshold amendments keep the same measurement identity.
+            identity = {k: v for k, v in spec.items() if k not in (
+                'min_rows', 'min_frames', 'min_bytes', 'max_abs_drift', 'tolerance', 'expected', 'unit', 'basis', 'bounds', 'values')}
+            for field in ('bounds', 'values'):
+                if field in spec:
+                    identity[field] = sorted(spec[field])
+            latest_reviews[encode(identity)] = check['passed']
+    if not all(latest_reviews.values()):
         return False
     previous = json.loads(row['result']).get('reused_from')
     if previous:

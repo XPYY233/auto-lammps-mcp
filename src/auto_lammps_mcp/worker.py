@@ -376,6 +376,8 @@ class Worker:
                     if lease:
                         continue
                     task = self.store.task(db, candidate["task_id"])
+                    if task['state'] in ('paused', 'stopping', 'stopped') and candidate['kind'] in ('snapshot', 'import', 'analysis', 'export', 'optimize'):
+                        continue
                     if candidate["kind"] == "decision" and (task["state"] in ("paused", "stopping", "stopped") or not self.service.background_status(db, candidate["task_id"])["effective_enabled"]):
                         continue
                 work = candidate

@@ -32,13 +32,20 @@ def thermo_blocks(path):
             if fields and fields[0] in ("Step", "Time") and len(fields) > 1:
                 current = dict(columns=fields, rows=[], first_line=number)
                 blocks.append(current)
-            elif current and len(fields) == len(current["columns"]):
+            elif current and fields:
+                try:
+                    float(fields[0])
+                except ValueError:
+                    if not line.lstrip().startswith('WARNING:'):
+                        current = None
+                    continue
+                require(len(fields) == len(current['columns']), f'第 {number} 行热力学采样字段不完整')
                 try:
                     values = [float(x) for x in fields]
-                    require(all(math.isfinite(v) for v in values), f"第 {number} 行存在非有限数据")
-                    current["rows"].append(values)
-                except ValueError:
-                    current = None
+                except ValueError as exc:
+                    raise Fault('invalid_thermo_row', f'第 {number} 行热力学采样包含非数值字段', '检查完整原始日志') from exc
+                require(all(math.isfinite(v) for v in values), f"第 {number} 行存在非有限数据")
+                current["rows"].append(values)
             elif current:
                 current = None
     return blocks

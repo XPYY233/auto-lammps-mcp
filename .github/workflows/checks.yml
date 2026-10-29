@@ -29,6 +29,7 @@ jobs:
           receipt = json.loads(pathlib.Path('installed-receipt.json').read_text())
           python = pathlib.Path(receipt['binary']).parent / 'python'
           subprocess.run([str(python), 'scripts/verify_installed.py'], check=True)
+          subprocess.run([str(python), 'scripts/verify_p0_installed.py'], check=True)
           PY
       - uses: actions/upload-artifact@v4
         with:

@@ -374,7 +374,7 @@ class Service(ResearchOperations):
 
     @public
     def task_control(self, task_id: str, revision: int, action: str, op_id: str) -> dict:
-        """Pause future dispatch, resume, or stop and cancel active jobs. Persists intent before cancellation."""
+        """Pause future dispatch and queued file-producing work, resume, or stop and cancel active jobs. Persists intent first. Existing remote jobs keep running on pause; log reads, collection and diagnostic checks remain available."""
         require(action in ("pause", "resume", "stop"), "action 应为 pause、resume 或 stop")
         def apply(db):
             task = self.store.task(db, task_id)

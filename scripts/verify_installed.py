@@ -174,7 +174,8 @@ async def verify(home, incoming):
 
 def main():
     package = Path(auto_lammps_mcp.__file__).parent
-    for path in ("data/skill/SKILL.md", "data/docs/APPROVED_PLAN.md", "data/requirements.lock.txt"):
+    for path in ("data/skill/SKILL.md", "data/docs/APPROVED_PLAN.md", "data/docs/APPROVED_CAPABILITY_PLAN.md",
+                 "data/skill/references/APPROVED_CAPABILITY_PLAN.md", "data/requirements.lock.txt"):
         assert (package / path).is_file(), path
     with tempfile.TemporaryDirectory(prefix="alm-installed-") as temporary:
         home = Path(temporary) / "state"
