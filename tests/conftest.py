@@ -25,6 +25,11 @@ class SchedulerFixture:
     def stage(self, run):
         self.staged.append(run["id"])
 
+    def inspect_runtime(self, config, commands, files):
+        from auto_lammps_mcp.runtime_probe import fingerprint
+        identity = dict(probe_version=1, commands={x: dict(path='/fixture/' + x, sha256='a' * 64, bytes=10) for x in commands}, files={}, libraries={})
+        return dict(identity=identity, fingerprint=fingerprint(identity))
+
     def submit(self, run):
         self.submissions += 1
         if self.lose_receipt:

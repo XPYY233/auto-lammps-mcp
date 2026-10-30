@@ -11,6 +11,8 @@
 | 只有 MCP 且无已部署连接 | 引导进入能访问用户电脑的工作对话 | 保存进度与接续句 |
 | 支持本项目插件包 | 安装对应版本插件并执行工具检查 | 插件、skill 与服务版本 |
 
+v1.0 的托管安装与桌面后台使用 macOS。Linux 支持源码及 `--no-launchd` 隔离安装，持久服务需自行配置；Windows 原生安装尚未提供。先识别系统并据此说明可用路径。
+
 当前仓库提供 Python 安装器、Codex 注册入口、DSH stdio 连接配置和 skill；插件分发包在交付记录中单列。
 
 检查 `alm --version`、真实路径与 `alm doctor`。找不到命令时，使用安装回执中的 binary 完整路径。权限问题通过平台正常入口处理。同名连接指向其他安装时，核对原环境和数据目录再选择使用版本。
@@ -19,7 +21,7 @@
 
 ### 先选择同一套发布文件
 
-从 [Releases](https://github.com/XPYY233/auto-lammps-mcp/releases) 选择已发布版本，记录标签、源码提交和安装包摘要。公开候选版本也显示在该列表中。README 的开发版本号说明当前源码进度，安装包版本以所选发布记录为准。
+默认安装[正式版 v1.0](https://github.com/XPYY233/auto-lammps-mcp/releases/tag/v1.0)，Python 包版本为 `1.0.0`。记录标签、源码提交和安装包摘要。后续更新从 Releases 选择正式发布，显式指定候选版本时保留其验证记录。
 
 从该版本的发布附件取得 `install.py`、wheel、`SHA256SUMS` 和 `release.json`；核对安装器与 wheel 的 SHA-256。读取相同标签下的本指南和 skill，例如发布页的源码入口指向 `blob/<tag>/docs/FOR_AGENTS_INSTALL.md`。保存文件实际位置后继续安装。
 

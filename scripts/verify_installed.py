@@ -44,10 +44,12 @@ async def verify(home, incoming):
       async with stdio_client(params, errlog=error_log) as (read, write):
         async with ClientSession(read, write) as client:
             await client.initialize()
+            tools = {tool.name for tool in (await client.list_tools()).tools}
+            assert {'batch_dataset', 'results_get', 'trajectory_correlate'} <= tools
 
-            async def invoke(method, **values):
-                response = await client.call_tool(method, values)
-                assert not response.isError, (method, response.content)
+            async def invoke(tool_name, **values):
+                response = await client.call_tool(tool_name, values)
+                assert not response.isError, (tool_name, response.content)
                 return json.loads(response.content[0].text)
 
             async def finished(operation, expected="completed"):
@@ -71,7 +73,8 @@ async def verify(home, incoming):
             tid = task["id"]
             await finished(await invoke("project_import", task_id=tid, revision=task["revision"], source=str(incoming), op_id="import"))
             task = await invoke("task_get", task_id=tid)
-            failed = await finished(await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=["values.csv"], outputs=["partial.csv", "plot.png"], op_id="failed-analysis"), expected="failed")
+            failed_operation = await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=["values.csv"], outputs=["partial.csv", "plot.png"], op_id="failed-analysis")
+            failed = await finished(failed_operation, expected="failed")
             assert failed["error"]["effect"] == "partial"
             evidence = failed["error"]["evidence"]
             diagnostic = await invoke("file_read", task_id=tid, path=evidence["log_path"])
@@ -81,7 +84,8 @@ async def verify(home, incoming):
             await invoke("file_patch", task_id=tid, revision=task["revision"], path="analyze.py", expected_sha256=evidence["sources"]["analyze.py"], old=FAILED_ANALYSIS, new=ANALYSIS, op_id="repair-analysis")
             task = await invoke("task_get", task_id=tid)
             source_copy = str(Path(evidence["directory"]).relative_to(Path(task["project_path"])) / "values.csv")
-            analysis = await finished(await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=[], input_bindings={"values.csv": source_copy}, outputs=["statistics.json", "plot.png"], op_id="analysis"))
+            analysis = await finished(await invoke("analysis_submit", task_id=tid, revision=task["revision"], script="analyze.py", inputs=[], input_bindings={"values.csv": source_copy}, outputs=["statistics.json", "plot.png"], method={"purpose": "mean and plotted values", "denominator": "input rows"}, supersedes=failed_operation['operation_id'], op_id="analysis"))
+            assert analysis['supersedes'] == failed_operation['operation_id']
             assert analysis["input_bindings"] == {"values.csv": source_copy}
             assert analysis["sources"][source_copy] == evidence["sources"]["values.csv"]
             root = Path(task["project_path"])
@@ -91,7 +95,14 @@ async def verify(home, incoming):
             assert actual == {"count": 3, "mean": 4.0}, actual
             (root / "content-check.json").write_text(json.dumps(dict(actual=actual, expected_mean=4.0)))
             task = await invoke("task_get", task_id=tid)
-            registered = await invoke("artifact_register", task_id=tid, revision=task["revision"], path=plot, sources=["values.csv", "analyze.py", statistics], requirement_ids=["plot"], checks=[dict(passed=True, method="Three input rows and mean 4; PNG decoder response", evidence="content-check.json")], op_id="register")
+            checking = await invoke('check_run', task_id=tid, revision=task['revision'], checks=[dict(kind='json', path=statistics, values={'count': 3, 'mean': 4.0})], artifacts=[plot], op_id='measured-check')
+            measured = await finished(checking)
+            assert measured['passed']
+            task = await invoke('task_get', task_id=tid)
+            registered = await invoke("artifact_register", task_id=tid, revision=task["revision"], path=plot, sources=["values.csv", "analyze.py", statistics], requirement_ids=["plot"], checks=[dict(receipt_id=measured['id'])], description="Values and mean", op_id="register")
+            catalog = await invoke('results_get', task_id=tid)
+            assert catalog['artifacts'][0]['status'] == 'current'
+            assert catalog['analyses'][0]['method']['denominator'] == 'input rows'
             preview = await client.call_tool("artifact_preview", dict(task_id=tid, path=plot))
             assert not preview.isError
             assert any(item.type == "image" for item in preview.content)
@@ -127,7 +138,12 @@ async def verify(home, incoming):
                         offset = page["next_offset"]
                     assert stored == entries
             current = await invoke("task_get", task_id=tid)
-            assert len(current["work"]) == 5 and current["record_counts"]["work"] > 30
+            if isinstance(current['work'], list):
+                assert len(current['work']) == 5
+            else:
+                recent = await invoke('task_records', task_id=tid, kind='work', limit=5)
+                assert 0 < len(recent['records']) <= 5 and recent['more']
+            assert current["record_counts"]["work"] > 30
             optimized = await finished(await invoke("project_optimize", task_id=tid, revision=current["revision"], op_id="optimize-storage"))
             assert optimized["files_preserved"]
             current = await invoke("task_get", task_id=tid)
@@ -140,6 +156,9 @@ async def verify(home, incoming):
             with zipfile.ZipFile(exported["path"]) as archive:
                 assert "project/" + plot in archive.namelist()
                 record = json.loads(archive.read("research-record.json"))
+                readme = archive.read('README.txt').decode()
+                assert 'Values and mean' in readme and 'project/' + plot in readme
+                assert record['result_catalog']['artifacts'][0]['path'] == plot
                 assert record["request"] == task["request"]
                 assert len(record["work"]) == record["record_counts"]["work"]
                 assert set(snapshots) <= {item["id"] for item in record["work"]}
@@ -151,6 +170,8 @@ async def verify(home, incoming):
             import_request = await invoke("project_import", task_id=next_task["id"], revision=next_task["revision"], source=exported["path"], op_id="restore-handoff")
             imported = await finished(import_request)
             assert imported["original_request"] == task["request"]
+            origins = await invoke('results_get', task_id=next_task['id'])
+            assert origins['imported_projects'][0]['original_request'] == task['request']
             reread = await invoke("file_read", task_id=next_task["id"], path=statistics)
             assert json.loads(reread["text"]) == actual
             receiver = await invoke("task_get", task_id=next_task["id"])
@@ -160,12 +181,13 @@ async def verify(home, incoming):
             assert pending["executor"]["owner"] == "installed-reader"
             assert pending["waiting_background"][0]["operation_id"] == followup["operation_id"]
             await invoke("task_release", task_id=receiver["id"], token=lease["token"])
-            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "failed_analysis_evidence", "native_analysis", "prior_result_binding", "storage_optimization", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport", "continuation_saved_during_lease"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
+            return dict(version=auto_lammps_mcp.__version__, package_path=auto_lammps_mcp.__file__, checks=["packaged_skill_and_plan", "MCP", "p4_tools", "failed_analysis_evidence", "native_analysis", "analysis_method", "result_catalog", "readable_handoff", "prior_result_binding", "storage_optimization", "image_preview", "required_archive", "complete_operation_history", "large_snapshot_pages", "bounded_full_mcp_response", "handoff_reimport", "continuation_saved_during_lease"], original_files=exported["files"], exported_operations=len(record["work"]), physics_submissions=0)
 
 
 def main():
     package = Path(auto_lammps_mcp.__file__).parent
-    for path in ("data/skill/SKILL.md", "data/docs/APPROVED_PLAN.md", "data/requirements.lock.txt"):
+    for path in ("data/skill/SKILL.md", "data/docs/APPROVED_PLAN.md", "data/docs/APPROVED_CAPABILITY_PLAN.md",
+                 "data/skill/references/APPROVED_CAPABILITY_PLAN.md", "data/requirements.lock.txt"):
         assert (package / path).is_file(), path
     with tempfile.TemporaryDirectory(prefix="alm-installed-") as temporary:
         home = Path(temporary) / "state"

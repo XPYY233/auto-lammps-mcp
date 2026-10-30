@@ -10,6 +10,7 @@ import time
 from . import __version__
 from .core import Store, Fault, digest, encode, identifier, require
 from .files import file_hash, invalidate, manifest, patch_file
+from .research import ResearchOperations
 
 
 def public(fn):
@@ -17,7 +18,7 @@ def public(fn):
     return fn
 
 
-class Service:
+class Service(ResearchOperations):
     def __init__(self, home=None):
         self.store = Store(home)
 
@@ -28,7 +29,14 @@ class Service:
             inspect.signature(target).bind(**arguments)
         except TypeError as exc:
             raise Fault("invalid_arguments", str(exc), "调用 help 查看参数") from exc
-        return target(**arguments)
+        result = target(**arguments)
+        if method in {'task_create', 'file_patch', 'lammps_input_review', 'run_prepare', 'analysis_submit'}:
+            task_id = arguments.get('task_id') or (result.get('id') if method == 'task_create' else None)
+            if task_id:
+                from .research_store import stage_context
+                with self.store.connect() as db:
+                    result['research_context'] = stage_context(self.store, db, task_id)
+        return result
 
     @public
     def help(self, method: str = "", offset: int = 0, limit: int = 10) -> dict:
@@ -213,6 +221,11 @@ class Service:
         for artifact in result["artifacts"]:
             for key in ("sources", "requirements", "checks"):
                 artifact[key] = json.loads(artifact[key])
+        from .verification import receipt_current
+        with self.store.connect() as db:
+            for artifact in result['artifacts']:
+                for check in artifact['checks']:
+                    check['current_passed'] = bool(check.get('receipt_id') and receipt_current(self.store, db, task_id, check['receipt_id'], artifact['path']))
         result["next_action"] = {
             "completed": "查看已登记成果，或提出追加分析",
             "paused": "后续派发已暂停；查看当前作业，准备继续时恢复任务",
@@ -223,7 +236,22 @@ class Service:
         if include_details:
             for name in ("runs", "work", "events", "stages"):
                 result[name] = [decoded_record(row) for row in result[name]]
-        return restored_paths(self.store, result if include_details else task_summary(result))
+        output = result if include_details else task_summary(result)
+        output['batches'] = self.batch_list(task_id, limit=5)
+        output['batches']['read'] = dict(method='batch_list', task_id=task_id)
+        output['results'] = dict(method='results_get', task_id=task_id,
+                                 next_action='读取当前成果、分析版本、缺项和导入项目的原始记录')
+        from .research_store import stage_context, DISCUSSION_GUIDE
+        with self.store.connect() as db:
+            output['interaction_guide'] = DISCUSSION_GUIDE
+            output['research_context'] = stage_context(self.store, db, task_id)
+            if include_details:
+                output['research_history'] = {table: [dict(r) for r in db.execute('SELECT * FROM ' + table + ' WHERE task_id=?', (task_id,))]
+                                              for table in ('memories', 'validation_plans', 'check_receipts', 'batches')}
+                output['research_history']['batch_members'] = [dict(r) for r in db.execute('SELECT m.* FROM batch_members m JOIN batches b ON b.id=m.batch_id WHERE b.task_id=?', (task_id,))]
+                output['research_history']['memory_versions'] = [dict(r) for r in db.execute('SELECT v.* FROM memory_versions v JOIN memories m ON m.id=v.id WHERE m.task_id=?', (task_id,))]
+                output['research_history']['run_validations'] = [dict(r) for r in db.execute('SELECT v.* FROM run_validations v JOIN runs r ON r.id=v.run_id WHERE r.task_id=?', (task_id,))]
+        return restored_paths(self.store, output)
 
     def background_status(self, db, task_id):
         def setting(key, default):
@@ -310,14 +338,19 @@ class Service:
 
     @public
     def task_update(self, task_id: str, revision: int, changes: dict, reason: str, op_id: str, token: str | None = None) -> dict:
-        """Update goals, constraints or policy with an explicit reason; immutable original request is preserved."""
+        """Update goals, constraints or policy with an explicit reason; immutable original request is preserved. A preflight budget uses policy.preflight_core_hours plus preflight_budget_authorization containing the user's confirmation. Estimates are not authorization. A budget change requires a new confirmation; wall_seconds is the scheduler's reservation per job, not predicted usage."""
         require(set(changes) <= {"title", "requirements", "constraints", "policy"} and reason.strip(), "变更需要有效字段和原因")
         def apply(db):
             task = self.store.task(db, task_id, revision, token)
             for name, value in changes.items():
                 column = "constraints_json" if name == "constraints" else name
                 if name == "policy":
-                    require(set(value) <= {"authorized", "authorization", "source", "cores", "memory_mib", "wall_seconds", "submission_limit"}, "规则字段无效")
+                    require(set(value) <= {"authorized", "authorization", "source", "cores", "memory_mib", "wall_seconds", "submission_limit", "preflight_core_hours", "preflight_budget_authorization"}, "规则字段无效")
+                    if 'preflight_core_hours' in value:
+                        import math
+                        require(type(value['preflight_core_hours']) in (int, float) and math.isfinite(value['preflight_core_hours']) and value['preflight_core_hours'] > 0, '预验证预算应为正数')
+                        require(isinstance(value.get('preflight_budget_authorization'), str) and value['preflight_budget_authorization'].strip(),
+                                '设置或扩大预验证预算需要同时保存用户确认原话', 'preflight_budget_confirmation')
                     value = {**task["policy"], **value, "effective_at": time.time()}
                     require(value["cores"] == 32 and value["memory_mib"] == 8192 and 1 <= value["wall_seconds"] <= 604800, "当前执行配置为 32 核、8 GiB，时限最长七天")
                     require(value["submission_limit"] is None or type(value["submission_limit"]) is int and value["submission_limit"] > 0, "提交上限应为正整数或空")
@@ -353,7 +386,7 @@ class Service:
 
     @public
     def task_control(self, task_id: str, revision: int, action: str, op_id: str) -> dict:
-        """Pause future dispatch, resume, or stop and cancel active jobs. Persists intent before cancellation."""
+        """Pause future dispatch and queued file-producing work, resume, or stop and cancel active jobs. Persists intent first. Existing remote jobs keep running on pause; log reads, collection and diagnostic checks remain available."""
         require(action in ("pause", "resume", "stop"), "action 应为 pause、resume 或 stop")
         def apply(db):
             task = self.store.task(db, task_id)
@@ -512,9 +545,10 @@ class Service:
         return dict(path=path, **review_text(file.read_text(), engine_version))
 
     @public
-    def run_prepare(self, task_id: str, revision: int, snapshot_id: str, entry: str, intent: str, condition_id: str, sample_id: str, op_id: str, purpose: str = "research", parent_id: str | None = None, token: str | None = None) -> dict:
-        """Freeze a Slurm execution intent, input, environment and rules. Native entry is a project-relative shell script. Automatically review literal -in/-i inputs; read lammps_reference for the actual engine before generation or repairs. Known compute-current errors return source lines before dispatch."""
+    def run_prepare(self, task_id: str, revision: int, snapshot_id: str, entry: str, intent: str, condition_id: str, sample_id: str, op_id: str, purpose: str = "research", parent_id: str | None = None, token: str | None = None, validation_id: str | None = None, stage: str = "production", supersedes: str | None = None) -> dict:
+        """Freeze a Slurm execution intent, input, environment and rules. Returns revision for the next mutation. Exact repetition reuses the same run; changed validation_id/stage never silently returns an old binding. To replace a confirmed unsubmitted prepared/cancelled/staging_failed run, use a new intent and supersedes=old run_id, retaining the sample_id. Submitted/unknown runs must be reconciled first. Native entry is a project-relative shell script; read lammps_reference before generation. Literal -in/-i inputs are reviewed before dispatch."""
         require(purpose in ("research", "retry", "continuation", "environment_check"), "执行目的无效")
+        require(stage in ("preflight", "production"), "stage 使用 preflight 或 production")
         require(intent and condition_id and sample_id, "需要执行意图、工况和独立样本编号")
         config = self.store.setting("cluster")
         require(config, "尚未配置集群", "setup_required", "调用 setup_configure")
@@ -529,24 +563,62 @@ class Service:
                 require(parent and parent["state"] in ("completed", "failed", "cancelled", "timeout"), "重试或续算需要已核对结束的原作业")
             else:
                 require(parent_id is None, "只有重试和续算使用 parent_id")
-            duplicate = db.execute("SELECT * FROM runs WHERE task_id=? AND (intent=? OR (snapshot_id IN (SELECT id FROM snapshots WHERE digest=? AND task_id=?) AND entry=? AND condition_id=? AND sample_id=? AND purpose=? AND parent_id IS ?))", (task_id, intent, snap["digest"], task_id, entry, condition_id, sample_id, purpose, parent_id)).fetchone()
-            if duplicate:
-                return dict(duplicate)
+            environment = {key: config[key] for key in ("ssh_alias", "remote_root", "account", "partition", "environment_script")}
+            environment["fingerprint"] = digest(encode(environment).encode())
+            replacement = None
+            if supersedes:
+                replacement = db.execute('SELECT * FROM runs WHERE id=? AND task_id=?', (supersedes, task_id)).fetchone()
+                require(replacement and replacement['state'] in ('prepared', 'cancelled_before_dispatch', 'staging_failed') and not replacement['job_id'],
+                        '只能接替已确认未派发的记录；在途作业先对账', 'run_reconcile_required')
+                require(intent != replacement['intent'], '接替使用新的执行意图，保留原意图和历史', 'intent_conflict')
+            candidates = db.execute("SELECT r.*,s.digest AS snapshot_digest,v.plan_id,v.stage FROM runs r JOIN snapshots s ON s.id=r.snapshot_id LEFT JOIN run_validations v ON v.run_id=r.id WHERE r.task_id=? AND (r.intent=? OR (r.condition_id=? AND r.sample_id=? AND r.purpose=? AND r.parent_id IS ?)) ORDER BY r.created DESC", (task_id, intent, condition_id, sample_id, purpose, parent_id)).fetchall()
+            for duplicate in candidates:
+                same_intent = duplicate['intent'] == intent
+                if not same_intent and (duplicate['stage'] or 'production') != stage:
+                    continue
+                if supersedes == duplicate['id']:
+                    continue
+                same = (duplicate['snapshot_digest'] == snap['digest'] and duplicate['entry'] == entry
+                        and duplicate['condition_id'] == condition_id and duplicate['sample_id'] == sample_id
+                        and duplicate['purpose'] == purpose and duplicate['parent_id'] == parent_id
+                        and duplicate['plan_id'] == validation_id and (duplicate['stage'] or 'production') == stage
+                        and json.loads(duplicate['environment']) == environment)
+                if same_intent:
+                    require(same, '该执行意图已绑定不同的输入、环境、方案或阶段', 'intent_conflict',
+                            '保留原记录；对未派发记录使用新 intent 和 supersedes=原 run_id')
+                if duplicate['state'] in ('cancelled_before_dispatch', 'staging_failed'):
+                    require(not same_intent, '该意图已结束且未派发', 'intent_closed', '使用新 intent 和 supersedes 接替；上传重试可用 run_action(retry_staging)')
+                    continue
+                if same:
+                    return {**dict(db.execute('SELECT * FROM runs WHERE id=?', (duplicate['id'],)).fetchone()),
+                            'revision': task['revision'], 'reused': True, 'next_action': 'run_submit' if duplicate['state'] == 'prepared' else 'run_get'}
+                # Retry/continuation have their own parent identity. A new plan
+                # must not hide a submitted or unknown job for the same sample.
+                require(False, '同一样本已有不同准备或在途记录：' + duplicate['id'], 'run_intent_conflict',
+                        '未派发记录通过 supersedes 接替；已派发记录先 run_get/reconcile，结束后使用 retry 或 continuation')
             from .lammps_reference import review_snapshot
             review = review_snapshot(self.store, json.loads(snap["manifest"]), entry)
             if review["errors"]:
                 raise Fault("lammps_input_error", "输入存在已知的 compute 求值时序错误", "按行号读取官方说明，修正原生文件并建立新快照", evidence=review)
             run_id, now = identifier("run"), time.time()
-            environment = {key: config[key] for key in ("ssh_alias", "remote_root", "account", "partition", "environment_script")}
-            environment["fingerprint"] = digest(encode(environment).encode())
             remote = config["remote_root"].rstrip("/") + "/" + task_id + "/" + run_id
             db.execute("INSERT INTO runs(id,task_id,intent,snapshot_id,environment,rules,entry,state,cluster,remote_dir,condition_id,sample_id,purpose,parent_id,created,updated) VALUES(?,?,?,?,?,?,?,'prepared',?,?,?,?,?,?,?,?)",
                        (run_id, task_id, intent, snapshot_id, encode(environment), encode(task["policy"]), entry, config["ssh_alias"], remote, condition_id, sample_id, purpose, parent_id, now, now))
-            db.execute("UPDATE runs SET evidence=? WHERE id=?", (encode(dict(input_review=review)), run_id))
+            db.execute("UPDATE runs SET evidence=? WHERE id=?", (encode(dict(input_review=review, supersedes=supersedes)), run_id))
+            if replacement:
+                if replacement['state'] == 'prepared':
+                    db.execute("UPDATE runs SET state='cancelled_before_dispatch',updated=? WHERE id=?", (now, supersedes))
+                self.store.event(db, task_id, 'run_replaced_before_dispatch', dict(previous_run_id=supersedes, run_id=run_id))
+            if validation_id:
+                from .validation import match_plan
+                coverage = match_plan(self.store, db, task_id, snapshot_id, validation_id)
+                specification = json.loads(db.execute("SELECT specification FROM validation_plans WHERE id=?", (validation_id,)).fetchone()[0])
+                require(specification['entry'] == entry, '执行入口与验证方案不一致')
+                db.execute('INSERT INTO run_validations VALUES(?,?,?,?,0)', (run_id, validation_id, stage, encode(coverage)))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "run_prepared", dict(run_id=run_id, rules=task["policy"], snapshot_id=snapshot_id))
-            return dict(db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone())
-        return self.store.mutate(op_id, dict(method="run_prepare", task_id=task_id, revision=revision, snapshot_id=snapshot_id, entry=entry, intent=intent, condition_id=condition_id, sample_id=sample_id, purpose=purpose, parent_id=parent_id, token=token), apply)
+            return {**dict(db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()), 'revision': revision + 1, 'reused': False, 'next_action': 'run_submit'}
+        return self.store.mutate(op_id, dict(method="run_prepare", task_id=task_id, revision=revision, snapshot_id=snapshot_id, entry=entry, intent=intent, condition_id=condition_id, sample_id=sample_id, purpose=purpose, parent_id=parent_id, token=token, validation_id=validation_id, stage=stage, supersedes=supersedes), apply)
 
     @public
     def run_submit(self, run_id: str, revision: int, op_id: str, token: str | None = None) -> dict:
@@ -555,7 +627,7 @@ class Service:
             row = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
             require(row, "找不到执行记录")
             if row["state"] != "prepared":
-                return dict(row)
+                return {**dict(row), 'revision': self.store.task(db, row['task_id'])['revision'], 'next_action': 'run_get'}
             task = self.store.task(db, row["task_id"], revision, token)
             require(task["state"] not in ("paused", "stopping", "stopped"), "任务已暂停或停止")
             policy = task["policy"]
@@ -565,9 +637,11 @@ class Service:
             limit = policy.get("submission_limit")
             require(limit is None or used < limit, "本任务提交次数已用完；诊断与分析仍可继续", "submission_limit", "读取日志、诊断或分析已有结果")
             env = json.loads(row["environment"])
-            if row["purpose"] != "environment_check":
+            if row["purpose"] != "environment_check" and not db.execute('SELECT 1 FROM run_validations WHERE run_id=?', (run_id,)).fetchone():
                 verified = self.store.setting("environment:" + env["fingerprint"])
                 require(verified, "该启动环境尚未通过计算节点验证", "environment_unverified", "先提交 environment_check 并核验实际输出")
+            from .validation import dispatch_gate
+            dispatch_gate(self.store, db, {**dict(row), 'rules': encode(policy)})
             db.execute("UPDATE runs SET state='pending',rules=?,updated=? WHERE id=?", (encode(policy), time.time(), run_id))
             db.execute("UPDATE tasks SET state='active' WHERE id=?", (task["id"],))
             self.store.bump(db, task["id"])
@@ -631,7 +705,22 @@ class Service:
         return self.store.mutate(op_id, dict(method="run_action", run_id=run_id, action=action, revision=revision), apply)
 
     @public
-    def analysis_submit(self, task_id: str, revision: int, script: str, inputs: list[str], outputs: list[str], op_id: str, token: str | None = None, input_bindings: dict[str, str] | None = None) -> dict:
+    def batch_dataset(self, task_id: str, batch_id: str, files: list[str]) -> dict:
+        """Preview batch analysis inputs from collected per-run files. Return independent sample/seed/condition identities, eligible members and all exclusions. files are relative to each run directory. Use analysis_submit(batch_id,batch_files) to generate batch-samples.json and samples/<run_id>/... automatically. Partial failed-run analysis can use ordinary input_bindings with an explicit method."""
+        from .delivery import batch_dataset
+        with self.store.connect() as db:
+            return batch_dataset(self.store, db, task_id, batch_id, files)
+
+    @public
+    def results_get(self, task_id: str) -> dict:
+        """Resume analysis and delivery: current artifact paths/previews, checks, replacement history, missing requirements, recent analysis methods and imported project records. Archives are finally verified by completion_check. Use task_records for older analyses."""
+        from .delivery import results_view
+        with self.store.connect() as db:
+            return results_view(self.store, db, task_id)
+
+    @public
+    def analysis_submit(self, task_id: str, revision: int, script: str, inputs: list[str], outputs: list[str], op_id: str, token: str | None = None, input_bindings: dict[str, str] | None = None,
+                        batch_id: str | None = None, batch_files: list[str] | None = None, method: dict | None = None, supersedes: str | None = None) -> dict:
         """Run a native Python script against existing data in a persistent analysis queue.
 
         script and inputs are project-relative files. They are copied, with subdirectories preserved, into analysis/<operation_id>/.
@@ -641,11 +730,15 @@ class Service:
         Reuse previous results without editing script paths: input_bindings={'data.csv':'analysis/<prior-operation>/data.csv'} maps workspace paths to project source files. inputs may be [] when bindings are provided. The receipt retains source paths, hashes and each independent input copy.
         Returns operation_id; release the task lease before polling. operation_get returns output paths, SHA-256 values and analysis.log.
         Use file_read for logs, artifact_preview for the actual image, then artifact_register to link each result to requirements.
+        For batch analysis set batch_id and batch_files (paths relative to each collected run). The service generates batch-samples.json and samples/<run_id>/... inputs, preserving planned/included/excluded members. The script chooses scientific statistics and reports their denominator.
+        method is optional native-analysis context (purpose, units, window, uncertainty, rationale); supersedes links an earlier analysis operation without deleting its files. Source/version facts are recorded by the service.
         Physics evaluations use run_prepare/run_submit on HPC.
         """
         bindings = input_bindings or {}
         require(isinstance(bindings, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in bindings.items()), "input_bindings 需要工作目录路径到项目文件路径的映射")
-        require((inputs or bindings) and outputs and script.endswith(".py"), "需要 Python 脚本、输入与输出清单")
+        require((inputs or bindings or batch_id) and outputs and script.endswith(".py"), "需要 Python 脚本、输入与输出清单")
+        require((batch_id is None) == (batch_files is None), 'batch_id 和 batch_files 一起填写')
+        require(method is None or isinstance(method, dict), 'method 使用方法说明对象')
         for name in [script, *inputs, *outputs, *bindings, *bindings.values()]:
             self.store.path(task_id, name)
             require(Path(name).as_posix() != ".", "分析路径必须指向文件")
@@ -654,51 +747,86 @@ class Service:
             normalized = Path(name).as_posix()
             require(normalized not in destinations, f"分析输入路径重复: {name}", "input_collision", "为每个输入选择独立的工作目录路径")
             destinations.add(normalized)
-        reserved = {"analysis.log", "analysis-receipt.json"}
+        reserved = {"analysis.log", "analysis-receipt.json"} | ({'batch-samples.json'} if batch_id else set())
         require(not destinations & reserved, "输入路径与分析日志或回执冲突", "input_collision")
         for name in destinations:
             require(not any(parent.as_posix() in destinations for parent in Path(name).parents), f"分析输入目录与文件冲突: {name}", "input_collision")
         require(not {Path(name).as_posix() for name in bindings} & {Path(name).as_posix() for name in outputs}, "绑定输入与输出路径冲突", "input_collision")
         def apply(db):
             self.store.task(db, task_id, revision, token)
+            if supersedes:
+                require(db.execute("SELECT 1 FROM queue WHERE id=? AND task_id=? AND kind='analysis' AND state IN ('completed','failed','interrupted')", (supersedes, task_id)).fetchone(), 'supersedes 指向本任务已结束的分析操作')
+            payload = dict(script=script, inputs=inputs, outputs=outputs, input_bindings=dict(bindings), method=method or {}, supersedes=supersedes)
+            if batch_id:
+                from .delivery import batch_dataset
+                dataset = batch_dataset(self.store, db, task_id, batch_id, batch_files)
+                require(dataset['included'], '所选批次暂无完整的已回收样本；读取 batch_dataset 的缺项')
+                require(not set(dataset['input_bindings']).intersection(destinations | set(outputs)), '批次输入与原生文件路径冲突')
+                require('batch-samples.json' not in outputs, '输出不要覆盖批次清单')
+                payload['batch'] = dataset
+                payload['input_bindings'].update(dataset['input_bindings'])
             self.store.bump(db, task_id)
-            return self.store.queue(db, task_id, "analysis", dict(script=script, inputs=inputs, outputs=outputs, input_bindings=bindings))
+            return self.store.queue(db, task_id, "analysis", payload)
         arguments = dict(method="analysis_submit", task_id=task_id, revision=revision, script=script, inputs=inputs, outputs=outputs, token=token)
         if input_bindings is not None:
             arguments["input_bindings"] = input_bindings
+        for key, value in dict(batch_id=batch_id, batch_files=batch_files, analysis_method=method, supersedes=supersedes).items():
+            if value is not None:
+                arguments[key] = value
         return self.store.mutate(op_id, arguments, apply)
 
     @public
-    def artifact_register(self, task_id: str, revision: int, path: str, sources: list[str], requirement_ids: list[str], checks: list[dict], op_id: str, token: str | None = None) -> dict:
+    def artifact_register(self, task_id: str, revision: int, path: str, sources: list[str], requirement_ids: list[str], checks: list[dict], op_id: str, token: str | None = None,
+                          description: str = '', supersedes: list[str] | None = None) -> dict:
         """Link an actual output to the user's requirement IDs, source files and verification evidence.
 
         path, sources and checks[].evidence are project-relative. The service reads their hashes; do not calculate or repeat hashes in the request.
-        Each check is {'passed': true/false, 'method': 'what was checked', 'evidence': 'path/to/check-result.json'}.
-        Create the evidence file from actual analysis/inspection first. Checks must address the requirement's scientific and file-content criteria.
+        Each check is {'receipt_id': 'check_...'} from check_run/check_get. The receipt must include this artifact and its actual sources. Service-derived measurements determine passed. Historical passed/method/evidence claims are retained as unverified and cannot complete a requirement.
         The latest registration for this path supplies its current checks and complete requirement_ids. Earlier verdicts remain in history.
         A failed current check blocks its linked requirements and reopens a completed task; record corrected evidence before re-reviewing.
         An analysis result path normally starts with analysis/<operation_id>/. Returns the new task revision.
+        description labels the result for users. supersedes explicitly replaces earlier artifact IDs with a revised output, preserving their files/reviews. Replacement must retain their requirement IDs. Other results remain current.
         """
         def apply(db):
             task = self.store.task(db, task_id, revision, token)
             require(set(requirement_ids) <= {r["id"] for r in task["requirements"]}, "成果要求编号不存在")
-            require(checks and all(type(c.get("passed")) is bool and c.get("method") and c.get("evidence") for c in checks), "检查需要结果、方法和证据文件")
+            require(isinstance(description, str) and (supersedes is None or isinstance(supersedes, list)), 'description 为文字；supersedes 为成果编号列表')
+            for previous in supersedes or []:
+                old = db.execute('SELECT requirements FROM artifacts WHERE id=? AND task_id=?', (previous, task_id)).fetchone()
+                require(old and set(json.loads(old[0])) <= set(requirement_ids), '替代成果需属于同一任务，并保留原成果的要求编号')
+            require(checks, "检查需要服务回执")
+            from .verification import receipt_current
+            recorded, measured_sources = [], {}
+            for check in checks:
+                if check.get('receipt_id'):
+                    receipt = db.execute('SELECT * FROM check_receipts WHERE id=? AND task_id=?', (check['receipt_id'], task_id)).fetchone()
+                    require(receipt and path in json.loads(receipt['sources']), '检查回执必须绑定本任务成果')
+                    measured_sources.update(json.loads(receipt['sources']))
+                    recorded.append(dict(receipt_id=receipt['id'], passed=receipt_current(self.store, db, task_id, receipt['id'], path)))
+                else:
+                    require(type(check.get('passed')) is bool and check.get('method') and check.get('evidence'), '使用 check_run 产生服务检查回执')
+                    recorded.append({**check, 'claimed_passed': check['passed'], 'passed': False, 'status': 'historical_claim'})
             source_map = {}
-            for name in [*sources, *(c["evidence"] for c in checks)]:
+            for name in [*sources, *(c['evidence'] for c in checks if 'evidence' in c)]:
                 file = self.store.path(task_id, name)
                 require(file.is_file(), f"来源文件缺失: {name}")
                 source_map[name] = file_hash(file)
+            source_map.update(measured_sources)
             file = self.store.path(task_id, path)
             require(file.is_file() and file.stat().st_size > 0, "成果文件为空或缺失")
             aid = identifier("artifact")
-            db.execute("INSERT INTO artifacts(id,task_id,path,sha256,sources,requirements,checks,created) VALUES(?,?,?,?,?,?,?,?)", (aid, task_id, path, file_hash(file), encode(source_map), encode(requirement_ids), encode(checks), time.time()))
+            db.execute("INSERT INTO artifacts(id,task_id,path,sha256,sources,requirements,checks,created) VALUES(?,?,?,?,?,?,?,?)", (aid, task_id, path, file_hash(file), encode(source_map), encode(requirement_ids), encode(recorded), time.time()))
+            self.store.set_setting(db, 'artifact_meta:' + task_id + ':' + aid, dict(description=description, supersedes=supersedes or []))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "artifact_registered", dict(artifact_id=aid, path=path))
-            if requirement_ids and not all(check["passed"] for check in checks):
+            if requirement_ids and not all(check["passed"] for check in recorded):
                 db.execute("UPDATE tasks SET state='active' WHERE id=? AND state='completed'", (task_id,))
                 self.store.event(db, task_id, "artifact_review_failed", dict(artifact_id=aid, path=path, requirements=requirement_ids))
             return dict(artifact_id=aid, path=str(file), revision=revision + 1)
-        return self.store.mutate(op_id, dict(method="artifact_register", task_id=task_id, revision=revision, path=path, sources=sources, requirement_ids=requirement_ids, checks=checks, token=token), apply)
+        arguments = dict(method="artifact_register", task_id=task_id, revision=revision, path=path, sources=sources, requirement_ids=requirement_ids, checks=checks, token=token)
+        if description or supersedes is not None:
+            arguments.update(description=description, supersedes=supersedes)
+        return self.store.mutate(op_id, arguments, apply)
 
     @public
     def completion_check(self, task_id: str, revision: int, op_id: str, token: str | None = None) -> dict:
@@ -707,16 +835,11 @@ class Service:
             task = self.store.task(db, task_id, revision, token)
             current = manifest(self.store, task_id)
             invalidate(self.store, db, task_id, current)
-            satisfied, failed_reviews = set(), set()
+            from .delivery import artifact_catalog
+            _, satisfied, failed_reviews = artifact_catalog(self.store, db, task_id)
             archive_ids = {item["id"] for item in task["requirements"] if item.get("kind") == "archive"}
-            latest = {row["path"]: row for row in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid", (task_id,))}
-            for row in latest.values():
-                if row["stale"]:
-                    continue
-                if all(check["passed"] for check in json.loads(row["checks"])):
-                    satisfied.update(set(json.loads(row["requirements"])) - archive_ids)
-                else:
-                    failed_reviews.update(json.loads(row["requirements"]))
+            satisfied -= archive_ids
+            failed_reviews -= archive_ids
             for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",)):
                 delivery = json.loads(row[0])
                 archive = self.store.home / "exports" / delivery["filename"]
@@ -726,7 +849,8 @@ class Service:
             active = db.execute("SELECT count(*) FROM runs WHERE task_id=? AND state IN ('pending','dispatching','unknown','queued','running','cancelling')", (task_id,)).fetchone()[0]
             active_work = db.execute("SELECT count(*) FROM queue WHERE task_id=? AND state IN ('pending','running') AND kind!='decision'", (task_id,)).fetchone()[0]
             complete = not missing and not active and not active_work
-            db.execute("UPDATE tasks SET state=? WHERE id=?", ("completed" if complete else task["state"] if task["state"] != "completed" else "active", task_id))
+            state = task['state'] if task['state'] in ('paused', 'stopping', 'stopped') else 'completed' if complete else 'active' if task['state'] == 'completed' else task['state']
+            db.execute("UPDATE tasks SET state=? WHERE id=?", (state, task_id))
             self.store.bump(db, task_id)
             result = dict(complete=complete, missing=missing, failed_reviews=sorted(failed_reviews), active_runs=active, active_work=active_work, revision=revision + 1)
             self.store.event(db, task_id, "research_completed" if complete else "deliverables_missing", result)
@@ -754,6 +878,13 @@ class Service:
         """Convert dimensionally compatible scientific units, retaining the original expression (including Å³)."""
         from .science import convert
         return convert(value, unit, target)
+
+    @public
+    def trajectory_correlate(self, task_id: str, trajectory: str, log: str, phase: dict | None = None) -> dict:
+        """Link saved trajectory frames to exact thermo samples by Step and recorded Time, optionally selecting an executed phase (fix_id/style/group/marker/run_index/timestep). Preserve duplicate-step ambiguity; no interpolation or step*current-dt inference. Returns frame/cell/atom-type facts and actual matching rows for plots and structural previews."""
+        from .science import correlate_trajectory
+        require(phase is None or isinstance(phase, dict) and set(phase) <= {'fix_id', 'style', 'group', 'marker', 'run_index', 'timestep'}, 'phase 使用实际运行阶段字段')
+        return correlate_trajectory(self.store.path(task_id, trajectory), self.store.path(task_id, log), phase)
 
     @public
     def data_inspect(self, task_id: str, path: str, kind: str) -> dict:
@@ -803,11 +934,38 @@ class Service:
 
     @public
     def resource_get(self, resource_id: str) -> dict:
-        """Read the full resource record, native file list, source/revision, license and verification evidence."""
+        """Read native files, source/license, current hashes and related_bundles. Read the bundle's usage/element mapping before judging applicability; multi-element file names alone do not exclude single-element use. File verification and scientific validation are separate."""
         require(resource_id.startswith('resource_'), '资源编号无效')
         value = self.store.setting(resource_id)
         require(value is not None, '未找到资源')
-        return dict(id=resource_id, **value)
+        result = dict(id=resource_id, **value)
+        with self.store.connect() as db:
+            result['related_bundles'] = [dict(id=row['key'], name=bundle['name'], read='resource_get')
+                for row in db.execute("SELECT key,value FROM settings WHERE key LIKE 'resource_%'")
+                if resource_id in (bundle := json.loads(row['value'])).get('members', [])]
+        if value.get('members'):
+            members = []
+            for key in value['members']:
+                member = self.store.setting(key)
+                require(member, '组合中的资源记录缺失')
+                members.append(self.resource_get(key))
+            result['member_records'] = members
+            result['member_metadata_current'] = all(digest(encode(self.store.setting(m['id'])).encode()) == value['member_versions'].get(m['id']) for m in members)
+            result['files_current'] = all(m.get('files_current') is True for m in members)
+            result['next_action'] = '通过 resource_file_read 读取成员的原生文件，按当前条件核对验证依据'
+        # Adapt historical single-file registrations without rewriting their identity.
+        if value.get('sha256') and not value.get('files'):
+            path = Path(value['location']).expanduser()
+            result.update(file_root=str(path.parent), availability='local_verified',
+                          files=[dict(name=path.name, role=value['kind'], sha256=value['sha256'])])
+        if result.get('availability') == 'local_verified':
+            from .resources import check_files
+            try:
+                result['files'] = check_files(Path(result.get('file_root', result['location'])), result['files'])
+                result['files_current'] = True
+            except (Fault, OSError) as exc:
+                result.update(files_current=False, file_error=str(exc))
+        return result
 
     @public
     def resource_file_read(self, resource_id: str, path: str, offset: int = 0, limit: int = 4096) -> dict:
@@ -817,21 +975,29 @@ class Service:
 
     @public
     def resource_search(self, query: str = "", kind: str | None = None, offset: int = 0, limit: int = 20) -> dict:
-        """Search existing potentials and author code before downloading. indexed means metadata only; local_verified means file hashes checked at import. Use resource_get for full records and resource_file_read for native code. Follow next_offset while more=true."""
+        """Search existing potentials and native examples using keywords and Chinese/English aliases. catalog_total distinguishes no matches from an empty catalog; retry fewer terms or query='' to inspect it. indexed is metadata; resource_get rechecks files. Read examples with resource_file_read and follow next_offset while more=true."""
         require(0 <= offset and 1 <= limit <= 50, 'offset 非负，limit 为 1 至 50')
         with self.store.connect() as db:
             rows = db.execute("SELECT * FROM settings WHERE key LIKE 'resource_%'").fetchall()
+        from .research_store import tokens
+        wanted = tokens(query)
         results = []
+        catalog_total = 0
         for row in rows:
             value = json.loads(row["value"])
-            matches = query.lower() in encode(value).lower()
+            if kind is not None and value['kind'] != kind:
+                continue
+            catalog_total += 1
+            matched = wanted & tokens(encode(value))
+            matches = not wanted or bool(matched)
             if re.fullmatch(r'[A-Z][a-z]?', query):
                 matches = query in value.get('provenance', {}).get('elements', []) or bool(re.search(r'\b' + re.escape(query) + r'\b', value.get('name', '')))
             if matches and (kind is None or value["kind"] == kind):
-                results.append(dict(id=row["key"], **value))
-        results.sort(key=lambda row: (row.get('name', ''), row['id']))
+                results.append(dict(id=row["key"], **value, matched_terms=sorted(matched)))
+        results.sort(key=lambda row: (-len(row['matched_terms']), row.get('name', ''), row['id']))
         next_offset = min(len(results), offset + limit)
-        return dict(resources=results[offset:next_offset], total=len(results), next_offset=next_offset, more=next_offset < len(results))
+        return dict(resources=results[offset:next_offset], total=len(results), catalog_total=catalog_total,
+                    next_offset=next_offset, more=next_offset < len(results))
 
     @public
     def background_request(self, task_id: str, revision: int, instruction: str, op_id: str, expected_outputs: list[str] | None = None, after_operations: list[str] | None = None) -> dict:

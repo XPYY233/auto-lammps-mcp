@@ -1,10 +1,14 @@
-# Auto-LAMMPS MCP
+# Auto-LAMMPS MCP v1.0
 
 **在 Codex 或 DeepSeek Harness 中，用自然语言完成材料模拟研究。**
 
 Agent /ˈeɪdʒənt/（智能体）直接编写 LAMMPS、Python 脚本，读取日志并修正；Auto-LAMMPS 负责项目保存、超算执行、后台监视、分析和成果交接。
 
+v1.0 提供[本地记忆、验证复用和批量研究](docs/MEMORY_REUSE.md)：用户可以说“沿用上次方案，再做20次独立重复”。Agent 检索过去工作，已覆盖条件直接准备正式批次，只为变化补充验证。具体安装版本与实测进度见[交付记录](docs/PROGRESS.md)。下面的固定安装提示词继续作为统一入口。
+
 **当前使用环境：macOS · Codex / 官方 DeepSeek Harness（DSH）· Slurm 超算。**
+
+[下载正式版 v1.0](https://github.com/XPYY233/auto-lammps-mcp/releases/tag/v1.0) · Python 包版本 `1.0.0`。Linux 源码与隔离安装通过自动检查；Windows 原生安装仍在后续交付计划中。
 
 [复制安装提示词](#复制给-agent-的安装提示词) · [开始第一项研究](#第一次研究怎么开始) · [查看后台进展](#后台如何继续工作) · [版本与进度](#当前版本与进度) · [文档导航](#文档导航)
 
@@ -131,18 +135,18 @@ flowchart TD
 
 > 接入我已有的资源库，先找 Ni 势函数和对应的 LAMMPS 代码用法，核对已有文件后复用。
 
-当前源码还提供按引擎版本读取、缓存官方命令说明的工具。脚本生成与修正时可读取命令格式、示例和限制；提交准备会检查输入快照中的已知错误。资源检索会区分已有文件和待获取的索引条目。[资源与命令使用方法 →](docs/USER_GUIDE.md#使用已有资源库)
+软件提供按引擎版本读取、缓存官方命令说明的工具。脚本生成与修正时可读取命令格式、示例和限制；提交准备会检查输入快照中的已知错误。资源检索会区分已有文件和待获取的索引条目。[资源与命令使用方法 →](docs/USER_GUIDE.md#使用已有资源库)
 
 ## 当前版本与进度
 
 | 入口 | 当前内容 |
 |---|---|
-| [已发布安装包：0.1.0-alpha.7](https://github.com/XPYY233/auto-lammps-mcp/releases/tag/v0.1.0-alpha.7) | 版本安装器、Codex/DSH 接入、持久任务、原生分析、后台接续和研究包导入导出 |
-| 当前源码：0.1.0a10 | 增加旧资源库接入、版本化官方命令说明、已知输入错误检查，以及真实 Slurm 回收和导出修复 |
+| [正式版 v1.0](https://github.com/XPYY233/auto-lammps-mcp/releases/tag/v1.0) | Python 包 `1.0.0`；MCP/CLI、持久任务、资源与官方语法、本地记忆、验证复用、批次执行、分析版本和成果交接 |
+| P0–P4 开发与阶段检查 | 功能开发完成；阶段证据见[交付记录](docs/PROGRESS.md) |
 | Ni 开发流程 | 已完成 256 原子、500 K 平衡 5 ps、NVE 10 ps；交付五张图、11 帧轨迹、报告与完整研究包，保留三次失败和后续成功记录 |
-| 下一项整体验收 | 独立用户从安装开始完成新研究与一次恢复，随后推进四类研究、双平台完整流程、故障测试和七天监视 |
+| 当前整体验收 | 官方 DSH 正在完成 NbTiZrMoV 新研究的完整应用流程；独立安装、真实批次、四类研究矩阵、故障恢复和七天监视继续按计划推进 |
 
-固定安装提示词默认选择发布包；Agent 使用同一发布标签下的指南和安装器。选择当前源码时，记录固定提交及对应验证结果。发布包和当前源码的具体记录见[交付进度](docs/PROGRESS.md)、[验证记录](docs/VALIDATION.md)与[验收指标](docs/ACCEPTANCE.md)。
+固定安装提示词默认选择正式发布包；Agent 使用同一发布标签下的指南、skill 和安装器。版本变更见[发布说明](docs/RELEASE_V1.md)，实测记录见[交付进度](docs/PROGRESS.md)、[验证记录](docs/VALIDATION.md)与[验收指标](docs/ACCEPTANCE.md)。
 
 ## 手动安装与维护
 
@@ -156,7 +160,7 @@ flowchart TD
 ```sh
 git clone https://github.com/XPYY233/auto-lammps-mcp.git
 cd auto-lammps-mcp
-git checkout --detach v0.1.0-alpha.7
+git checkout --detach v1.0
 ```
 
 接入 Codex：
@@ -194,7 +198,7 @@ python3 scripts/install.py --source . --host dsh \
 | 查看当前完成情况和证据 | [交付进度](docs/PROGRESS.md) · [验证记录](docs/VALIDATION.md) |
 | 查看完整产品目标与验收 | [批准计划](docs/APPROVED_PLAN.md) · [验收指标](docs/ACCEPTANCE.md) |
 | 理解模块和扩展接口 | [开发说明](docs/DEVELOPMENT.md) · [资源来源](docs/ASSET_PROVENANCE.md) |
-| 阅读开发与交付手册 | [发布版 PDF](https://github.com/XPYY233/auto-lammps-mcp/releases/download/v0.1.0-alpha.7/Auto-LAMMPS-MCP-handbook.pdf) · [可编辑源稿](https://github.com/XPYY233/auto-lammps-mcp/releases/download/v0.1.0-alpha.7/Auto-LAMMPS-MCP-handbook.tex) |
+| 阅读开发与交付手册 | [发布版 PDF](https://github.com/XPYY233/auto-lammps-mcp/releases/download/v1.0/Auto-LAMMPS-MCP-handbook.pdf) · [可编辑源稿](https://github.com/XPYY233/auto-lammps-mcp/releases/download/v1.0/Auto-LAMMPS-MCP-handbook.tex) |
 | 下载版本或反馈问题 | [Releases](https://github.com/XPYY233/auto-lammps-mcp/releases) · [Issues](https://github.com/XPYY233/auto-lammps-mcp/issues) |
 
 ## 参与开发

@@ -57,7 +57,13 @@ class Store:
             require(json.loads(marker.read_text()).get("application") == "auto-lammps-mcp", "数据目录属于其他程序")
         with self.connect() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            require(version in (0, 1), "数据库版本比当前软件新", "schema_version", "使用原版本启动服务")
+            require(version in (0, 1, 2), "数据库版本比当前软件新", "schema_version", "使用原版本启动服务")
+            if version == 1:
+                backup = self.home / 'migrations' / ('schema-1-' + uuid.uuid4().hex + '.sqlite3')
+                backup.parent.mkdir(exist_ok=True, mode=0o700)
+                with sqlite3.connect(backup) as target:
+                    db.backup(target)
+                backup.chmod(0o600)
             db.executescript("""
                 PRAGMA journal_mode=WAL;
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -100,9 +106,12 @@ class Store:
                   dependencies TEXT NOT NULL, specification TEXT NOT NULL,
                   state TEXT NOT NULL DEFAULT 'pending', operation_id TEXT, result TEXT,
                   created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(task_id,id));
-                PRAGMA user_version=1;
             """)
+            from .research_store import SCHEMA
+            db.executescript(SCHEMA + '\nPRAGMA user_version=2;')
         os.chmod(self.database, 0o600)
+        from .files import atomic_write
+        atomic_write(marker, encode(dict(application='auto-lammps-mcp', schema=2)).encode())
 
     def connect(self):
         db = sqlite3.connect(self.database, timeout=15)
@@ -124,7 +133,9 @@ class Store:
             db.close()
 
     def event(self, db, task_id, kind, data):
-        db.execute("INSERT INTO events(task_id,kind,data,created) VALUES(?,?,?,?)", (task_id, kind, encode(data), time.time()))
+        cursor = db.execute("INSERT INTO events(task_id,kind,data,created) VALUES(?,?,?,?)", (task_id, kind, encode(data), time.time()))
+        from .research_store import remember_event
+        remember_event(db, task_id, kind, data, cursor.lastrowid)
 
     def mutate(self, op_id, payload, callback):
         require(isinstance(op_id, str) and 1 <= len(op_id) <= 200, "每次变更需要操作编号 op_id")

@@ -1,4 +1,6 @@
 .venv/
+.installed*/
+installed-receipt.json
 __pycache__/
 *.py[cod]
 .pytest_cache/

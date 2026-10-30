@@ -6,29 +6,60 @@
 \setlength{\parindent}{0pt}
 \emergencystretch=3em
 \begin{document}
-\title{Auto-LAMMPS MCP\\项目开发与交付手册}
+\title{Auto-LAMMPS MCP v1.0\\项目开发与交付手册}
 \author{Auto-LAMMPS}
-\date{2026年10月27日}
+\date{2026年10月30日}
 \maketitle
 从安装提示词进入现有 Agent 平台，完成科研执行、持续监视、分析和交接。
 \tableofcontents
 \clearpage
-\section{Auto-LAMMPS MCP}
+\section{Auto-LAMMPS MCP v1.0}
 
 
-在 Codex 或 DSH 中描述材料模拟需求，Agent 编写原生科研脚本；Auto-LAMMPS 保存项目、执行计算、持续监视、恢复失败、分析和交接结果。
-
-
-
-开发版本：0.1.0a8。固定安装包及对应源码见发布记录，进度与完整研究验收见 交付记录。
+在 Codex 或 DeepSeek Harness 中，用自然语言完成材料模拟研究。
 
 
 
-安装包与校验摘要 · 开发与交付手册 PDF · 可编辑源稿
+Agent /\allowbreak{}ˈeɪdʒənt/\allowbreak{}（智能体）直接编写 LAMMPS、Python 脚本，读取日志并修正；Auto-LAMMPS 负责项目保存、超算执行、后台监视、分析和成果交接。
+
+
+
+v1.0 提供本地记忆、验证复用和批量研究：用户可以说“沿用上次方案，再做20次独立重复”。Agent 检索过去工作，已覆盖条件直接准备正式批次，只为变化补充验证。具体安装版本与实测进度见交付记录。下面的固定安装提示词继续作为统一入口。
+
+
+
+当前使用环境：macOS · Codex /\allowbreak{} 官方 DeepSeek Harness（DSH）· Slurm 超算。
+
+
+
+下载正式版 v1.0 · Python 包版本 1.0.0。Linux 源码与隔离安装通过自动检查；Windows 原生安装仍在后续交付计划中。
+
+
+
+复制安装提示词 · 开始第一项研究 · 查看后台进展 · 版本与进度 · 文档导航
+
+
+
+\subsection{从这里开始}
+
+
+1. 打开 Codex 或官方 DSH，进入能访问本机文件、执行命令的工作对话。
+
+2. 复制下方完整安装提示词，粘贴到对话中。Agent 会读取给 Agent 的安装指南，识别环境并推进安装。
+
+3. 按引导选择研究目录、已有超算连接和计算环境。安装完成后，选择新建研究、继续项目或分析结果。
+
+
+
+安装会复用平台已有的模型设置。新电脑先登录所选 Agent 平台；需要提交计算时，配置自己的 Slurm 账号、远端工作目录和 LAMMPS 环境。已有结构、势函数或结果目录可以直接提供给 Agent。
 
 
 
 \subsection{复制给 Agent 的安装提示词}
+
+
+点击下面代码块右上角的复制按钮。这是项目固定安装提示词；后续会话继续使用同一个入口。
+
 
 
 \begin{quote}\small
@@ -87,14 +118,171 @@
 \end{quote}
 
 
-给 Agent 的安装指南 · 用户操作 · 后台与恢复 · 开发与交付 · 验收指标
+安装后，Agent 应分别告诉你：实际软件版本、当前对话连接、研究目录、超算连接、计算环境、后台接续状态，以及下一步。 连接核验会在当前对话中真实调用工具。
 
 
 
-\subsection{从源代码安装}
+安装中断时，在新对话里说：
 
 
-选择固定提交，在干净仓库目录运行：
+
+> 继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。
+
+
+
+\subsection{第一次研究怎么开始}
+
+
+\begin{longtable}{p{7.25cm}p{7.25cm}}
+\toprule
+你的起点 & 可以直接对 Agent 说 \\
+\midrule\endhead
+新建研究 & “建立一个 Ni 晶体，在 500 K 下平衡，再进行动力学计算。给我温度、体积、总能、逐原子势能和轨迹。先列出方案与资源。” \\
+继续已有项目 & “导入我选中的项目目录，检查结构、势函数、辅助脚本和运行环境，告诉我接下来能做什么。” \\
+分析已有结果 & “分析这个目录里的 LAMMPS 日志和轨迹，画出温度、能量随时间的变化，并展示对应结构。” \\
+\bottomrule
+\end{longtable}
+
+
+Agent 会整理研究目标、固定条件和成果清单，先查已有资源，再编写原生脚本。首次计算会展示实际内容和资源设置；你说“开始”后提交到超算。
+
+
+
+研究过程中，你可以继续这样操作：
+
+
+
+\begin{longtable}{p{4.67cm}p{4.67cm}p{4.67cm}}
+\toprule
+想做什么 & 对话示例 & 应看到什么 \\
+\midrule\endhead
+查看进度 & “现在到哪一步了？” & 当前阶段、最近证据时间、已完成内容和下一步 \\
+修改方案 & “保留加载方向，再增加两个温度。” & 方案差异、新增计算与受影响成果 \\
+排查异常 & “这一组为什么没有进展？” & 日志依据、最后确认状态与恢复动作 \\
+暂停派发 & “暂停后续计算。” & 新派发已停止；现有作业的实际状态 \\
+停止一组 & “停止 600 K 这一组，其他继续。” & 选中的任务与取消回执 \\
+看图与结构 & “展示应力突降前后的曲线和结构。” & 对应时间点、图表、结构或轨迹文件入口 \\
+追加分析 & “更换拟合区间，保留原结果。” & 复用数据的新分析版本与比较 \\
+导出交接 & “导出给同门继续使用。” & 数据、脚本、图表、轨迹、报告与研究记录 \\
+\bottomrule
+\end{longtable}
+
+
+结果通过当前平台的文件预览以及 OVITO 等科研工具打开。原生脚本、结构和数据保存在普通目录中，可以继续编辑和分析。完整用户指南 →
+
+
+
+\subsection{后台如何继续工作}
+
+
+\begin{quote}\small
+flowchart TD\par
+    U["你：描述需求、查看进度、提出修改"] <-{}-> A["Codex /\allowbreak{} DSH 中的 Agent"]\par
+    A <-{}-> M["Auto-LAMMPS MCP：原生文件与科研工具"]\par
+    M <-{}-> S["持久任务服务：记录、队列、监视、恢复"]\par
+    S <-{}-> H["Slurm 超算：提交、计算、日志与回收"]\par
+    S <-{}-> R["分析与交付：数据、图表、结构和成果包"]\par
+    S <-{}-> B["后台 Codex：读取证据、诊断与接续"]\par
+\end{quote}
+
+
+后台保存任务进度，按集群合并查询作业，跟进日志和输出变化。需要判断时启动后台 Codex，已经确定的上传、回收、分析和导出由队列推进。
+
+
+
+\noindent\textbullet\quad 关闭聊天： 电脑在线且后台服务运行时，任务继续监视与处理；重要阶段、异常和需要决定的事项通过已配置的通知提醒。
+
+
+\noindent\textbullet\quad 电脑休眠或断网： 已提交的远端作业继续；本机恢复后先核对实际状态，再接续工作。
+
+
+\noindent\textbullet\quad 暂时不自动处理： 说“这项研究先由当前对话处理，暂停后续后台自动接续”。
+
+
+\noindent\textbullet\quad 回到项目： 说“查看未读进展”，或使用下面的接续句。
+
+
+
+
+进展会围绕以下内容展示：
+
+
+
+> 任务名称｜已完成内容｜当前阶段｜最近证据时间｜下一步｜需要决定的事项
+
+
+
+在同一台电脑的新 Codex 或 DSH 对话中说：
+
+
+
+> 使用 Auto-LAMMPS，继续我最近的 Ni 研究，先告诉我完成了什么、现在到哪里、还有什么没交付。
+
+
+
+跨电脑时，先在新电脑使用上面的固定提示词完成安装，再导入研究成果包；完整环境迁移使用备份与恢复流程。后台工作与恢复说明 →
+
+
+
+\subsection{复用已有资源与官方命令说明}
+
+
+已有势函数、作者项目、脚本和已验证运行环境可以登记到研究资源库。Agent 先按材料与计算方法查找，再核对来源、版本、元素映射和实际文件。
+
+
+
+> 接入我已有的资源库，先找 Ni 势函数和对应的 LAMMPS 代码用法，核对已有文件后复用。
+
+
+
+软件提供按引擎版本读取、缓存官方命令说明的工具。脚本生成与修正时可读取命令格式、示例和限制；提交准备会检查输入快照中的已知错误。资源检索会区分已有文件和待获取的索引条目。资源与命令使用方法 →
+
+
+
+\subsection{当前版本与进度}
+
+
+\begin{longtable}{p{7.25cm}p{7.25cm}}
+\toprule
+入口 & 当前内容 \\
+\midrule\endhead
+正式版 v1.0 & Python 包 1.0.0；MCP/\allowbreak{}CLI、持久任务、资源与官方语法、本地记忆、验证复用、批次执行、分析版本和成果交接 \\
+P0–P4 开发与阶段检查 & 功能开发完成；阶段证据见交付记录 \\
+Ni 开发流程 & 已完成 256 原子、500 K 平衡 5 ps、NVE 10 ps；交付五张图、11 帧轨迹、报告与完整研究包，保留三次失败和后续成功记录 \\
+当前整体验收 & 官方 DSH 正在完成 NbTiZrMoV 新研究的完整应用流程；独立安装、真实批次、四类研究矩阵、故障恢复和七天监视继续按计划推进 \\
+\bottomrule
+\end{longtable}
+
+
+固定安装提示词默认选择正式发布包；Agent 使用同一发布标签下的指南、skill 和安装器。版本变更见发布说明，实测记录见交付进度、验证记录与验收指标。
+
+
+
+\subsection{手动安装与维护}
+
+
+<details>
+
+<summary>从发布标签安装（Codex /\allowbreak{} DSH）</\allowbreak{}summary>
+
+
+
+准备可用的 Git 与 Python。安装器优先通过 uv 创建 Python 3.13 环境；不使用 uv 时，需要 Python 3.12 或更新版本。
+
+
+
+在一个新的代码目录中获取固定发布版本：
+
+
+
+\begin{quote}\small
+git clone https:/\allowbreak{}/\allowbreak{}github.com/\allowbreak{}XPYY233/\allowbreak{}auto-lammps-mcp.git\par
+cd auto-lammps-mcp\par
+git checkout -{}-detach v1.0\par
+\end{quote}
+
+
+接入 Codex：
 
 
 
@@ -103,35 +291,64 @@ python3 scripts/\allowbreak{}install.py -{}-source . -{}-host codex\par
 \end{quote}
 
 
-DSH 使用 -{}-host dsh。安装器返回实际命令路径、连接参数、安装进度与接续提示。macOS 后台由系统服务管理，研究数据与软件版本分开保存。
+接入官方 DSH，把示例路径替换为自己的 Harness 安装目录或 dsh 程序路径：
 
 
 
-\subsection{使用}
+\begin{quote}\small
+python3 scripts/\allowbreak{}install.py -{}-source . -{}-host dsh \textbackslash{}\par
+  -{}-dsh-runtime /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}to/\allowbreak{}deepseek-harness -{}-dsh-profile web\par
+\end{quote}
 
 
-\noindent\textbullet\quad “比较完整晶体与含空位晶体的拉伸响应，给我曲线和结构演化。”
-
-
-\noindent\textbullet\quad “继续最近的 Ni 研究，告诉我完成了什么、现在到哪里、还有什么没交付。”
-
-
-\noindent\textbullet\quad “暂停后续计算，说明当前作业是否还在运行。”
-
-
-\noindent\textbullet\quad “重新选择拟合区间，保留原结果。”
-
-
-\noindent\textbullet\quad “导出给同门继续使用。”
+安装器返回实际命令路径、平台配置、已完成步骤和接续入口。按回执重新加载对话中的工具，然后让 Agent 调用 MCP doctor 与 task\_\allowbreak{}list，核对当前连接和原任务。
 
 
 
-
-MCP 与 alm call 操作同一任务服务。alm help 返回当前版本接口。科研文件可以用普通编辑器、Python、LAMMPS 和 OVITO 继续使用。
-
+发布页同时提供 wheel、安装器和校验摘要，详见给 Agent 的安装指南。
 
 
-\subsection{开发检查}
+
+</\allowbreak{}details>
+
+
+
+更新与回退： 让 Agent 读取已有安装回执，选择固定版本并保留研究数据；需要回退时恢复上一个版本并核对原任务。操作说明 →
+
+
+
+备份与迁移： 保存数据库、项目、快照及交接记录；新电脑恢复后先核对原作业，再接续执行。操作说明 →
+
+
+
+卸载： 停止本项目后台、移除本项目 MCP 连接和 skill，再选择保留或迁移研究目录。操作说明 →
+
+
+
+\subsection{文档导航}
+
+
+\begin{longtable}{p{7.25cm}p{7.25cm}}
+\toprule
+你需要什么 & 入口 \\
+\midrule\endhead
+让 Agent 安装和配置 & 给 Agent 的安装指南 \\
+每一步怎样提需求、看结果 & 用户指南 \\
+关闭聊天、恢复失败、备份迁移 & 后台与恢复 \\
+查看当前完成情况和证据 & 交付进度 · 验证记录 \\
+查看完整产品目标与验收 & 批准计划 · 验收指标 \\
+理解模块和扩展接口 & 开发说明 · 资源来源 \\
+阅读开发与交付手册 & 发布版 PDF · 可编辑源稿 \\
+下载版本或反馈问题 & Releases · Issues \\
+\bottomrule
+\end{longtable}
+
+
+\subsection{参与开发}
+
+
+从明确的用户任务开始，通过 Issue、独立分支、PR 和自动检查完成修改。MCP 与 alm call 连接同一任务服务；alm help 提供当前版本的工具参数。
+
 
 
 \begin{quote}\small
@@ -140,10 +357,73 @@ uv pip install -r requirements.lock.txt\par
 uv pip install -e .\par
 .venv/\allowbreak{}bin/\allowbreak{}pytest -q\par
 .venv/\allowbreak{}bin/\allowbreak{}python scripts/\allowbreak{}check\_\allowbreak{}public\_\allowbreak{}tree.py\par
+.venv/\allowbreak{}bin/\allowbreak{}python scripts/\allowbreak{}render\_\allowbreak{}review\_\allowbreak{}traceability.py -{}-check\par
 \end{quote}
 
 
-完整交付在同一安装版本中走完自然语言需求、集群执行、后台接续、结果展示与交接。验收分别记录软件检查、真实研究、独立使用和七天监视。
+项目采用 Apache-2.0。第三方资源按各自来源和许可使用，参见资产来源记录。
+
+\clearpage
+\section{Auto-LAMMPS MCP v1.0}
+
+
+2026年10月30日 · 发布标签 v1.0 · Python 包 1.0.0 · 数据库版本 2
+
+
+
+在 Codex 或官方 DeepSeek Harness 中描述研究需求，由 Agent 编写原生科研脚本，软件保存项目、执行计算、监视进展并交接成果。
+
+
+
+\subsection{本版交付}
+
+
+\noindent\textbullet\quad MCP 与命令行连接同一持久服务，保存需求、规则、操作、文件版本和费用。
+
+
+\noindent\textbullet\quad 复用已有势函数、项目与运行环境，提供版本化 LAMMPS 官方命令说明和已知错误检查。
+
+
+\noindent\textbullet\quad 本地记忆检索过去的方法、失败与成果；成套资源保留来源、元素映射及适用条件。
+
+
+\noindent\textbullet\quad 分级验证关联实际检查回执，按组件复用有效证据，条件变化只补相关检查。
+
+
+\noindent\textbullet\quad 批次保存独立样本、种子与验证来源，支持进度汇总、暂停恢复及跨对话接续。
+
+
+\noindent\textbullet\quad 原生分析支持失败恢复、方法修订、曲线与轨迹对应、成果版本和完整研究包。
+
+
+\noindent\textbullet\quad 固定安装提示词、版本安装器、平台连接、skill、用户指南与开发交付手册随版本发布。
+
+
+
+
+\subsection{安装和更新}
+
+
+从 README 复制原固定安装提示词。Agent 使用同一标签的安装器、wheel、校验摘要和指南。发布附件 release.json 保存源码提交、包版本与文件摘要；SHA256SUMS 用于核对下载文件。
+
+
+
+macOS 提供托管安装与桌面后台。Linux 源码和隔离安装通过自动检查，服务管理需自行配置。Windows 原生安装继续开发。前台使用 Codex 或官方 DSH，计算使用已配置的 Slurm。
+
+
+
+更新前保存现有数据库与项目备份，保留旧安装回执。数据库版本 2 的恢复流程见《后台与恢复》。运行中的研究继续使用其固定环境，完成后再安排升级。
+
+
+
+\subsection{验证进度}
+
+
+P0–P4 功能开发及阶段检查已完成。发布过程执行完整软件检查、公开树检查、审核映射核对，并从构建的 wheel 完成 MCP 调用、原生分析、失败恢复、图片预览和研究包交接检查。确切提交和持续集成结果保留在 PR \#41 与发布记录中。
+
+
+
+Ni 开发流程已有真实计算及成果。NbTiZrMoV 完整应用验收继续进行，独立新电脑安装、真实批次、24项研究矩阵、保留任务、故障恢复、科学反例和七天监视按原验收清单推进。已有尝试、失败、费用及科学结论完整保存。
 
 \clearpage
 \section{给 Agent 的安装指南}
@@ -168,6 +448,10 @@ uv pip install -e .\par
 \end{longtable}
 
 
+v1.0 的托管安装与桌面后台使用 macOS。Linux 支持源码及 -{}-no-launchd 隔离安装，持久服务需自行配置；Windows 原生安装尚未提供。先识别系统并据此说明可用路径。
+
+
+
 当前仓库提供 Python 安装器、Codex 注册入口、DSH stdio 连接配置和 skill；插件分发包在交付记录中单列。
 
 
@@ -179,7 +463,55 @@ uv pip install -e .\par
 \subsection{安装固定版本}
 
 
-在干净源代码目录运行 python3 scripts/\allowbreak{}install.py -{}-source . -{}-host codex。已下载安装包使用 -{}-wheel /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}package.whl -{}-sha256 RELEASE\_\allowbreak{}SHA256。
+\#\#\# 先选择同一套发布文件
+
+
+
+默认安装正式版 v1.0，Python 包版本为 1.0.0。记录标签、源码提交和安装包摘要。后续更新从 Releases 选择正式发布，显式指定候选版本时保留其验证记录。
+
+
+
+从该版本的发布附件取得 install.py、wheel、SHA256SUMS 和 release.json；核对安装器与 wheel 的 SHA-256。读取相同标签下的本指南和 skill，例如发布页的源码入口指向 blob/\allowbreak{}<tag>/\allowbreak{}docs/\allowbreak{}FOR\_\allowbreak{}AGENTS\_\allowbreak{}INSTALL.md。保存文件实际位置后继续安装。
+
+
+
+若用户需要当前源码中的新增能力，先展示与发布包的具体区别，选择固定 Git 提交并记录验证状态。已有可用安装先检查，保留原任务和配置。
+
+
+
+\#\#\# 使用发布 wheel
+
+
+
+使用下载好的安装器及 wheel；下列路径与摘要由实际发布附件替换，host 选择当前平台：
+
+
+
+\begin{quote}\small
+python3 /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}install.py \textbackslash{}\par
+  -{}-wheel /\allowbreak{}absolute/\allowbreak{}path/\allowbreak{}auto\_\allowbreak{}lammps\_\allowbreak{}mcp-VERSION-py3-none-any.whl \textbackslash{}\par
+  -{}-sha256 VERIFIED\_\allowbreak{}WHEEL\_\allowbreak{}SHA256 -{}-host codex\par
+\end{quote}
+
+
+DSH 使用 -{}-host dsh，并添加下文的 -{}-dsh-runtime 与 -{}-dsh-profile。安装器检查 wheel 摘要后建立独立版本环境。
+
+
+
+\#\#\# 使用固定源码
+
+
+
+从仓库克隆并检出所选发布标签或完整提交，在这个干净的 Git 检出目录运行：
+
+
+
+\begin{quote}\small
+python3 scripts/\allowbreak{}install.py -{}-source . -{}-host codex\par
+\end{quote}
+
+
+源码安装通过 Git 保存确切提交身份；已有用户修改的目录继续保留，另建干净检出用于安装。
 
 
 
@@ -194,7 +526,7 @@ uv pip install -e .\par
 \subsection{平台内接入}
 
 
-Codex：安装器通过现有 codex mcp add 注册 auto-lammps，并安装 skill。当前会话清单未刷新时，新建工作对话并粘贴：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”实际调用 MCP doctor 与 task\_\allowbreak{}list，再核对 host\_\allowbreak{}calls。
+Codex：安装器通过现有 codex mcp add 注册 auto-lammps，并安装 skill。当前会话清单未刷新时，新建工作对话并粘贴：“继续配置 Auto-LAMMPS，从上次已经完成的步骤接着做。”实际调用 MCP doctor 与 task\_\allowbreak{}list，确认本次 doctor 的 current\_\allowbreak{}connection.state 为 current；host\_\allowbreak{}calls 保留历史调用记录。
 
 
 
@@ -252,6 +584,22 @@ cluster 配置需要 ssh\_\allowbreak{}alias、remote\_\allowbreak{}root、accou
 
 \clearpage
 \section{在对话中使用}
+
+
+批次结束后说“汇总这一批，给我均值、误差范围和每个样本的明细”。Agent 读取已回收文件，列出实际纳入、失败和缺数据的样本，再用原生 Python 分析；重试仍计为原样本。曲线与结构通过记录的时间、计算阶段和原子编号对应。
+
+
+
+说“调整统计区间，保留原结果”，会保存新的分析方法、结果和检查，并关联旧版。说“继续上次分析”，会读取当前成果、历史方法和未交付要求。图表可在平台预览，数据、脚本、轨迹和报告都有文件入口。
+
+
+
+说“导出给同门”，成果包中的 README 直接列出研究目标、成果位置和继续研究的方法；将包交给另一段 Codex 或 DSH 对话，说明“导入并继续分析”即可接续。
+
+
+
+已安装后，直接说“参考上次的 W 级联，再做20次独立重复”。Agent 自动读取记忆和资源，说明复用内容、额外工作与资源；同条件已有有效验证时直接进入正式批次。说“先讨论”会先暂停后续派发；“查看上次依据”“纠正这条经验”“暂停这一组，其他继续”分别读取证据、保留更正和控制批次。完整操作见记忆与验证复用。
+
 
 
 第一次把 README 安装提示词交给 Codex 或 DSH。安装引导完成后，科研工作围绕同一个持久项目展开。
@@ -324,8 +672,240 @@ cluster 配置需要 ssh\_\allowbreak{}alias、remote\_\allowbreak{}root、accou
 
 输入“整理这个项目的重复存储，保留全部文件和历史”，后台核对并整理已有快照对应的大文件，返回完成路径和实际可用空间。导出的研究包仍包含完整文件。
 
+
+
+
+
+\subsection{使用已有资源库}
+
+
+输入“接入我之前的资源库，先从里面找Ni势函数和相应的LAMMPS代码用法”。Agent 通过 resource\_\allowbreak{}catalog\_\allowbreak{}import 读取旧势函数目录或作者项目清单；已有代码目录可按仓库名称绑定。随后按元素、势类型或计算方法搜索，查看配套文件、来源、版本和许可，分段读取完整原生代码。
+
+
+
+搜索结果标明是已核对本地文件还是只有索引。已登记的远端势文件沿用原位置，在计算节点核对摘要。科研项目保存实际使用的资源身份和文件摘要，缺少的配套资源继续查找。原目录及历史记录保留。
+
+
+
+\subsection{官方命令用法}
+
+
+生成或修正科研脚本前，Agent 使用 lammps\_\allowbreak{}reference 按实际引擎版本读取官方命令格式、例子和限制；已读取文档保存在本地供后续研究复用。lammps\_\allowbreak{}input\_\allowbreak{}review 给出输入行号、已知错误和对应说明。提交准备自动核对入口直接调用的 LAMMPS 输入快照。计算输出再核对步数、数据列、单位和逐原子内容。
+
+
+
+\subsection{批量研究怎么操作}
+
+
+\noindent\textbullet\quad “沿用上次方案，追加20个独立重复”：Agent 找到有效验证、核对当前授权，保存独立样本与种子，直接准备批次。
+
+
+\noindent\textbullet\quad “这一组进展如何”：显示计算结束、在途、等待、失败及剩余数量、已观测核时和证据时间。费用未取得的成员会明确列出。
+
+
+\noindent\textbullet\quad “暂停这一组，其他继续”：保留当前作业，暂停该批次后续派发。
+
+
+\noindent\textbullet\quad “停止这一组”：保存停止请求，取消在途作业，保留结果和费用。
+
+
+\noindent\textbullet\quad “继续刚才的批次”：换对话后仍能找到同一批次。任务本身暂停时，先按当前意图恢复任务。
+
+
+\noindent\textbullet\quad “对已经完成的样本做统计”：复用已有结果，按独立样本身份汇总。
+
+
+\clearpage
+\section{本地记忆、验证复用与批量研究}
+
+
+本轮依据原始完整计划、W 级联流程审计和用户批准的能力改进完整计划实施。本文件维护实现说明；用户批准的全文单独保留，每轮完整读取。对应 Issue \#40。
+
+
+
+用户说：“参考上次的 W 级联方案，再做20次独立重复，给我平均缺陷数量和误差范围。”Agent 找到过去的任务、原生文件和实测验证，说明直接沿用的内容与新增工作；当前条件已覆盖时直接准备正式批次。用户决定研究目标、科学选择和资源范围。
+
+
+
+\subsection{用户流程}
+
+
+自然语言需求 → 本地记忆和资源检索 → 简短科学问答 → 可复用内容与缺项 → 必要验证 → 正式计算或批次 → 监视和分析 → 成果与记忆。
+
+
+
+README 的固定安装提示词保持唯一入口。日常工作方法由 skill、MCP 初始化说明和阶段回执提供。每轮只问尚未确定的两三项科学选择，文件和工具细节由 Agent 完成。
+
+
+
+用户要求先讨论时，定位任务后先保存暂停，展示可复用内容、依据和缺项，再提出问题。历史报告保留为历史结论；当前科学判定读取对应检查回执。该引导同时进入主 skill、MCP 初始化和阶段返回，长响应保留引导并提供原始记录的分页入口。
+
+
+
+\subsection{记忆与成套资源}
+
+
+SQLite 保存当前研究、方法、失败、验证、偏好和结果的索引、版本与来源；原生脚本和数据保持在项目目录。大型轨迹保留原有存储位置。Codex、官方 DSH 和后台共用同一任务服务。
+
+
+
+task\_\allowbreak{}get、research\_\allowbreak{}context 自动返回相关记忆。创建任务、文件修改、输入检查、准备计算和分析的 MCP/\allowbreak{}CLI 回执附带阶段上下文。memory\_\allowbreak{}search 支持中英文同义词、条件关键词和访问范围，memory\_\allowbreak{}get 读取完整依据。相似度用于发现工作，validation\_\allowbreak{}match 判断验证覆盖。
+
+
+
+记录状态包括实际观察 observed、候选经验 candidate、服务实测 verified、停用 disabled。memory\_\allowbreak{}record 保存候选、纠正或停用并保留旧版本。服务记录事件和测量；Agent 解释方法与原因。memory\_\allowbreak{}rebuild 从保留事件补建索引，保留纠正记录。历史授权不成为新任务许可。
+
+
+
+普通研究跨项目检索；作者参考在自己的范围检索；正式 B 只访问本任务记忆，独立执行身份仍按整体计划验收。
+
+
+
+resource\_\allowbreak{}bundle 关联已有势、配套原生调用文件、元素映射、短程参数、来源、许可、版本和适用条件。resource\_\allowbreak{}get 返回成员、版本变化和实际文件状态。W 级联优先核对指定来源中的势及短程组合。普通研究可以学习符合来源和许可要求的作者代码。文件存在、运行完成和科学验证分别记录。
+
+
+
+单文件资源返回所属组合入口；Agent 读取组合中的调用和元素映射后判断适用性。多元素势文件的名称不能单独决定其是否适用于单元素体系。
+
+
+
+\subsection{验证与复用}
+
+
+1. project\_\allowbreak{}snapshot(paths=...) 冻结完整研究输入，排除结果。入口、辅助脚本、势和模型均进入依赖。
+
+2. validation\_\allowbreak{}plan 固定组件的输入、科学条件、检查和判据。组件范围为 static、environment、numerics、outputs、analysis；每个条件至少关联一个组件。
+
+3. validation\_\allowbreak{}match 核对输入、环境设置、条件、回执及原始数据，返回直接复用、部分复用或需要验证，列明具体差异。
+
+4. 缺项按文件检查、极小体系贯通、代表性小体系、正式尺寸短运行推进。各层用各自原生输入；尺寸变化影响的组件补测，其余通过 reuse\_\allowbreak{}from 复用。
+
+5. 物理验证用 run\_\allowbreak{}prepare(validation\_\allowbreak{}id=..., stage='preflight') 和记账提交。validation\_\allowbreak{}check 读取本方案已完成作业的数据，核对回收摘要后执行固定检查。
+
+6. 正式计算用 stage='production'。提交和实际派发均重新核对证据。合格计算段通过原生 restart 接续，保存父作业关系。
+
+
+
+首份方案使用 environment\_\allowbreak{}capture 读取引擎、启动器及显式外部依赖，并用返回的 runtime\_\allowbreak{}id 绑定方案。登录节点的系统库作为发现记录保存；不同登录节点的库差异不会代替计算节点的判定。记账预验证在实际计算节点保存完整身份及作业编号，回收后与固定检查共同成为可复用证据。正式作业在科研入口前核对已验证的计算节点引擎和运行库；变化时保存具体文件差异。新增插件、容器文件通过 files 指定，原生依赖继续进入快照。旧版仅有登录摘要的回执保留历史，需要补齐实际节点证据。
+
+
+
+预验证推荐100核时，实际采用用户确认的 policy.preflight\_\allowbreak{}core\_\allowbreak{}hours，同时保存 preflight\_\allowbreak{}budget\_\allowbreak{}authorization 原话。省略方案预算时沿用此值；任务条件里的估算不会自动成为授权。调度预留按核数乘最长运行时间计算，结束后采用实际记账。累计包含本任务所有方案的失败、取消和在途预留；新建方案不会清零费用或扩大上限。预算不足返回差额与下一步。
+
+
+
+run\_\allowbreak{}prepare 返回可供下一次变更使用的任务版本。重复识别比较快照、入口、验证方案、阶段与环境。未派发记录需要接替时使用新 intent 和 supersedes=原run\_\allowbreak{}id，样本身份保持，旧记录和失败保留。已派发或状态未知时先核对原作业。预验证和正式运行分别绑定各自阶段。
+
+
+
+种子使用原生 variable seed index 12345；方案声明变量、文件和允许整数范围。匹配仅归一化这些种子，其他输入保持摘要核对。范围由方法依据确定，不从两个端点自动外推。任务名、输出根目录和样本身份由执行记录维护。
+
+
+
+\subsection{批量计算与控制}
+
+
+batch\_\allowbreak{}prepare 为独立样本生成种子不同的快照，并关联有效验证；batch\_\allowbreak{}submit 原子保存整批派发意图。同条件追加20次重复新增预验证作业为零。已验证的不同工况按各自方案建立批次。
+
+
+
+batch\_\allowbreak{}get 返回每个样本、种子、状态、证据时间和成本。batch\_\allowbreak{}control 暂停、恢复或停止指定批次。任务控制优先，其他批次保留自己的状态。同一操作编号重试返回原批次；已有样本和种子不能重计独立重复。
+
+
+
+validation\_\allowbreak{}control 或停用验证记忆撤销复用资格。相关待派发批次暂停，运行中证据与费用保留；修正后建立新方案。用户说“先讨论”时，Agent 先保存暂停，再进行讨论。正在提交的动作单独对账。
+
+
+
+\subsection{实测检查和监视}
+
+
+check\_\allowbreak{}run 支持文件内容、CSV字段与数值范围、JSON实测量、分段热力学输出、注入前后能量差、全帧轨迹身份和非有限值。回执保留检查版本、测量、阈值、单位及依据、数据摘要。check\_\allowbreak{}get 核对当前证据变化。
+
+
+
+同一 Step 的注入前后状态保留在不同 thermo 块。温度统计固定物理时间窗口；漂移固定阶段和参照值。逐帧检查记录实际帧数，原子顺序变化按 ID 对齐。周期几何使用真实盒矩阵与边界，不从缺陷坐标估计盒长。
+
+
+
+新检查程序先用 analysis\_\allowbreak{}submit 运行独立正反样例，再由 checker\_\allowbreak{}register 核对相同程序、不同样例和预定结果。checker\_\allowbreak{}check 对新输出应用固定判据；程序变化后重新核验样例。
+
+
+
+方案可附带 monitor：节点独立读取增量 thermo 输出，按固定阶段、阈值检测非有限数和能量漂移，保存 .alm-guard.json 并停止异常进程。原生输入按方案写 restart，日志及时刷新。后台保持60秒合并查询和长任务摘要。
+
+
+
+温度峰值、熔化、相变和缺陷突变按研究目标解释。确认共同设置缺陷后停用验证，暂停相关后续派发。artifact\_\allowbreak{}register 引用实测回执；completion\_\allowbreak{}check 核对全部必需成果、当前文件和有效检查。历史自报通过保留为历史声明。分析失败只重做受影响部分。
+
+
+
+\subsection{迁移与交接}
+
+
+升级到 schema 2 前保存 schema 1 的一致性副本。完整备份包含记忆与版本、验证、回执、运行、批次、资源和文件；新目录恢复后先对账再接续。回退使用升级前数据库副本和原安装版本，在新目录启动；新版历史保留。两个控制器不能同时提交。
+
+
+
+研究 ZIP 保留记忆、验证和批次历史。导入后作为有来源的既有研究记录；跨电脑接续整个服务使用完整备份恢复。
+
+
+
+\subsection{实施与验收}
+
+
+\begin{longtable}{p{4.67cm}p{4.67cm}p{4.67cm}}
+\toprule
+顺序 & 目标 & 完成条件 \\
+\midrule\endhead
+P0 & 控制和实测核验 & 暂停后无新增派发；错误判据与缺项不能完成 \\
+P1 & 记忆、资源和阶段引导 & 新对话找到既有工作、失败及实际文件 \\
+P2 & 验证匹配和分级预验证 & 有效条件直接复用；变化只补相关组件；费用累计 \\
+P3 & 批量与持续监视 & 20个独立样本复用验证，暂停、重启、回执丢失可恢复 \\
+P4 & 安装版本完整流程 & 官方 DSH 新研究、Codex 接续、追加分析、可视化与交接 \\
+\bottomrule
+\end{longtable}
+
+
+回归覆盖跨项目、新材料与新势、记忆纠正、依赖变化、预算、恢复、成果缺项和备份迁移。真实验收回放 W 失败日志并生成新分析版本。独立用户从自然语言进入，开发者中途技术补充为零。
+
+
+
+research\_\allowbreak{}metrics 返回研究分母、预验证与正式运行数量、费用及未知记账项、首次派发等待和完成事件。模型、工具与人工介入从宿主原始记录核对。首次研究、复用研究和批量追加分别统计。
+
+
+
+原计划的独立 Ni、24项研究至少22项、12项保留任务至少11项、36次故障恢复、八类科学反例、双平台与七天监视继续作为整体交付要求。跨平台安装保留，远程部署不纳入本轮。
+
+
+
+方法入口：累计物理时间、ZBL、温度定义。运行时通过适配器读取实际引擎版本对应文档。
+
+
+
+\subsection{批次进展与接续}
+
+
+task\_\allowbreak{}get 返回最近五个批次，batch\_\allowbreak{}list 按页发现全部批次，batch\_\allowbreak{}get 返回成员、验证来源、完成/\allowbreak{}在途/\allowbreak{}等待/\allowbreak{}失败/\allowbreak{}取消/\allowbreak{}剩余数量、核时和最新证据时间。运行成员保留实际步数、物理时间与日志入口，未取得的费用标为待核对。计算结束后继续分析和成果核验。
+
+
+
+任务暂停优先于批次恢复；单批停止保留在途取消请求，并允许其他有效批次继续。提交回执丢失先寻找原作业，重启后仍保留原停止请求。批次变化写入持久事件，每五分钟摘要包含批次进展；服务重启不会重复发送相同完成事件。
+
 \clearpage
 \section{项目开发与交付}
+
+
+新增能力见本地记忆与验证复用。research\_\allowbreak{}store.py 定义版本化记忆与 schema 2，research.py 提供公共接口，validation.py 比较快照和实测组件，verification.py 执行固定检查，checkers.py 关联原生检查程序，node\_\allowbreak{}guard.py 在计算节点增量监视。Service、CLI、MCP 共用这些接口；Worker 在上传前和派发前再次检查。
+
+
+
+新接口参数从 help(method) 生成。新增数据由事务和 op\_\allowbreak{}id 管理；批次成员拥有独立快照、样本、种子和作业，复用原验证回执。变更只允许声明的种子归一化；所有其他差异明确返回。回执失效沿引用关系传播。
+
+
+
+runtime\_\allowbreak{}probe.py 读取实际程序、外部依赖及共享库身份，同一实现用于派发前与计算节点核对；runtime\_\allowbreak{}evidence.py 保存原观察记录和最新观察索引。environment\_\allowbreak{}capture 返回持久操作，validation\_\allowbreak{}plan(runtime\_\allowbreak{}id=...) 固定身份。节点的 .alm-runtime.json 通过回收摘要进入组件检查，文件改变或缺失会使关联回执失效。运行时身份缺失的旧方案保留历史，补齐对应检查后复用。
+
 
 
 已有 Agent 直接写科研脚本并根据反馈修正；服务承担持久执行、监视、恢复、分析和交接。
@@ -348,6 +928,7 @@ installation.py & 自检、连接、skill 与 macOS 后台安装 \\
 dsh.py /\allowbreak{} network.py & 官方 Harness 接入、配置保留与已有系统代理发现 \\
 handoff.py /\allowbreak{} backup.py & 带来源记录的成果包导入、完整备份与独立目录恢复 \\
 science.py & 单位、热力学列、逐原子轨迹检查 \\
+delivery.py & 批次分析清单、成果版本目录、交接说明 \\
 \bottomrule
 \end{longtable}
 
@@ -412,6 +993,18 @@ NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保�
 \subsection{复用已有分析数据}
 
 
+batch\_\allowbreak{}dataset 根据实际回收文件生成样本清单，保留工况、种子、重试链及排除原因。analysis\_\allowbreak{}submit(batch\_\allowbreak{}id,batch\_\allowbreak{}files) 固定文件摘要，工作进程再次核对并生成 batch-samples.json；原生脚本选择统计方法。method 记录定义、区间及不确定度，supersedes 关联历史分析；完成和失败自动进入本地记忆，保留观察状态。
+
+
+
+results\_\allowbreak{}get 读取需求覆盖、当前/\allowbreak{}失效/\allowbreak{}被替代的成果、近期分析与导入来源。artifact\_\allowbreak{}register 的 description 和 supersedes 字段将新路径成果与旧编号关联，保留原文件及全部要求；completion\_\allowbreak{}check 检查当前有效结果。元数据放入 schema 2 的现有 settings，随备份和研究记录导出。交接包 README 列出相对路径；重新导入保留原始成果目录与操作记录。
+
+
+
+trajectory\_\allowbreak{}correlate 对齐轨迹、热力学实际采样及执行阶段，保留重复步数歧义。解析器读取 ITEM: TIME、单位、盒原点/\allowbreak{}边向量和按原子编号的类型变化。类型固定检查按任务选择，时间缺失时返回缺项。定义来自官方 dump\_\allowbreak{}modify 和 thermo\_\allowbreak{}style。
+
+
+
 analysis\_\allowbreak{}submit 的 input\_\allowbreak{}bindings 将工作目录内路径映射到项目原文件。例如脚本读取 data/\allowbreak{}input.csv，可绑定到先前分析的 analysis/\allowbreak{}<operation>/\allowbreak{}data/\allowbreak{}input.csv。回执保存映射、原文件摘要和副本方式。输入文件保持独立，输出、失败与重试继续保留。
 
 
@@ -425,8 +1018,36 @@ project\_\allowbreak{}optimize 通过持久队列整理已存在快照的大文�
 
 45 条审核意见 逐项列出已有结果、证据和下一项用户验收。review-traceability.json 保留原始要求和验收条件；更新后运行 python scripts/\allowbreak{}render\_\allowbreak{}review\_\allowbreak{}traceability.py 生成可读记录。自动检查核对编号、文件引用与两种记录的一致性。软件检查、安装验证和完整研究分别保留实际结果。
 
+\section{Task-specific validation and recovery}
+
+
+phases.py reads executed commands beside thermo output. Local verification and the standalone node monitor share it. Phase selectors use actual fixes/\allowbreak{}groups/\allowbreak{}time steps or native markers. The parser returns scoped data errors and phase facts; it does not assign a scientific tolerance. log\_\allowbreak{}phases exposes that evidence to the host Agent.
+
+
+
+Checks carry required/\allowbreak{}advisory/\allowbreak{}candidate roles; monitors additionally choose warn/\allowbreak{}stop. Candidate comparisons preserve all measurements without invalidating unrelated required evidence. validation\_\allowbreak{}compare reads alternatives; validation\_\allowbreak{}plan(reuse\_\allowbreak{}sources=..., rationale=...) merges compatible measured components. Native qualified Python checkers attach through component checker\_\allowbreak{}id and validation\_\allowbreak{}check(analysis\_\allowbreak{}operation\_\allowbreak{}id=...). Old collected runs can be rechecked when their actual conditions and input dependencies match. Missing/\allowbreak{}failed measurements invalidate their own quantity and component.
+
+
+
+Regression coverage includes cooling-phase mismatch, omitted first NVE, phase continuity across time-step changes, partial logs, candidate failures, scoped reuse, explicitly requested stopping, and qualified custom checks on an existing accounted run. Frozen criteria and history remain available after revision.
+
+
+
+\subsection{批次阶段实现}
+
+
+batch\_\allowbreak{}views.py 从持久成员与运行回执生成统一汇总，供 task\_\allowbreak{}get、batch\_\allowbreak{}list、batch\_\allowbreak{}get 及 Worker 的阶段事件和五分钟摘要复用。详情包含输出字段、证据时间与未知费用，不复制长日志。batch\_\allowbreak{}observation:<id> 保存上一次状态以避免重启后的重复完成事件；控制状态与计算结果分别保留。提交异常与最新 evidence 合并，保留提交期间写入的取消请求。
+
+
+
+tests/\allowbreak{}test\_\allowbreak{}batch\_\allowbreak{}progress.py 使用实际服务和队列完成20成员调度、控制交接、丢失回执、独立批次失效范围及真实 MCP/\allowbreak{}服务重启。阶段检查在隔离目录运行；完整科研批次、双平台与长期监视按最终验收清单统一执行。
+
 \clearpage
 \section{后台与恢复}
+
+
+schema 2 升级前在数据目录的 migrations 保存一致性旧库副本。完整备份包含记忆版本、验证、回执、批次和资源。回退使用旧安装与升级前数据库副本，新版数据另外保留；先停旧控制器，再在新目录恢复并对账。memory\_\allowbreak{}rebuild 可从保留事件补建观察索引；已停用经验不重新启用。重启不会清除批次身份、种子、费用或验证引用。
+
 
 
 macOS LaunchAgent 运行独立任务服务。MCP 与 CLI 连接同一服务，聊天退出后后台继续。数据库保存任务、事件、操作回执、执行意图、队列与阶段关系；普通目录保存科研文件，文件摘要对应输入快照。
@@ -542,8 +1163,32 @@ task\_\allowbreak{}get.executor 显示当前操作权持有人和期限；active
 
 耗时分析或导出已入队后，可调用 background\_\allowbreak{}request 并把操作编号放入 after\_\allowbreak{}operations，保存完成后的下一步。收到真实接续编号后即可结束当前模型轮次。程序等待前置操作完成或失败，再启动接续；暂停任务或关闭该任务后台仍然有效。expected\_\allowbreak{}outputs 填具体项目文件路径。
 
+
+
+批次恢复从 task\_\allowbreak{}get 的批次入口开始；batch\_\allowbreak{}list 可发现全部历史批次。batch\_\allowbreak{}get 同时显示任务控制、批次控制、成员执行状态和最后证据时间。未知提交先核对原作业；提交异常保留期间新写入的停止请求，找回后继续取消。任务暂停时，单独恢复批次不会启动派发。
+
 \clearpage
 \section{验收指标}
+
+
+2026-10-30 已按用户指令进入全套验收，首项采用第一周 NbTiZrMoV 论文。固定 P4 候选、可见 DSH 入口、科学问答及各环节状态见 NbTiZrMoV 验收记录。
+
+
+
+2026-10-30 用户确认：P2 阶段通过；继续 P3、P4 的功能开发与阶段验收，全部功能完成后执行本文件的全套验收。阶段记录保存实现及当前证据，整体指标在最终验收逐项核对。
+
+
+
+当前保留的整体验收待办：W 判据依据与采样覆盖；通过验证后正式提交并在同条件追加时不新增预验证；真实 20 样本批次、跨平台接续及七天监视。W 已有失败、原始数据及费用完整保留，继续计算前按当前控制状态处理。
+
+
+
+P4阶段检查记录批次分析、成果修订、时间对应、图片展示、交接与记忆。完整用户流程依次执行：官方 DSH 页面一句话新研究 → 复用与必要验证 → 正式/\allowbreak{}批量运行 → 分析展示 → Codex 接续与追加分析 → 导出并由接收者打开。记录开发者介入、样本分母与成本。
+
+
+
+本轮能力验收追加十项：一句话新研究、同条件20次重复且预验证新增为零、跨项目复用、局部条件变化、新材料新势、经验纠正、依赖变化、控制与恢复、完整成果、新目录备份恢复。细则见能力改进计划。软件回归、固定安装检查、真实 DSH 科研流程分别记录证据；首次正式交付率与全部发起研究完成率分别保留分母。
+
 
 
 先贯通一项 Ni 研究：安装提示词、实际工具接入、配置、需求、资源、原生脚本、HPC、一次恢复、图表与结构、追加分析、换对话、交接。独立使用者根据公开指南完成新任务后再扩展领域。
@@ -611,11 +1256,282 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 
 旧科研数据、作者源码、论文附件、执行日志和答案保持在研究目录。每个新复制代码文件单列原始路径、版本、许可、修改与验证。依赖版本记录于 requirements.lock.txt。
 
+
+
+旧版 candidate\_\allowbreak{}tools.py（workflow adapter v6）和 scientific\_\allowbreak{}adapters.py（stage adapter v6），Apache-2.0，保留其“定义 compute 不会调用它、阶段变化后重新计算、官方版本匹配”的经验。新版独立实现原生命令文档读取与检查，没有复制旧编译器或作者程序。官方文档按指定发行标记从 lammps/\allowbreak{}lammps 的 doc/\allowbreak{}src 获取并在用户本地缓存；保存来源、版本和摘要，不把上游文档复制到本项目发行包。验证包含三次 Ni 原失败模式、原生 dump 与 reduce/\allowbreak{}thermo 用法及输入快照一致性。
+
 \clearpage
 \section{当前交付记录}
 
 
-日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a8；已发布版本：0.1.0-alpha.7。
+\subsection{2026-10-30 v1.0 正式发布}
+
+
+用户已要求将当前软件发布为正式 v1.0。Issue \#42 记录发布，PR \#41 合并 P0–P4 能力；Python 包和运行时统一为 1.0.0，首页、固定安装入口、skill 与开发交付手册同步。发布资产与检查记录见版本说明。
+
+
+
+当前 NbTiZrMoV 完整流程验收继续使用已固定的 a11 环境；日常服务及运行中作业不随公开发布自动升级。原计划的独立使用、真实批次、研究矩阵、故障和长期监视继续逐项记录。
+
+
+
+\subsection{2026-10-30 全套验收开始}
+
+
+用户指定第一周 NbTiZrMoV 论文。固定 P4 候选 852c40c 已接入官方 DSH 可见新对话“NbTiZrMoV 基准拉伸研究方案”。服务升级前完成备份，原 W 暂停状态与旧实验保留。
+
+
+
+DSH 已自动读取工作指南、核对实际连接、检索和定位第一周资源，建立任务并保存五项成果；科学问答已在页面确认。两次节点小验证合计0.7733核时，完整基准作业已通过 MCP 提交。正在核验监视、分析、Codex 接续和交接。用户进一步确认本项验收的是新版完整应用流程；旧 P–A–B 保留原记录。详见 本项验收记录。
+
+
+
+\subsection{2026-10-30 P4 实现与阶段检查完成}
+
+
+已接通批次样本清单、原生分析方法与修订关系、成果版本目录、曲线与轨迹时间对应、自动分析记忆和可读成果包。批次列明纳入/\allowbreak{}失败/\allowbreak{}缺数据成员，重试保持同一样本；修订保留旧文件、回执及需求关系。
+
+
+
+224项源码检查、41项安装版专项检查通过；真实 MCP 流程完成新工具发现、失败后追加分析、图片预览、514文件/\allowbreak{}38条操作交接包导出与重新导入、接续保存，P0安装回归通过。检查脚本一次参数名冲突已记录并修正。详见 P4阶段记录。
+
+
+
+P0–P4能力开发和阶段检查已完成。下一项为全套验收：官方 DSH 可见页面新研究、Codex 接续、真实验证复用与批次、科学反例、故障恢复及长期监视。原 W 任务保持暂停，本阶段新增物理提交为零。
+
+
+
+\subsection{2026-10-30 P4 开始}
+
+
+用户已明确要求开发 P4。复用原生分析、检查、图像预览和归档能力，补齐批次输入清单、分析方法与版本、成果替换及展示目录、曲线与轨迹对应、接续和记忆。阶段使用已有数据完成分析到重新导入的流程，全部功能完成后开展全套验收。
+
+
+
+\subsection{2026-10-30 P3 实现与阶段检查完成}
+
+
+候选 3a30872 /\allowbreak{} wheel cfbbaa709f9ad8ef 补齐跨对话批次发现、进度与费用汇总、实际输出步数/\allowbreak{}时间、持久事件及提交回执丢失后的停止恢复。20成员检查完成独立派发且无新增预验证；任务暂停优先，其他有效批次可继续。
+
+
+
+218项源码检查、38项安装版专项检查、实际 MCP/\allowbreak{}服务重启、514文件与38条操作的交接检查通过；公开树与45条审核映射检查通过。详见 P3阶段记录。原 W 任务维持暂停，新增物理计算为零。阶段结果向用户汇报；下一项为 P4，完整科研与双平台验收在功能开发结束后统一执行。
+
+
+
+\subsection{2026-10-30 用户批准 P2，开始 P3}
+
+
+P2 已经用户批准通过。后续逐阶段开发与阶段验收，全部功能完成后统一执行全套验收。W 判据、正式样本及整条验证复用流程保留为最终验收待办，原任务保持暂停。
+
+
+
+P3 复用现有批次准备、提交、控制与监视实现，补齐批次发现、汇总进度及费用、回执丢失和停止交接。通过隔离的阶段检查核验 20 个独立样本、零新增预验证、暂停恢复、跨会话接续及共同缺陷范围，随后汇报。详见 P3 阶段记录。
+
+
+
+\subsection{2026-10-30 P2 任务专属判据修复与候选比较}
+
+
+候选 f248649 /\allowbreak{} wheel 684bce72a3327239 已安装。212 项安装版检查、MCP/\allowbreak{}P0/\allowbreak{}完整交接，以及四项 macOS/\allowbreak{}Linux CI 通过。升级前保存原任务备份，原官方 DSH 对话已接回该版本，并从简短自然语言继续核对旧数据、选择判据和完成必要验证。
+
+
+
+可见验收已实际保留环境和分析脚本两项验证，修改输入只补关联检查；不适用的冷却段守恒检查也没有中止整项计算。DSH 比较多套判据并保留原任务的 2 eV 要求，但仍使用手写段号，纠正后发现约 12.5 eV 的首段瞬时漂移。它随后降低输出频率来对齐旧日志，不能据此证明通过原最大漂移判据。已通过同一页面暂停，所有作业终态，累计预验证 6.747 核时；正式样本未开始。暂停后的模型连接失败已保留。下一步需解决判据依据、采样覆盖与原始异常证据的共同审查，向用户汇报决定；P2 未通过，P3 未进入。
+
+
+
+已实现实际阶段选择、正式/\allowbreak{}提醒/\allowbreak{}候选检查、按测量与组件保留有效结果、多方案比较合并，以及已验证原生 Python 检查接入。失败作业的完整部分可以重新核验，判据变更可复用匹配的旧数据。212 项源码检查通过；安装前的旧 W 日志回放正确识别冷却阶段不适用原守恒检查，并覆盖实际四段碰撞积分、检出原判据下的首段漂移。回放没有新增物理计算；后续真实计算及阻塞见上文。
+
+
+
+\subsection{2026-10-29 P2 实算发现阶段错挂与首段漏检，已暂停待决}
+
+
+三项修复候选 ed2df31 的源码与安装版 201 项检查、完整交接、四项 macOS/\allowbreak{}Linux CI 均通过。原 DSH 页面成功完成环境采集、预算确认、旧记录接替和实际提交。
+
+
+
+小验证监视器将 NVT 冷却段错挂为 NVE 守恒段而中止；DSH 随后放宽判据并重试。已通过原页面暂停、取消重试并保留原输入及 2 eV 判据，两次合计 0.489 核时。完整日志另显示真实第一段 NVE 漂移 9.37 eV、却未被监视覆盖；该段需要实际数值验证。下一步建议修复阶段绑定与失败后判据变更，再补对应的小验证。P2 未验收，等待用户拍板，P3 未进入。
+
+
+
+\subsection{2026-10-29 P2 新候选已安装，小验证进入 Slurm}
+
+
+候选 ed2df31 /\allowbreak{} wheel 925b9a487badf3eb 的安装版 201 项检查、MCP、P0 和完整交接检查通过。原任务先备份，官方 DSH 原页面已实际连接新候选。通过页面明确预验证 20 核时、正式样本另行记账后，新的小验证取得真实 Slurm 编号。正在核验实际计算输出，再推进正式样本和复用检查；P2 尚未验收。
+
+
+
+\subsection{2026-10-29 P2 三项修复已实现，准备安装验收}
+
+
+用户已批准修复并从原 DSH 页面接续。现已分离登录发现与计算节点验证，预算改为采用明确确认及来源，准备接口支持保留历史地接替未派发记录，并返回当前任务版本。201 项源码检查通过，包含实际作业脚本组装、环境变化、失败费用累计和在途提交保护。下一步固定安装候选并完成原页面的小验证、正式样本和验证复用；P2 尚未验收，P3 等待用户决定。
+
+
+
+\subsection{2026-10-29 P2 接续发现新阻塞，任务已暂停}
+
+
+原 DSH 页面已成功完成修复后的环境采集，实际连接与候选一致。随后出现预算从 20 增至 80 核时、准备接口复用停用方案的运行记录、派发前系统库身份不一致三个问题。实际比对显示引擎和启动器字节相同，六项系统库不同；原因尚需进一步定位。
+
+
+
+随后只读定位确认：登录入口分配到不同节点，系统库身份随节点变化，两组摘要与失败前后的记录完全匹配。预算 20 存在任务条件中，执行规则却未绑定该值而回落到默认 100；准备接口的重复识别也没有比较验证方案与阶段。三项修复范围已收敛，等待用户决定。
+
+
+
+已通过同一页面暂停任务并核对在途提交：两条运行记录均未进入 Slurm，新增物理计算为零，原始记录保留。P2 仍未通过，后续处理方案向用户汇报，由用户决定；P3 未开始。
+
+
+
+\subsection{2026-10-29 P2 修复候选已安装，原页面接续}
+
+
+用户选中的环境初始化与错误回执修复已进入候选 4cead99，wheel 摘要前缀 647dd4c9527599c1。源码和安装版均通过 190 项检查，MCP、P0 回归、完整交接及四项 macOS/\allowbreak{}Linux CI 通过。同一验收目录先备份再升级，旧任务与失败保留。
+
+
+
+原 DSH 可见对话“Auto-LAMMPS 10 keV 级联验证与样本”已通过页面收到“软件已更新。继续刚才确认的方案，从中断处接着做。”正在核验真实分级计算与验证复用；P2 尚未完成，P3 等待本阶段汇报与用户决定。
+
+
+
+\subsection{2026-10-29 P2 可见验收阻塞待决}
+
+
+官方 DSH 已找回旧 W 方法、完成方案问答、连接集群并保存输入。环境身份读取返回空错误，模型随后错误归因并尝试登录节点引擎检查；本轮最终因工具参数格式错误而结束。新任务仍为草稿，两份输入快照保留，验证方案与运行记录均为零。建议修复环境读取诊断并定位实际失败步骤，再从同一页面接续。已按用户要求汇报阶段阻塞；P2 未验收通过，P3 未开始。详见 P2 记录。
+
+
+
+\subsection{2026-10-29 P2 安装候选与可见验收进行中}
+
+
+候选 a06df96 /\allowbreak{} wheel 5245c5ccfe518113 已实现真实引擎与运行库身份核对，保留未受影响的组件验证。安装版 183 项检查、P0 回归、MCP 和完整交接通过，四项 CI 通过。官方 DSH 可见会话“Auto-LAMMPS 10 keV 级联验证与样本”已开始，从原 W 记录制定必要小验证与一个正式样本的方案。首次模型连接失败已保留，当前从同一页面接续。P2 仍在验收，尚未进入 P3。详见 P2 记录。
+
+
+
+\subsection{2026-10-29 用户批准 P1，进入 P2}
+
+
+P1 已由用户按原完成条件批准通过：新对话自动找到过去工作、失败经验及相关文件。见 P1 验收记录。当前进入 P2，目标为有效条件直接复用、变化只补对应检查。后续每阶段完成或发现阻塞，先汇报证据、影响和建议，由用户拍板。
+
+
+
+三轮尝试及问题全部保留：讨论中的轻量数据读取作为交互体验记录，采样时间解释归 P4，更换势后的局部复用归 P2。以下“P1 尚未完成”是用户此次决定前的历史判断。
+
+
+
+P2 首次核对的 13 项验证复用检查通过：换势实际只要求补关联的文件与数值检查，环境和输出检查可保留。下一项为实际引擎身份变化识别，再贯通固定安装候选的分级验证流程。见 P2 阶段记录。
+
+
+
+\subsection{2026-10-29 P1 实现与三轮可见验收}
+
+
+当前仍为 P1，P0 已完成；P2–P4 按顺序等待。详见 P1 验收记录。
+
+
+
+已补齐单文件资源读取、组合成员的实际文件核对、中英文关键词检索、自动失败记忆、主 skill 与阶段引导。现有 W 输入、失败日志、实际势组合和作者参考组合已登记，原始研究数据与历史保持。候选 7d9e89a 的安装版 174 项检查、P0 回归和 514 文件交接流程通过。
+
+
+
+三轮官方 DSH 验收均从可见页面输入同一句简短需求。最新“复用W级联研究资产讨论”能够自动找到过去工作、区分两套势组合、读取实际检查、保持暂停，并先展示摘要再问三项选择。仍发现讨论扩展成新轨迹分析、采样时间表述错误和更换势时笼统要求全部重验，P1 尚未完成。已保留失败记录；下一步先做紧凑证据返回与讨论范围的最小复现，解决后再进行可见复测。新增物理提交为零。
+
+
+
+日常服务仍是 a10，候选 a11 使用独立验收目录。固定 README 安装提示词保持不变。
+
+
+
+\subsection{2026-10-29 P0 已验收，进入 P1}
+
+
+按批准计划顺序完成 P0 控制与结果核验。候选 91ffc5e /\allowbreak{} wheel ae6c274efb10f9b5 的安装版 169 项检查、MCP 实测检查、514 文件与 38 条操作的交接流程通过；测试隔离修正 9441423 的四项 macOS/\allowbreak{}Linux CI 全部通过。
+
+
+
+官方 DSH 在可见页面完成暂停和升级后复核：同一任务保持 revision 15，当前失败回执使成果概览判为未通过，历史完成与当前完成分别显示。修复过程中发现的错误、旧包及检查回执全部保留；新增物理提交为零。
+
+
+
+当前阶段为 P1：补齐实际 W 势与短程配置的成套资源、历史经验及原生文件关联，随后由新 DSH 可见对话自动检索。P2 的验证复用、P3 的真实批次与 P4 完整科研流程仍按顺序等待各阶段验收。日常服务仍为 a10；上述 a11 候选在独立验收目录运行。
+
+
+
+\subsection{2026-10-29 按新计划重新核对}
+
+
+本轮依据能力改进完整计划。P0–P3 已有实现及软件检查，完整用户验收尚未闭合；当前先完成 P0、P1 的缺项。P4 尚未完成。
+
+
+
+\begin{longtable}{p{4.67cm}p{4.67cm}p{4.67cm}}
+\toprule
+阶段 & 已有证据 & 尚需完成 \\
+\midrule\endhead
+P0 控制与结果核验 & 暂停与派发版本核对、实测检查回执、成果缺项和旧自报通过处理已有实现及回归 & 在同一安装候选上完成原 W 错误判据和不完整检查样本的逐项验收，补齐科学检查 \\
+P1 本地记忆与成套资源 & 共享持久记忆、检索、纠正、阶段上下文及资源组合接口已实现；DSH 保存了一条候选方法 & 将实际 W 势、短程配置、原生调用和依据登记为完整组合；真实新会话自动找到并读取过去工作 \\
+P2 验证复用与分级验证 & 条件与依赖匹配、局部失效、撤销和预算累计通过软件检查 & 完成真实“小计算验证→正式计算”链条，并证明只补缺项；补齐真实引擎身份变化的核对 \\
+P3 批次与监视 & 20 个样本身份、零新增预验证、种子去重及暂停恢复通过调度替身测试 & 真实批量执行、跨会话控制、运行监视与费用对账完整验收 \\
+P4 完整分析与用户验收 & 官方 DSH 命令行完成旧 W 日志分析；报告发现采样点与积分步混淆 & 纠正科学问题；在用户可见的官方 DSH 新研究中贯通流程，再由 Codex 接续、追加分析与交接 \\
+\bottomrule
+\end{longtable}
+
+
+版本证据：d56e164 的源码检查记录为 154 项通过，GitHub 上四项 macOS/\allowbreak{}Linux CI 均通过，PR \#41 仍待合并；首个独立安装候选 SHA-256 前缀为 126b289fcf2a45eb，对应较早实现。该安装检查不能覆盖后续依赖和 gzip 轨迹修复。当前对话 doctor 实测仍连接 0.1.0a10、schema 1；a11 新能力尚未交付到日常服务。
+
+
+
+后台分析使用已有 W 日志，新增物理提交为零。启动时没有让用户看到对应会话，随后又花时间寻找界面；这没有满足用户流程要求。计划包含 W 数据修正，但先前把此项报告工作提前作为推进重点，未先关闭 P0–P3 的完成条件。原分析、失败和费用保留；报告修正与轨迹续分析尚未再次启动。
+
+
+
+下一步按 P0、P1 未完成条件推进：固定安装候选中的控制及检查验收、W 成套资源与历史经验登记、新会话自动检索；随后贯通 P2、P3 的复用和批次，最后执行可见的 P4 完整用户验收。原计划的独立 Ni、24 项研究、12 项保留任务、36 次恢复、八类科学反例、双平台与七天监视继续保留。
+
+
+
+\subsection{2026-10-29 能力改进候选}
+
+
+Issue \#40 的独立分支已实现本地记忆、组件验证匹配、预算累计、批次身份和控制、实测成果回执、正反样例检查程序登记与节点能量监视。阶段说明接回 skill 和 MCP。原固定安装提示词保持原文。
+
+
+
+源码检查扩展至154项。首个固定安装候选完成 MCP 接入、分析失败恢复、图像预览、514文件交接与重新导入；f21624b 的四项 macOS/\allowbreak{}Linux CI 通过。官方 DSH 从一句话完成真实 W 日志分析、四项成果与候选方法记忆，过程111次工具调用、开发者中途补充为零。独立复核发现首个输出采样被误述为首个积分步；交付指南已更新，报告修正与真实轨迹周期几何复核仍待执行。
+
+
+
+同条件20个独立样本、零新增预验证、暂停恢复和跨方案种子去重已通过软件回归。真实新研究、20次物理重复、跨平台新安装以及原计划整体规模指标仍需各自实测验收；本轮新增计算提交为零。源码与更新手册见 PR \#41。
+
+
+
+\subsection{2026-10-27 历史进展}
+
+
+日期：2026-10-27。主任务：Issue \#1。开发版本：0.1.0a10；已发布版本：0.1.0-alpha.7。
+
+
+
+\subsection{公开使用入口}
+
+
+Issue \#38 完善 README：首页保留原固定安装提示词，补齐安装准备、三种研究入口、阶段反馈与任务控制、后台接续、新电脑迁移、资源复用、版本区别和文档导航。Agent 安装指南按同一发布标签选择安装器、包、摘要和说明，并以当前对话工具回执核对连接。该更新属于公开使用说明，独立用户安装与研究验收继续按原计划推进。
+
+
+
+\subsection{当前 Ni 交付}
+
+
+官方 DSH 已在固定安装版本 a10 中接续同一 Ni 任务，完成 256 原子、500 K NVT 5 ps 和 NVE 10 ps 的 15,000 步计算，回收温度、体积、总能、逐原子势能、11 帧轨迹及初末结构。五张图、原生数据、中文报告和完整成果包已生成；独立文件复核验证包内摘要与全部五条执行记录，保留环境验证、三次失败和成功作业。
+
+
+
+真实流程修复了 compute 求值时序、回收重复字段及含运行历史的导出故障，并纠正分析端点、压力定义、能量漂移展示和报告来源标注。软件测试 129 项、macOS/\allowbreak{}Linux CI、固定 wheel 安装流程及官方 DSH 实际工具调用均通过。独立使用者的新研究验收、跨平台材料任务及后续规模指标继续待办。
+
+
+
+旧资源库已接入：4 个已有本地势资源核验，416 条既有资源索引保留来源与版本。新命令工具按实际引擎版本读取并缓存官方说明；固定输入快照自动检查已知 compute 求值错误。对应 PR \#33、\#36 已合并。
 
 
 
@@ -681,7 +1597,7 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 \subsection{尚未交付}
 
 
-安装后的 Ni 完整研究、独立使用者验收、双平台材料计算流程、科学反例全覆盖、36 次故障恢复、24 项研究和七天监视。PDF 手册与可编辑源稿已生成，随交付进展更新。
+独立使用者的新研究验收、双平台材料计算流程、科学反例全覆盖、36 次故障恢复、24 项研究和七天监视。PDF 手册与可编辑源稿已生成，随交付进展更新。
 
 
 
@@ -738,8 +1654,33 @@ Issue \#26 补齐大成果包导出的持续反馈。新版本逐块归档，显
 
 开发版本 a8 允许在分析或导出持有操作权时保存后续请求，并明确等待指定操作结束。恢复后沿用原请求；任务暂停和后台关闭仍阻止派发。当前正在完成固定安装验证。
 
+
+
+
+
+阶段二已获用户开始指令，官方 DSH 已建立 Ni 研究并核对既有势文件和引擎。旧版资源库纳入核心产品：Issue \#32 补齐旧势目录与作者代码清单导入、分页搜索、文件摘要核对和原生代码读取。来源目录保持原样，索引记录与可用文件分别呈现。固定安装提示词保持批准文本。
+
+
+
+Ni 第四次正式作业完成 15,000 步，官方 DSH 已生成五张图和中文 PDF；前三次失败与全部费用保留。真实导出发现 runs.cluster 纯文本被错误解析为 JSON，Issue \#35 补齐包含 Slurm 历史的导出回归。Issue \#34 将旧版官方命令经验接到原生脚本：按引擎版本读取官方文档并缓存，输入检查给出行号及来源，准备执行时核对固定快照。当前在检查和安装修复版本，随后只恢复原成果导出。
+
 \clearpage
 \section{验证记录}
+
+
+\subsection{2026-10-29 — Memory, validation reuse and batch candidate}
+
+
+Issue \#40 /\allowbreak{} PR \#41 adds service-measured checks, shared persistent memory, scoped validation reuse, cumulative preflight costs, independent batch identities and compute-node log monitoring. The regression suite covers 20 prepared production samples with zero additional preflights, plan revocation during staging, changed model/\allowbreak{}helper dependencies, duplicated seeds across plan versions, source changes, backup restoration and gzip trajectory identities/\allowbreak{}cell geometry.
+
+
+
+Installed wheel 126b289f\allowbreak{}cf2a45eb\allowbreak{}b3e72509\allowbreak{}9494bfd1\allowbreak{}3af6e751\allowbreak{}7e2c81c6\allowbreak{}afcf2458\allowbreak{}7c15196b completed the actual MCP import, failed-analysis recovery, plot preview, 514-file export and reimport journey, retaining 38 operations. Source commit f21624b passed four macOS/\allowbreak{}Linux CI checks. The official DSH runtime then received one natural-language request for existing W log analysis and completed four deliverables, a 46-file handoff and candidate method memory through 111 tool calls, with no intervening developer prompts and zero physical submissions.
+
+
+
+Independent review identified a scientific wording error: the first sampled output was called the first integration step. The original report and trace are retained. The delivery guide now distinguishes sampling from integration and correlated spread from mean uncertainty. Report correction and real-trajectory geometry verification remain pending; no follow-up analysis was dispatched. The headless CLI session did not establish visible DSH acceptance. P0–P4 implementation and remaining acceptance are tracked separately in PROGRESS.md. These execution records remain in the private acceptance directory, linked to source and installed package identities.
+
 
 
 日期：2026-10-27。验证按下列固定版本分别记录，源码、安装包和实际安装记录各自保存身份。
@@ -838,5 +1779,23 @@ Independent verification of the existing scientific data compared 144,000 select
 
 
 The recovered background turn completed on the same a7 runtime. The four-page PDF and corrected sample statistic were independently read, all previously verified numerical files retained their hashes, and the third archive matched all 1,177 manifest entries (4,780,252,942 bytes). Repeating installation after the work completed succeeded with the same service process. The package is published as alpha.7. A README count mismatch and a rejected continuation intent remain recorded in Issues \#14, \#28 and \#29.
+
+
+
+\subsection{2026-10-27 — Existing resource library}
+
+
+Issue \#32 adds import of existing potential records and author-project indexes, preserving original metadata and source files. Three focused checks cover byte integrity, bounded native-code reading, repeated imports, material search, paging, existing-code bindings, incomplete records and path escape rejection. All 118 software checks and the public-tree/\allowbreak{}review-register checks passed. Installed-resource acceptance follows the active DSH Ni workflow; the running study remains on its recorded installed version.
+
+
+
+\subsection{a10 原生命令与真实运行交接}
+
+
+129 项软件检查通过，公开树检查与 45 条审核登记一致。新增检查覆盖三个 compute-current 失败模式、dump 与 reduce/\allowbreak{}thermo 正确路径、动态依赖、官方文档缓存完整性与分页、固定输入快照，以及带集群名称、失败记录和费用的导出重导入。实际 Ni 第四次作业完成，报告与图表已生成；修复版本安装后继续原成果导出，保留此前导出失败。
+
+
+
+固定安装候选 0b913d2（wheel SHA-256 a7341309\allowbreak{}30c548b3\allowbreak{}3080d9b3\allowbreak{}e1bb43e9\allowbreak{}de6214f5\allowbreak{}456677d3\allowbreak{}6f16ec82\allowbreak{}51814755）通过 514 文件、37 操作的安装后流程及官方 DSH 当前会话检查。DSH 实际调用新命令工具获取 28Mar2023 官方说明，并完成同一 Ni 研究的计算、失败恢复、分析、报告和完整导出。安装工具对原失败输入报告明确行号，对修正输入返回零项已知错误。独立核对轨迹 11 帧、每帧 256 个完整原子编号，逐原子势能求和与同一步日志的最大差为 0.0001 eV。完整包的文件大小、摘要和五条执行身份逐项一致，原失败及费用保留。后续报告文字修订沿用同一数据，不再计算。
 
 \end{document}

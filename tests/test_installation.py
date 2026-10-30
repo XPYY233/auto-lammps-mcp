@@ -122,6 +122,7 @@ def test_installer_failure_returns_parseable_recovery_receipt(tmp_path):
 
 
 def test_install_without_host_preserves_global_skills(tmp_path, monkeypatch):
+    from auto_lammps_mcp.identity import runtime_identity
     user = tmp_path / "user"
     existing = user / ".agents/skills/auto-lammps-mcp/SKILL.md"
     existing.parent.mkdir(parents=True)
@@ -131,7 +132,11 @@ def test_install_without_host_preserves_global_skills(tmp_path, monkeypatch):
     binary.write_text("installed entry")
     monkeypatch.setattr(Path, "home", lambda: user)
     monkeypatch.setattr(sys, "executable", str(binary.with_name("python")))
-    receipt = install(Store(tmp_path / "state"), host="none", managed=False)
+    runtime_identity.cache_clear()
+    try:
+        receipt = install(Store(tmp_path / "state"), host="none", managed=False)
+    finally:
+        runtime_identity.cache_clear()
     assert existing.read_text() == "existing selected host version"
     assert Path(receipt["hosts"]["none"]["skill"]) != existing.parent
     assert (Path(receipt["hosts"]["none"]["skill"]) / "SKILL.md").is_file()

@@ -49,6 +49,11 @@ def brief(data):
         return data
     keys = {"operation_id", "kind", "run_id", "job_id", "state", "stage_id", "artifact_id", "path", "filename", "revision", "reason", "next_action", "complete", "missing", "active_runs", "active_work", "confirmed_at", "last_confirmed"}
     result = {key: value for key, value in data.items() if key in keys}
+    for key in ('batch_id', 'summary', 'progress', 'accounted_core_hours', 'latest_evidence_at'):
+        if key in data:
+            result[key] = data[key]
+    if 'batches' in data:
+        result['batches'] = [brief(batch) for batch in data['batches'][:5]]
     for key in ("error", "message"):
         if key in data:
             result[key] = str(data[key])[:600]
@@ -78,7 +83,8 @@ def task_summary(task):
         run.pop("environment", None)
         run.pop("rules", None)
     for artifact in task["artifacts"]:
-        artifact["checks_passed"] = all(check["passed"] for check in artifact.pop("checks"))
+        checks = artifact.pop('checks')
+        artifact['checks_passed'] = bool(checks) and not artifact.get('stale', False) and all(check.get('current_passed', False) for check in checks)
         artifact["source_count"] = len(artifact.pop("sources"))
     for work in task["work"]:
         if work.get("result"):
