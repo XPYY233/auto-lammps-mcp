@@ -31,6 +31,8 @@ For operation_read/response_read, offset starts at zero and limit/text_limit are
 
 ## Execution and feedback
 
+Keep task-specific scientific autonomy: use required/advisory/candidate checks and preserve unaffected results. Host Agents may propose candidate criteria in parallel, compare the same retained data, then merge the justified final method. Read the memory/validation guide for phase selection, native checkers and scoped recovery. Never infer a physical cause solely from exceeding a threshold.
+
 All physical evaluations, including run 0 and engine checks, use accounted HPC through run_prepare/run_submit. Read the task's current policy and authorization; diagnostics, edits and existing-data analysis are separate from calculation submissions. Ordinary research, reference runs and formal B keep their own rules. Preserve stopped historical campaigns.
 
 Show task name, completed work, current stage, latest evidence time, next action and needed decisions. Reuse existing outputs and tools. Never change a fixed scientific condition silently. Completion requires the user's requested artifacts and checks, including a real archive when requested.

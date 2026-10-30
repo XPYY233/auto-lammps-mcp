@@ -144,6 +144,7 @@ class Slurm:
             command = 'bash ' + shlex.quote(run['entry'])
             if monitor:
                 atomic_write(root / '.alm-guard.py', Path(__file__).with_name('node_guard.py').read_bytes())
+                atomic_write(root / 'alm_phases.py', Path(__file__).with_name('phases.py').read_bytes())
                 atomic_write(root / '.alm-guard-spec.json', encode(dict(checks=monitor)).encode())
                 command = 'python3 .alm-guard.py .alm-guard-spec.json ' + shlex.quote(run['entry'])
             if runtime:

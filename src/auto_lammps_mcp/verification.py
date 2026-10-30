@@ -9,13 +9,14 @@ import time
 from .core import Fault, encode, identifier, require
 from .files import file_hash
 from .research_store import evidence_current, save_memory
-from .science import inspect_dump, thermo_blocks
+from .science import inspect_dump
+from .phases import blocks as thermo_blocks, selected, applicability
 
 CHECK_VERSION = '2'
 OPTIONS = {
  'file': {'min_bytes', 'contains'},
  'csv': {'columns', 'min_rows', 'bounds'},
- 'thermo': {'columns', 'min_rows', 'block', 'energy_column', 'max_abs_drift', 'time_column'},
+ 'thermo': {'columns', 'min_rows', 'block', 'phase', 'energy_column', 'max_abs_drift', 'time_column', 'balance'},
  'trajectory': {'columns', 'min_frames', 'atoms'},
  'energy_jump': {'before_block', 'after_block', 'column', 'expected', 'tolerance'},
  'json': {'values', 'bounds'},
@@ -27,7 +28,15 @@ def validate_checks(checks):
     for check in checks:
         require(isinstance(check, dict) and check.get('kind') in OPTIONS and isinstance(check.get('path'), str),
                 '检查需要 kind 和项目相对 path；支持 file、csv、thermo、trajectory、energy_jump')
-        require(set(check) <= {'kind', 'path', 'unit', 'basis'} | OPTIONS[check['kind']], '检查包含未知参数')
+        require(set(check) <= {'kind', 'path', 'unit', 'basis', 'role', 'action'} | OPTIONS[check['kind']], '检查包含未知参数')
+        require(check.get('role', 'required') in ('required', 'advisory', 'candidate'), 'role 使用 required/advisory/candidate')
+        require(check.get('action', 'warn') in ('warn', 'stop'), 'action 使用 warn/stop')
+        if 'phase' in check:
+            require(isinstance(check['phase'], dict) and check['phase'] and set(check['phase']) <=
+                    {'fix_id', 'style', 'group', 'marker', 'run_index', 'timestep'}, 'phase 使用执行日志中的 fix_id/style/group/marker/run_index/timestep')
+            require('block' not in check, 'phase 与 block 选择一种；推荐实际阶段选择')
+        if check.get('balance') == 'task_specific':
+            require(isinstance(check.get('basis'), str) and check['basis'].strip(), '任务专属能量变化检查需要 basis 说明依据')
         for key in ('min_rows', 'min_frames', 'min_bytes', 'atoms'):
             if key in check:
                 require(type(check[key]) is int and check[key] > 0, key + ' 应为正整数')
@@ -102,25 +111,43 @@ def execute_check(path, spec):
             passed = passed and min(values) >= bounds.get('min', -math.inf) and max(values) <= bounds.get('max', math.inf)
         return measured, passed
     blocks = thermo_blocks(path)
-    require(blocks and all(b['rows'] for b in blocks), '热力学输出不完整')
+    require(blocks, '没有热力学输出')
     if kind == 'energy_jump':
         before, after = blocks[spec['before_block']], blocks[spec['after_block']]
+        require(all(b['rows'] and not b['errors'] for b in (before, after)), '注入前后采样不完整')
         column = spec.get('column', 'TotEng')
         value = after['rows'][0][after['columns'].index(column)] - before['rows'][-1][before['columns'].index(column)]
         measured = dict(delta=value, expected=spec['expected'], absolute_error=abs(value - spec['expected']))
         # Preserve repeated Step values across blocks; injection has two states at one time.
         return measured, measured['absolute_error'] <= spec['tolerance']
-    selected = [blocks[spec['block']]] if 'block' in spec else blocks
+    chosen = [(i, b) for i, b in enumerate(blocks) if selected(b, i, spec)]
+    require(chosen, '未找到对应执行阶段；读取真实日志中的 fix/unfix/run，或增加运行时阶段标记')
     measured, passed = [], True
-    for block in selected:
+    reference = None
+    previous_index, previous_generation = -2, None
+    for index, block in chosen:
         columns, rows = block['columns'], block['rows']
         missing = set(spec.get('columns', [])) - set(columns)
-        item = dict(rows=len(rows), columns=columns, first_line=block['first_line'], missing_columns=sorted(missing))
+        item = dict(rows=len(rows), columns=columns, first_line=block['first_line'], missing_columns=sorted(missing), phase=block['phase'])
+        if not rows or block['errors']:
+            item['errors'] = block['errors'] or ['该阶段没有采样']
+            measured.append(item)
+            passed = False
+            continue
+        mismatch = applicability(block['phase'], spec)
+        if mismatch:
+            item['applicability'] = mismatch
+            measured.append(item)
+            passed = False
+            continue
         passed = passed and not missing and len(rows) >= spec.get('min_rows', 1)
         if 'max_abs_drift' in spec:
             column = spec.get('energy_column', 'TotEng')
             values = [r[columns.index(column)] for r in rows]
-            item['max_abs_drift'] = max(abs(x - values[0]) for x in values)
+            if reference is None or not spec.get('phase') or index != previous_index + 1 or block['phase']['generation'] != previous_generation:
+                reference = values[0]
+            item['reference'] = reference
+            item['max_abs_drift'] = max(abs(x - reference) for x in values)
             passed = passed and item['max_abs_drift'] <= spec['max_abs_drift']
         if 'time_column' in spec:
             values = [r[columns.index(spec['time_column'])] for r in rows]
@@ -128,7 +155,22 @@ def execute_check(path, spec):
             item['physical_time'] = [values[0], values[-1]]
             passed = passed and item['time_monotonic']
         measured.append(item)
-    return dict(blocks=measured, checked_blocks=len(selected), total_blocks=len(blocks)), passed
+        previous_index, previous_generation = index, block['phase']['generation']
+    return dict(blocks=measured, checked_blocks=len(chosen), total_blocks=len(blocks)), passed
+
+
+def required(spec):
+    return spec.get('role', 'required') == 'required'
+
+
+def measurement_identity(spec):
+    identity = {k: v for k, v in spec.items() if k not in (
+        'min_rows', 'min_frames', 'min_bytes', 'max_abs_drift', 'tolerance', 'expected',
+        'unit', 'basis', 'bounds', 'values', 'role', 'action')}
+    for field in ('bounds', 'values'):
+        if field in spec:
+            identity[field] = sorted(spec[field])
+    return encode(identity)
 
 
 def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=None, operation_id=None, compute_runtime=None):
@@ -148,17 +190,19 @@ def run_checks(store, task_id, checks, artifacts=(), plan_id=None, component=Non
         except (Fault, ValueError, IndexError, KeyError, OSError) as exc:
             results.append(dict(specification=check, passed=False, error=str(exc)))
     current = len(sources) == len(paths) and evidence_current(store, task_id, sources)
-    passed = current and all(r['passed'] for r in results)
+    obligations = [r for r in results if required(r['specification'])]
+    passed = current and bool(obligations) and all(r['passed'] for r in obligations)
     value = dict(id=receipt_id, task_id=task_id, plan_id=plan_id, component=component,
                  checker_version=CHECK_VERSION, checks=results, passed=passed, sources=sources,
-                 artifacts=list(artifacts), evidence_current=current, created=time.time(), compute_runtime=compute_runtime)
+                 artifacts=list(artifacts), evidence_current=current, created=time.time(), compute_runtime=compute_runtime,
+                 candidate_only=not obligations, advisory=[r for r in results if not required(r['specification'])], phase_checker_version=1)
     with store.transaction() as db:
         db.execute('INSERT INTO check_receipts VALUES(?,?,?,?,?,?,?,?,?)',
                    (value['id'], task_id, plan_id, component, encode(checks), encode(value), encode(sources), int(passed), value['created']))
         store.event(db, task_id, 'validation_checked', dict(receipt_id=value['id'], component=component, passed=passed))
         if not passed:
             affected = []
-            failed_paths = {c['specification']['path'] for c in results if not c['passed']}
+            failed_paths = {c['specification']['path'] for c in obligations if not c['passed']}
             latest = {r['path']: r for r in db.execute('SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid', (task_id,))}
             for artifact in latest.values():
                 if not failed_paths.intersection({artifact['path'], *json.loads(artifact['sources'])}):
@@ -197,24 +241,27 @@ def receipt_current(store, db, task_id, receipt_id, artifact=None):
             return False
     if json.loads(row['result']).get('checker_version') != CHECK_VERSION:
         return False
+    result = json.loads(row['result'])
+    if not result.get('phase_checker_version') and any(c['specification'].get('kind') == 'thermo'
+            and 'max_abs_drift' in c['specification'] for c in result.get('checks', [])):
+        return False
     # Keep the latest scientific verdict for each measured quantity and source version.
     # A file-existence check cannot clear a later failed numerical check.
+    original_checks = json.loads(row['result']).get('checks', [])
+    identities = {measurement_identity(c['specification']) for c in original_checks if required(c['specification'])}
     latest_reviews = {}
     for review in db.execute('SELECT sources,result FROM check_receipts WHERE task_id=? AND created>=? ORDER BY created,rowid',
                              (task_id, row['created'])):
         hashes, result = json.loads(review['sources']), json.loads(review['result'])
         for check in result.get('checks', []):
             spec = check['specification']
+            if not required(spec) or measurement_identity(spec) not in identities:
+                continue
             path = spec['path']
             if path not in sources or hashes.get(path) != sources[path]:
                 continue
             # Threshold amendments keep the same measurement identity.
-            identity = {k: v for k, v in spec.items() if k not in (
-                'min_rows', 'min_frames', 'min_bytes', 'max_abs_drift', 'tolerance', 'expected', 'unit', 'basis', 'bounds', 'values')}
-            for field in ('bounds', 'values'):
-                if field in spec:
-                    identity[field] = sorted(spec[field])
-            latest_reviews[encode(identity)] = check['passed']
+            latest_reviews[measurement_identity(spec)] = check['passed']
     if not all(latest_reviews.values()):
         return False
     previous = json.loads(row['result']).get('reused_from')

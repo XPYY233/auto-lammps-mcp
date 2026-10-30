@@ -48,7 +48,7 @@ def environment(store):
     return {key: cluster.get(key) for key in ('environment_script', 'partition')}
 
 
-def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
+def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None, declared_components=None):
     task = store.task(db, task_id)
     row = db.execute('SELECT * FROM validation_plans WHERE id=?', (plan_id,)).fetchone()
     require(row and allowed(db, task_id, row['task_id']), '验证方案不存在或不在当前研究的访问范围')
@@ -68,7 +68,8 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
             differences.append('plan_disabled')
         if component['id'] in suspended:
             differences.append('component_suspended')
-        differences.extend('new_condition:' + key for key in conditions if key not in spec['conditions'])
+        if declared_components is None:
+            differences.extend('new_condition:' + key for key in conditions if key not in spec['conditions'])
         for path in component['files']:
             if normalized.get(path) != spec['inputs'].get(path):
                 differences.append('file:' + path)
@@ -89,7 +90,7 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
                 from .runtime_probe import program_identity
                 if program_identity(latest['identity']) != program_identity(runtime['identity']):
                     differences.append('runtime_changed')
-        if new_inputs:
+        if new_inputs and declared_components is None:
             differences.extend('new_input:' + x for x in new_inputs)
         receipt = db.execute('SELECT * FROM check_receipts WHERE plan_id=? AND component=? ORDER BY created DESC,rowid DESC LIMIT 1',
                              (plan_id, component['id'])).fetchone()
@@ -112,14 +113,16 @@ def match_plan(store, db, task_id, snapshot_id, plan_id, conditions=None):
         ready = not differences
         if ready:
             used.append(receipt['id'])
-        components.append(dict(id=component['id'], scope=component['scope'], ready=ready,
+        components.append(dict(id=component['id'], scope=component['scope'], ready=ready, required=component.get('required', True),
                                differences=differences, receipt_id=receipt['id'] if receipt else None))
-    ready = bool(components) and all(c['ready'] for c in components)
+    required_components = [c for c in components if c['required']]
+    ready = bool(required_components) and all(c['ready'] for c in required_components)
     return dict(plan_id=plan_id, source_task_id=row['task_id'], ready=ready,
                 runtime_observed_at=spec.get('runtime', {}).get('observed_at'), runtime_rechecked_before_dispatch=True,
                 reuse='direct' if ready else 'partial' if any(c['ready'] for c in components) else 'needs_validation',
                 components=components, parameters=parameters, receipt_ids=used,
-                missing=[c['id'] for c in components if not c['ready']],
+                missing=[c['id'] for c in components if c['required'] and not c['ready']],
+                advisory_missing=[c['id'] for c in components if not c['required'] and not c['ready']],
                 next_action='正式计算或批量重复' if ready else '只补 missing 列出的检查')
 
 
@@ -164,7 +167,7 @@ def dispatch_gate(store, db, run):
             '已准备作业的启动环境与当前配置不一致', 'validation_changed', '保留原作业，按新环境准备新执行意图')
     if binding['stage'] == 'production':
         require(match['ready'], '当前输入存在未完成的验证项', 'validation_required', match['next_action'])
-        scopes = {c['scope'] for c in match['components']}
+        scopes = {c['scope'] for c in match['components'] if c['required'] and c['ready']}
         require({'static', 'environment', 'numerics', 'outputs'} <= scopes, '正式计算需要文件、环境、数值与输出验证',
                 'validation_required', '补齐对应验证组件')
     else:

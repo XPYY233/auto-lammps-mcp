@@ -185,7 +185,7 @@ class ResearchOperations:
     @public
     def check_run(self, task_id: str, revision: int, checks: list[dict], op_id: str,
                   artifacts: list[str] | None = None, token: str | None = None) -> dict:
-        """Queue actual file checks; service computes verdict and hashes. Each has kind,path, optional unit,basis. file: min_bytes,contains; csv: columns,min_rows,bounds={column:{min,max}}; json: values={field:expected},bounds; thermo: block,columns,min_rows,energy_column,max_abs_drift,time_column; trajectory: columns,min_frames,atoms; energy_jump: before_block,after_block,column,expected,tolerance. artifacts binds companion files. Read operation_get then check_get. No physical evaluation."""
+        """Queue checks of existing data; no physics. Each has kind,path and optional unit,basis,role (required/advisory/candidate). Candidate/advisory results never revoke required evidence. file: min_bytes,contains; csv: columns,min_rows,bounds; json: values,bounds; thermo: phase={fix_id,style,group,marker,timestep}, columns,min_rows,energy_column,max_abs_drift,time_column. Use log_phases facts; block is a legacy selector. Raw energy drift during heat/work exchange needs a task-specific basis and balance=task_specific or an accounted energy column. trajectory: columns,min_frames,atoms; energy_jump: before_block,after_block,column,expected,tolerance. artifacts binds companion files. Read operation_get/check_get."""
         validate_checks(checks)
         for path in [c['path'] for c in checks] + (artifacts or []):
             self.store.path(task_id, path)
@@ -205,17 +205,32 @@ class ResearchOperations:
             return {**json.loads(row['result']), 'current_passed': receipt_current(self.store, db, row['task_id'], receipt_id)}
 
     @public
+    def log_phases(self, task_id: str, path: str) -> dict:
+        """Inspect actual executed LAMMPS phases in an existing log, including fixes, groups, time step, units and normalization. Use those facts as thermo phase selectors; repeated runs/headers need no hand-counted block index. Reads existing data only."""
+        from .phases import blocks
+        target = self.store.path(task_id, path)
+        result = []
+        for index, block in enumerate(blocks(target)):
+            times = [r[block['columns'].index('Time')] for r in block['rows']] if 'Time' in block['columns'] else []
+            result.append(dict(block=index, phase=block['phase'], first_line=block['first_line'],
+                columns=block['columns'], rows=len(block['rows']), errors=block['errors'], time_range=[times[0], times[-1]] if times else None))
+        return dict(path=path, sha256=file_hash(target), phases=result,
+                    guidance='选择实际 fix_id/style/group 或已输出的 marker。缺少命令回显时，在后续原生脚本保留 echo log/阶段标记；无需重跑已有数据分析。')
+
+    @public
     def validation_plan(self, task_id: str, revision: int, snapshot_id: str, entry: str,
                         components: list[dict], op_id: str, variations: list[dict] | None = None,
                         budget_core_hours: float | None = None, reuse_from: str | None = None, token: str | None = None,
-                        monitor: list[dict] | None = None, runtime_id: str | None = None) -> dict:
-        """Freeze native inputs and checks before preflight. Confirm policy.preflight_core_hours and preflight_budget_authorization first; omitted budget_core_hours uses that confirmed cap, not a default. runtime_id comes from login-node file discovery; actual compute-node runtime is established by accounted preflight and checked before production entry. Each component has id, scope (static/environment/numerics/outputs/analysis), files, condition_keys, checks. Cover all inputs and scientific conditions. variations permits integer seed variables: path,variable,min,max. reuse_from copies compatible measured components. Production requires static/environment/numerics/outputs. Physical checks use run_prepare(stage='preflight',validation_id=...)."""
+                        monitor: list[dict] | None = None, runtime_id: str | None = None,
+                        reuse_sources: list[str] | None = None, rationale: str = '') -> dict:
+        """Freeze task-specific criteria and native input dependencies. Components: id,scope (static/environment/numerics/outputs/analysis),files,condition_keys,checks; optional required=false for exploratory components, checker_id for a qualified native Python checker. Cover all inputs and conditions. Checks use role=required/advisory/candidate; only required evidence gates dependent work. Node monitor uses actual thermo phase selectors and action=warn (default) or explicit stop; no global physical tolerance. Changes retain rationale and parents. reuse_from or reuse_sources merges identical, valid components; changing a monitor preserves unrelated checks. Compare variants with validation_compare before selecting final criteria. variations: path,variable,min,max for seeds. Confirm policy.preflight_core_hours and preflight_budget_authorization; budget_core_hours defaults to that cap. runtime_id comes from environment_capture. Production requires static/environment/numerics/outputs; only missing checks need accounted preflight."""
         require(budget_core_hours is None or (math.isfinite(budget_core_hours) and budget_core_hours > 0), '预验证预算应为正数')
         require(components and len({c.get('id') for c in components}) == len(components), '验证组件需要唯一 id')
         variations = variations or []
+        parents = list(dict.fromkeys(([reuse_from] if reuse_from else []) + (reuse_sources or [])))
         if monitor:
             validate_checks(monitor)
-            require(all(c['kind'] == 'thermo' and set(c) <= {'kind', 'path', 'unit', 'block', 'energy_column', 'max_abs_drift'} for c in monitor), '节点监视使用 thermo 的分段能量漂移检查')
+            require(all(c['kind'] == 'thermo' for c in monitor), '实时节点监视使用 thermo；原生专属检查通过 checker_register/checker_check 接入')
         require(len({(v.get('path'), v.get('variable')) for v in variations}) == len(variations), '种子定义重复')
         for v in variations:
             require(set(v) == {'path', 'variable', 'min', 'max'} and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', v['variable']), '种子定义需要 path/variable/min/max')
@@ -225,8 +240,8 @@ class ResearchOperations:
             files = snapshot_files(self.store, db, task_id, snapshot_id)
             from .runtime_evidence import read as read_runtime
             selected_runtime = runtime_id
-            if selected_runtime is None and reuse_from:
-                source = db.execute('SELECT specification FROM validation_plans WHERE id=?', (reuse_from,)).fetchone()
+            if selected_runtime is None and parents:
+                source = db.execute('SELECT specification FROM validation_plans WHERE id=?', (parents[0],)).fetchone()
                 if source:
                     selected_runtime = json.loads(source[0]).get('runtime', {}).get('id')
             runtime = read_runtime(self.store, db, task_id, selected_runtime)
@@ -240,10 +255,19 @@ class ResearchOperations:
             normalized, parameters = normalized_files(self.store, files, variations)
             inputs = set()
             for c in components:
-                require(set(c) == {'id', 'scope', 'files', 'condition_keys', 'checks'} and c['id'] and c['scope'] in SCOPES, '验证组件字段无效')
+                fields = {'id', 'scope', 'files', 'condition_keys', 'checks'}
+                require(fields <= set(c) <= fields | {'required', 'checker_id'} and c['id'] and c['scope'] in SCOPES, '验证组件字段无效')
+                require(type(c.get('required', True)) is bool, 'required 使用 true/false；可选检查不阻断其他工作')
                 require(c['files'] and set(c['files']) <= set(files), '组件需要真实快照输入')
                 require(set(c['condition_keys']) <= set(task['constraints_json']), '条件字段不在当前任务中')
                 validate_checks(c['checks'])
+                require(not c.get('required', True) or any(x.get('role', 'required') == 'required' for x in c['checks']),
+                        '候选检查放入 required=false 组件；正式组件至少选择一项 required 判据')
+                if c.get('checker_id'):
+                    registered = self.store.setting(c['checker_id'])
+                    require(registered and allowed(db, task_id, registered['task_id']), '原生检查程序未登记或不可访问')
+                    require(any(files[p]['sha256'] == registered['script_sha256'] for p in c['files']), '组件依赖应包含已验证的原生检查程序')
+                    require(len(c['checks']) == 1 and {k: v for k, v in c['checks'][0].items() if k not in ('path', 'role', 'action')} == registered['criteria'], '组件判据与已验证原生检查程序不一致')
                 for check in c['checks']:
                     self.store.path(task_id, check['path'])
                 inputs.update(c['files'])
@@ -252,18 +276,19 @@ class ResearchOperations:
             require(set().union(*(set(c['condition_keys']) for c in components)) == set(task['constraints_json']), '每项科学条件都需要关联至少一个验证组件')
             spec = dict(entry=entry, conditions=task['constraints_json'], components=components, variations=variations,
                         inputs={p: normalized[p] for p in sorted(inputs)}, snapshot_paths=sorted(files),
-                        environment=environment(self.store), runtime=runtime, budget_core_hours=budget, monitor=monitor or [])
+                        environment=environment(self.store), runtime=runtime, budget_core_hours=budget, monitor=monitor or [],
+                        parents=parents, rationale=rationale)
             pid = identifier('validation')
             db.execute('INSERT INTO validation_plans VALUES(?,?,?,?,?,1,?)',
                        (pid, task_id, snapshot_id, encode(spec), digest(encode(spec).encode()), time.time()))
             reused = []
-            if reuse_from:
-                match = match_plan(self.store, db, task_id, snapshot_id, reuse_from)
-                source = json.loads(db.execute('SELECT specification FROM validation_plans WHERE id=?', (reuse_from,)).fetchone()[0])
+            for parent in parents:
+                match = match_plan(self.store, db, task_id, snapshot_id, parent, declared_components=components)
+                source = json.loads(db.execute('SELECT specification FROM validation_plans WHERE id=?', (parent,)).fetchone()[0])
                 previous = {c['id']: c for c in source['components']}
                 for c in components:
                     old = next((x for x in match['components'] if x['id'] == c['id'] and x['ready']), None)
-                    if old and previous[c['id']] == c and source['variations'] == variations and source.get('monitor', []) == (monitor or []):
+                    if c['id'] not in reused and old and previous[c['id']] == c and source['variations'] == variations:
                         row = db.execute('SELECT * FROM check_receipts WHERE id=?', (old['receipt_id'],)).fetchone()
                         rid = identifier('check')
                         value = {**json.loads(row['result']), 'id': rid, 'plan_id': pid, 'reused_from': row['id']}
@@ -272,9 +297,23 @@ class ResearchOperations:
                         reused.append(c['id'])
             self.store.bump(db, task_id)
             self.store.event(db, task_id, 'validation_planned', dict(plan_id=pid, reused=reused))
-            return dict(plan_id=pid, revision=revision + 1, reused=reused, specification=spec)
+            return dict(plan_id=pid, revision=revision + 1, reused=reused, specification=spec,
+                        guidance='候选判据用 role=candidate；提醒用 advisory；仅依赖 required 的工作受失败影响。修改判据说明 rationale，并复用未变组件。')
         return self.store.mutate(op_id, dict(method='validation_plan', task_id=task_id, revision=revision, snapshot_id=snapshot_id,
-            entry=entry, components=components, variations=variations, budget_core_hours=budget_core_hours, reuse_from=reuse_from, token=token, monitor=monitor, runtime_id=runtime_id), apply)
+            entry=entry, components=components, variations=variations, budget_core_hours=budget_core_hours, reuse_from=reuse_from, token=token, monitor=monitor, runtime_id=runtime_id, reuse_sources=reuse_sources, rationale=rationale), apply)
+
+    @public
+    def validation_compare(self, task_id: str, plan_ids: list[str], snapshot_id: str) -> dict:
+        """Compare candidate/final plans against the same inputs and actual receipts without new physics. Host agents may propose/check candidates concurrently, then select component criteria with a rationale in validation_plan(reuse_sources=[...]). Agreement is not measurement; preserve contrary evidence."""
+        require(1 <= len(plan_ids) <= 10, '一次比较 1 至 10 份方案')
+        result = []
+        with self.store.connect() as db:
+            for pid in plan_ids:
+                match = match_plan(self.store, db, task_id, snapshot_id, pid)
+                plan = json.loads(db.execute('SELECT specification FROM validation_plans WHERE id=?', (pid,)).fetchone()[0])
+                receipts = [json.loads(r[0]) for r in db.execute('SELECT result FROM check_receipts WHERE plan_id=? ORDER BY created', (pid,))]
+                result.append(dict(plan_id=pid, components=plan['components'], rationale=plan.get('rationale', ''), match=match, receipts=receipts))
+        return dict(plans=result, physics_submissions=0, next_action='依据方法适用性和实测证据选择/合并组件；保留候选分歧，不以通过票数选择科学判据')
 
     @public
     def validation_match(self, task_id: str, snapshot_id: str, plan_id: str) -> dict:
@@ -307,8 +346,9 @@ class ResearchOperations:
 
     @public
     def validation_check(self, task_id: str, revision: int, plan_id: str, component_id: str,
-                         op_id: str, run_id: str | None = None, data_root: str = '', token: str | None = None) -> dict:
-        """Execute a frozen validation component on existing output. environment/numerics/outputs require this plan's completed accounted preflight run and collected output directory. Static/analysis checks use project files. Returns a durable operation id."""
+                         op_id: str, run_id: str | None = None, data_root: str = '', token: str | None = None,
+                         analysis_operation_id: str | None = None) -> dict:
+        """Execute one frozen component on existing evidence. environment/numerics/outputs use run_id and collected data_root='runs/<run_id>'; a terminal failed job can supply complete usable components. Matching old runs can be rechecked under revised criteria without another simulation. A component with checker_id additionally uses analysis_operation_id from analysis_submit on that run's collected data; program version, qualified fixtures and raw data are verified. Static/analysis checks use project files. Returns a durable operation id; missing evidence affects this component only."""
         def apply(db):
             self.store.task(db, task_id, revision, token)
             row = db.execute('SELECT * FROM validation_plans WHERE id=? AND task_id=? AND active=1', (plan_id, task_id)).fetchone()
@@ -317,11 +357,18 @@ class ResearchOperations:
             c = next((c for c in spec['components'] if c['id'] == component_id), None)
             require(c, '验证组件不存在')
             if c['scope'] in ('environment', 'numerics', 'outputs'):
-                run = db.execute('SELECT r.* FROM runs r JOIN run_validations v ON v.run_id=r.id WHERE r.id=? AND r.task_id=? AND v.plan_id=?', (run_id, task_id, plan_id)).fetchone()
-                require(run and run['state'] == 'completed' and run['job_id'], '该组件需要已完成的记账计算')
-                coverage = match_plan(self.store, db, task_id, run['snapshot_id'], plan_id)
+                run = db.execute('SELECT r.*,p.specification AS source_plan FROM runs r JOIN run_validations v ON v.run_id=r.id JOIN validation_plans p ON p.id=v.plan_id WHERE r.id=? AND r.task_id=?', (run_id, task_id)).fetchone()
+                require(run and run['state'] in ('completed', 'failed', 'cancelled', 'timeout') and run['job_id'], '该组件需要已结束并记账的计算；按实际完整数据检查对应部分')
+                source_conditions = json.loads(run['source_plan'])['conditions']
+                require(all(source_conditions.get(k) == spec['conditions'].get(k) for k in c['condition_keys']), '原作业条件与当前检查不匹配')
+                coverage = match_plan(self.store, db, task_id, run['snapshot_id'], plan_id, conditions=source_conditions)
                 item = next(x for x in coverage['components'] if x['id'] == component_id)
-                require(not any(d.startswith(('file:', 'condition:', 'environment', 'runtime', 'new_input:', 'new_condition:', 'plan_disabled')) for d in item['differences']), '该作业不再匹配当前验证条件')
+                checker_files = set()
+                if c.get('checker_id'):
+                    registered = self.store.setting(c['checker_id'])
+                    checker_files = {p for p in c['files'] if spec['inputs'][p]['sha256'] == registered['script_sha256']}
+                require(not any(d.startswith(('file:', 'condition:', 'environment', 'runtime', 'new_input:', 'new_condition:', 'plan_disabled'))
+                                and d not in {'file:' + p for p in checker_files} for d in item['differences']), '该作业不再匹配当前验证条件')
                 require(json.loads(run['environment'])['environment_script'] == spec['environment']['environment_script'], '该作业实际启动环境与验证方案不一致')
                 expected = 'runs/' + run_id
                 require(data_root == expected or data_root.startswith(expected + '/'), '使用对应作业已回收的实际数据目录')
@@ -333,13 +380,26 @@ class ResearchOperations:
                 require(runtime_path in hashes and self.store.path(task_id, runtime_path).is_file()
                         and file_hash(self.store.path(task_id, runtime_path)) == hashes[runtime_path],
                         '计算节点环境身份缺失或与回收回执不一致')
-                for check in c['checks']:
+                for check in ([] if c.get('checker_id') else c['checks']):
                     name = data_root.rstrip('/') + '/' + check['path']
                     require(name in hashes and self.store.path(task_id, name).is_file() and file_hash(self.store.path(task_id, name)) == hashes[name], '验证数据与回收回执不一致: ' + name)
                 from .runtime_evidence import node_receipt
                 measured_runtime = node_receipt(json.loads(self.store.path(task_id, runtime_path).read_text()), spec['runtime'], run['job_id'])
                 require(measured_runtime.get('passed'), '计算节点环境检查未通过')
             checks = [{**check, 'path': data_root.rstrip('/') + '/' + check['path'] if data_root else check['path']} for check in c['checks']]
+            artifacts = []
+            if c.get('checker_id'):
+                from .checkers import analysis_evidence
+                from .research_store import evidence_current
+                checker = self.store.setting(c['checker_id'])
+                require(checker and evidence_current(self.store, checker['task_id'], checker['sources']), '检查程序样例证据已变化')
+                item = analysis_evidence(self.store, db, task_id, analysis_operation_id, c['checks'][0]['path'])
+                require(item['script_sha256'] == checker['script_sha256'], '分析程序与已验证程序不一致')
+                if c['scope'] in ('environment', 'numerics', 'outputs'):
+                    raw = {p: sha for p, sha in item['sources'].items() if p.startswith(expected + '/')}
+                    require(raw and all(hashes.get(p) == sha for p, sha in raw.items()), '原生检查必须读取对应作业已回收的真实数据')
+                checks = [{**c['checks'][0], 'path': item['path']}]
+                artifacts = list(item['sources'])
             if c['scope'] in ('environment', 'numerics', 'outputs'):
                 checks.append(dict(kind='json', path=runtime_path,
                                    values={'passed': True, 'fingerprint': measured_runtime['fingerprint'],
@@ -347,10 +407,10 @@ class ResearchOperations:
             for check in checks:
                 self.store.path(task_id, check['path'])
             self.store.bump(db, task_id)
-            return self.store.queue(db, task_id, 'check', dict(checks=checks, artifacts=[], plan_id=plan_id, component=component_id,
+            return self.store.queue(db, task_id, 'check', dict(checks=checks, artifacts=artifacts, plan_id=plan_id, component=component_id,
                 compute_runtime=measured_runtime if c['scope'] in ('environment', 'numerics', 'outputs') else None))
         return self.store.mutate(op_id, dict(method='validation_check', task_id=task_id, revision=revision, plan_id=plan_id,
-            component_id=component_id, run_id=run_id, data_root=data_root, token=token), apply)
+            component_id=component_id, run_id=run_id, data_root=data_root, token=token, analysis_operation_id=analysis_operation_id), apply)
 
     @public
     def resource_bundle(self, resource_ids: list[str], name: str, usage: dict, op_id: str) -> dict:

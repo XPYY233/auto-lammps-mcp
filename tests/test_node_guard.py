@@ -19,7 +19,7 @@ def test_incremental_guard_waits_for_complete_row_and_detects_early_drift(tmp_pa
 
 
 def test_guard_finishes_native_process_and_preserves_failure(tmp_path):
-    (tmp_path / 'spec.json').write_text(json.dumps(dict(checks=[dict(path='log.lammps', max_abs_drift=1)], interval_seconds=.01)))
+    (tmp_path / 'spec.json').write_text(json.dumps(dict(checks=[dict(path='log.lammps', max_abs_drift=1, action='stop')], interval_seconds=.01)))
     (tmp_path / 'entry.sh').write_text("printf 'Step TotEng\\n0 -100\\n1 -80\\n' > log.lammps\nsleep 10\n")
     result = subprocess.run([sys.executable, node_guard.__file__, 'spec.json', 'entry.sh'], cwd=tmp_path, timeout=5)
     assert result.returncode == 86

@@ -62,3 +62,10 @@ NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保�
 ## 审核意见与用户验收
 
 [45 条审核意见](REVIEW_TRACEABILITY.md) 逐项列出已有结果、证据和下一项用户验收。`review-traceability.json` 保留原始要求和验收条件；更新后运行 `python scripts/render_review_traceability.py` 生成可读记录。自动检查核对编号、文件引用与两种记录的一致性。软件检查、安装验证和完整研究分别保留实际结果。
+# Task-specific validation and recovery
+
+`phases.py` reads executed commands beside thermo output. Local verification and the standalone node monitor share it. Phase selectors use actual fixes/groups/time steps or native markers. The parser returns scoped data errors and phase facts; it does not assign a scientific tolerance. `log_phases` exposes that evidence to the host Agent.
+
+Checks carry required/advisory/candidate roles; monitors additionally choose warn/stop. Candidate comparisons preserve all measurements without invalidating unrelated required evidence. `validation_compare` reads alternatives; `validation_plan(reuse_sources=..., rationale=...)` merges compatible measured components. Native qualified Python checkers attach through component `checker_id` and `validation_check(analysis_operation_id=...)`. Old collected runs can be rechecked when their actual conditions and input dependencies match. Missing/failed measurements invalidate their own quantity and component.
+
+Regression coverage includes cooling-phase mismatch, omitted first NVE, phase continuity across time-step changes, partial logs, candidate failures, scoped reuse, explicitly requested stopping, and qualified custom checks on an existing accounted run. Frozen criteria and history remain available after revision.
