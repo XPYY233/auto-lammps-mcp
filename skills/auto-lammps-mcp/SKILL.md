@@ -5,6 +5,8 @@ description: Install and use Auto-LAMMPS MCP from Codex or DSH to manage native 
 
 # Auto-LAMMPS MCP
 
+Release v1.0 · package 1.0.0. Use the installation guide shipped with the selected release.
+
 Use native scientific files with the persistent task service from Codex or official DeepSeek Harness. MCP and `alm call METHOD --json '{...}'` share the same service.
 
 ## Choose the relevant guide
@@ -41,6 +43,6 @@ Show task name, completed work, current stage, latest evidence time, next action
 
 At every development work turn and after context restoration, read the entire original [approved plan](references/APPROVED_PLAN.md) and the entire [capability-improvement plan](references/APPROVED_CAPABILITY_PLAN.md), then [amendments](references/PLAN_AMENDMENTS.md) and the checkout's current progress. Load the full texts into the working context; summaries do not replace them. Apply later user corrections.
 
-Locate the current P0–P4 stage and the completion condition the next action addresses. Complete and record acceptance for P0, P1, P2, P3 and P4 in order; do not skip stages. All DSH verification uses visible official page controls, never a headless/background model invocation. Distinguish implemented code, source tests, installed checks and complete user-flow acceptance. A report from existing logs does not establish memory reuse or batch acceptance. For user-facing DSH acceptance, verify the visible official session title and location before starting. This is a new project using v1.0 assets and lessons; the seven historical images need no repeated review. Keep the README's fixed installation prompt unchanged.
+Locate the current P0–P4 stage and the completion condition the next action addresses. Complete and record acceptance for P0, P1, P2, P3 and P4 in order; do not skip stages. All DSH verification uses visible official page controls, never a headless/background model invocation. Distinguish implemented code, source tests, installed checks and complete user-flow acceptance. A report from existing logs does not establish memory reuse or batch acceptance. For user-facing DSH acceptance, verify the visible official session title and location before starting. This is the MCP project using assets and lessons from the historical desktop project; the seven historical images need no repeated review. Keep the README's fixed installation prompt unchanged.
 
 The user accepted P2, reviewed the completed P3 stage and authorized P4 development on 2026-10-30. Use bounded stage acceptance while completing planned functions; run the full end-to-end acceptance after functional development. Record remaining research/integration checks in docs/ACCEPTANCE.md. Report stage completion or material blockers for the user decision; do not reopen an accepted stage for a single case. Preserve scientific failures, costs and task controls independently of development-stage acceptance.

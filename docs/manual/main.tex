@@ -6,14 +6,14 @@
 \setlength{\parindent}{0pt}
 \emergencystretch=3em
 \begin{document}
-\title{Auto-LAMMPS MCP\\项目开发与交付手册}
+\title{Auto-LAMMPS MCP v1.0\\项目开发与交付手册}
 \author{Auto-LAMMPS}
 \date{2026年10月30日}
 \maketitle
 从安装提示词进入现有 Agent 平台，完成科研执行、持续监视、分析和交接。
 \tableofcontents
 \clearpage
-\section{Auto-LAMMPS MCP}
+\section{Auto-LAMMPS MCP v1.0}
 
 
 在 Codex 或 DeepSeek Harness 中，用自然语言完成材料模拟研究。
@@ -24,11 +24,15 @@ Agent /\allowbreak{}ˈeɪdʒənt/\allowbreak{}（智能体）直接编写 LAMMPS
 
 
 
-当前开发候选加入本地记忆、验证复用和批量研究：用户可以说“沿用上次方案，再做20次独立重复”。Agent 检索过去工作，已覆盖条件直接准备正式批次，只为变化补充验证。具体安装版本与实测进度见交付记录。下面的固定安装提示词继续作为统一入口。
+v1.0 提供本地记忆、验证复用和批量研究：用户可以说“沿用上次方案，再做20次独立重复”。Agent 检索过去工作，已覆盖条件直接准备正式批次，只为变化补充验证。具体安装版本与实测进度见交付记录。下面的固定安装提示词继续作为统一入口。
 
 
 
 当前使用环境：macOS · Codex /\allowbreak{} 官方 DeepSeek Harness（DSH）· Slurm 超算。
+
+
+
+下载正式版 v1.0 · Python 包版本 1.0.0。Linux 源码与隔离安装通过自动检查；Windows 原生安装仍在后续交付计划中。
 
 
 
@@ -231,7 +235,7 @@ flowchart TD\par
 
 
 
-当前源码还提供按引擎版本读取、缓存官方命令说明的工具。脚本生成与修正时可读取命令格式、示例和限制；提交准备会检查输入快照中的已知错误。资源检索会区分已有文件和待获取的索引条目。资源与命令使用方法 →
+软件提供按引擎版本读取、缓存官方命令说明的工具。脚本生成与修正时可读取命令格式、示例和限制；提交准备会检查输入快照中的已知错误。资源检索会区分已有文件和待获取的索引条目。资源与命令使用方法 →
 
 
 
@@ -242,15 +246,15 @@ flowchart TD\par
 \toprule
 入口 & 当前内容 \\
 \midrule\endhead
-已发布安装包：0.1.0-alpha.7 & 版本安装器、Codex/\allowbreak{}DSH 接入、持久任务、原生分析、后台接续和研究包导入导出 \\
-当前源码：0.1.0a10 & 增加旧资源库接入、版本化官方命令说明、已知输入错误检查，以及真实 Slurm 回收和导出修复 \\
+正式版 v1.0 & Python 包 1.0.0；MCP/\allowbreak{}CLI、持久任务、资源与官方语法、本地记忆、验证复用、批次执行、分析版本和成果交接 \\
+P0–P4 开发与阶段检查 & 功能开发完成；阶段证据见交付记录 \\
 Ni 开发流程 & 已完成 256 原子、500 K 平衡 5 ps、NVE 10 ps；交付五张图、11 帧轨迹、报告与完整研究包，保留三次失败和后续成功记录 \\
-下一项整体验收 & 独立用户从安装开始完成新研究与一次恢复，随后推进四类研究、双平台完整流程、故障测试和七天监视 \\
+当前整体验收 & 官方 DSH 正在完成 NbTiZrMoV 新研究的完整应用流程；独立安装、真实批次、四类研究矩阵、故障恢复和七天监视继续按计划推进 \\
 \bottomrule
 \end{longtable}
 
 
-固定安装提示词默认选择发布包；Agent 使用同一发布标签下的指南和安装器。选择当前源码时，记录固定提交及对应验证结果。发布包和当前源码的具体记录见交付进度、验证记录与验收指标。
+固定安装提示词默认选择正式发布包；Agent 使用同一发布标签下的指南、skill 和安装器。版本变更见发布说明，实测记录见交付进度、验证记录与验收指标。
 
 
 
@@ -274,7 +278,7 @@ Ni 开发流程 & 已完成 256 原子、500 K 平衡 5 ps、NVE 10 ps；交付�
 \begin{quote}\small
 git clone https:/\allowbreak{}/\allowbreak{}github.com/\allowbreak{}XPYY233/\allowbreak{}auto-lammps-mcp.git\par
 cd auto-lammps-mcp\par
-git checkout -{}-detach v0.1.0-alpha.7\par
+git checkout -{}-detach v1.0\par
 \end{quote}
 
 
@@ -360,6 +364,68 @@ uv pip install -e .\par
 项目采用 Apache-2.0。第三方资源按各自来源和许可使用，参见资产来源记录。
 
 \clearpage
+\section{Auto-LAMMPS MCP v1.0}
+
+
+2026年10月30日 · 发布标签 v1.0 · Python 包 1.0.0 · 数据库版本 2
+
+
+
+在 Codex 或官方 DeepSeek Harness 中描述研究需求，由 Agent 编写原生科研脚本，软件保存项目、执行计算、监视进展并交接成果。
+
+
+
+\subsection{本版交付}
+
+
+\noindent\textbullet\quad MCP 与命令行连接同一持久服务，保存需求、规则、操作、文件版本和费用。
+
+
+\noindent\textbullet\quad 复用已有势函数、项目与运行环境，提供版本化 LAMMPS 官方命令说明和已知错误检查。
+
+
+\noindent\textbullet\quad 本地记忆检索过去的方法、失败与成果；成套资源保留来源、元素映射及适用条件。
+
+
+\noindent\textbullet\quad 分级验证关联实际检查回执，按组件复用有效证据，条件变化只补相关检查。
+
+
+\noindent\textbullet\quad 批次保存独立样本、种子与验证来源，支持进度汇总、暂停恢复及跨对话接续。
+
+
+\noindent\textbullet\quad 原生分析支持失败恢复、方法修订、曲线与轨迹对应、成果版本和完整研究包。
+
+
+\noindent\textbullet\quad 固定安装提示词、版本安装器、平台连接、skill、用户指南与开发交付手册随版本发布。
+
+
+
+
+\subsection{安装和更新}
+
+
+从 README 复制原固定安装提示词。Agent 使用同一标签的安装器、wheel、校验摘要和指南。发布附件 release.json 保存源码提交、包版本与文件摘要；SHA256SUMS 用于核对下载文件。
+
+
+
+macOS 提供托管安装与桌面后台。Linux 源码和隔离安装通过自动检查，服务管理需自行配置。Windows 原生安装继续开发。前台使用 Codex 或官方 DSH，计算使用已配置的 Slurm。
+
+
+
+更新前保存现有数据库与项目备份，保留旧安装回执。数据库版本 2 的恢复流程见《后台与恢复》。运行中的研究继续使用其固定环境，完成后再安排升级。
+
+
+
+\subsection{验证进度}
+
+
+P0–P4 功能开发及阶段检查已完成。发布过程执行完整软件检查、公开树检查、审核映射核对，并从构建的 wheel 完成 MCP 调用、原生分析、失败恢复、图片预览和研究包交接检查。确切提交和持续集成结果保留在 PR \#41 与发布记录中。
+
+
+
+Ni 开发流程已有真实计算及成果。NbTiZrMoV 完整应用验收继续进行，独立新电脑安装、真实批次、24项研究矩阵、保留任务、故障恢复、科学反例和七天监视按原验收清单推进。已有尝试、失败、费用及科学结论完整保存。
+
+\clearpage
 \section{给 Agent 的安装指南}
 
 
@@ -382,6 +448,10 @@ uv pip install -e .\par
 \end{longtable}
 
 
+v1.0 的托管安装与桌面后台使用 macOS。Linux 支持源码及 -{}-no-launchd 隔离安装，持久服务需自行配置；Windows 原生安装尚未提供。先识别系统并据此说明可用路径。
+
+
+
 当前仓库提供 Python 安装器、Codex 注册入口、DSH stdio 连接配置和 skill；插件分发包在交付记录中单列。
 
 
@@ -397,7 +467,7 @@ uv pip install -e .\par
 
 
 
-从 Releases 选择已发布版本，记录标签、源码提交和安装包摘要。公开候选版本也显示在该列表中。README 的开发版本号说明当前源码进度，安装包版本以所选发布记录为准。
+默认安装正式版 v1.0，Python 包版本为 1.0.0。记录标签、源码提交和安装包摘要。后续更新从 Releases 选择正式发布，显式指定候选版本时保留其验证记录。
 
 
 
@@ -1101,6 +1171,10 @@ task\_\allowbreak{}get.executor 显示当前操作权持有人和期限；active
 \section{验收指标}
 
 
+2026-10-30 已按用户指令进入全套验收，首项采用第一周 NbTiZrMoV 论文。固定 P4 候选、可见 DSH 入口、科学问答及各环节状态见 NbTiZrMoV 验收记录。
+
+
+
 2026-10-30 用户确认：P2 阶段通过；继续 P3、P4 的功能开发与阶段验收，全部功能完成后执行本文件的全套验收。阶段记录保存实现及当前证据，整体指标在最终验收逐项核对。
 
 
@@ -1188,6 +1262,28 @@ NumPy /\allowbreak{} Matplotlib & 各项目公开发行包，BSD /\allowbreak{} 
 
 \clearpage
 \section{当前交付记录}
+
+
+\subsection{2026-10-30 v1.0 正式发布}
+
+
+用户已要求将当前软件发布为正式 v1.0。Issue \#42 记录发布，PR \#41 合并 P0–P4 能力；Python 包和运行时统一为 1.0.0，首页、固定安装入口、skill 与开发交付手册同步。发布资产与检查记录见版本说明。
+
+
+
+当前 NbTiZrMoV 完整流程验收继续使用已固定的 a11 环境；日常服务及运行中作业不随公开发布自动升级。原计划的独立使用、真实批次、研究矩阵、故障和长期监视继续逐项记录。
+
+
+
+\subsection{2026-10-30 全套验收开始}
+
+
+用户指定第一周 NbTiZrMoV 论文。固定 P4 候选 852c40c 已接入官方 DSH 可见新对话“NbTiZrMoV 基准拉伸研究方案”。服务升级前完成备份，原 W 暂停状态与旧实验保留。
+
+
+
+DSH 已自动读取工作指南、核对实际连接、检索和定位第一周资源，建立任务并保存五项成果；科学问答已在页面确认。两次节点小验证合计0.7733核时，完整基准作业已通过 MCP 提交。正在核验监视、分析、Codex 接续和交接。用户进一步确认本项验收的是新版完整应用流程；旧 P–A–B 保留原记录。详见 本项验收记录。
+
 
 
 \subsection{2026-10-30 P4 实现与阶段检查完成}

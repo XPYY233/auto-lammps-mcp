@@ -1,5 +1,11 @@
 # Development audit
 
+## 2026-10-30 v1.0 发布
+
+GitHub 连接器创建发布 Issue 返回 403（Resource not accessible by integration），未产生新 Issue。现有本机 GitHub CLI 已能读取同一仓库、PR 和发布记录，改用该已登录入口完成授权的发布流程；源码、运行环境和科研任务未受影响。
+
+手册已由 XeLaTeX 编译成功。用于抽查页面的附加 Python 运行时缺少 PyMuPDF，改用本机已有 Poppler 渲染器核对发布页；该错误不涉及软件依赖或科研分析。
+
 ## 2026-10-30 NbTiZrMoV 可见准备阶段
 
 第二次节点核查结束，总计两次87秒、0.7733核时。DSH 在既有输出上纠正 thermo 列名检查（命令名 etotal/vol 与真实标题 TotEng/Volume 不同），重新检查通过后派发完整基准作业；原未派发准备记录被保存为 cancelled_before_dispatch。旧日志、检查失败和费用均保留，当前继续验证运行反馈与成果流程。

@@ -5,7 +5,7 @@ For the capability-improvement work, identify the current P0–P4 stage, its unm
 Use the repository skill in `skills/auto-lammps-mcp/SKILL.md` for research usage.
 The user accepted P2, reviewed the completed P3 stage and authorized P4 development on 2026-10-30. Development now uses bounded stage acceptance; run the full end-to-end acceptance suite after all planned functions are developed. Report each stage's implemented outcomes, stage checks and remaining integration evidence. Keep the final acceptance ledger instead of reopening an accepted stage for one research case. Report completion or a material blocker for the user's decision. The paused W case and its scientific evidence remain preserved; stage acceptance does not change its scientific result or dispatch state.
 
-This is a new project with a new skill. v1.0 supplies reusable assets and failure evidence. The seven historical interface/roadmap images no longer require repeated review.
+This is a new project with a new skill. The historical desktop project supplies reusable assets and failure evidence. The seven historical interface/roadmap images no longer require repeated review.
 
 - The approved product uses Codex/DSH, native scientific files, MCP/CLI, a persistent task service and Slurm. User outcomes determine scope.
 - Keep the original request, scientific conditions, required outputs, attempts and failures. A scheduler exit is one event in a research workflow.

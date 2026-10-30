@@ -52,7 +52,7 @@ def render(markdown):
     return "\n".join(out)
 
 
-documents = ["README.md", "docs/FOR_AGENTS_INSTALL.md", "docs/USER_GUIDE.md", "docs/MEMORY_REUSE.md", "docs/DEVELOPMENT.md", "docs/RECOVERY.md", "docs/ACCEPTANCE.md", "docs/ASSET_PROVENANCE.md", "docs/PROGRESS.md", "docs/VALIDATION.md"]
+documents = ["README.md", "docs/RELEASE_V1.md", "docs/FOR_AGENTS_INSTALL.md", "docs/USER_GUIDE.md", "docs/MEMORY_REUSE.md", "docs/DEVELOPMENT.md", "docs/RECOVERY.md", "docs/ACCEPTANCE.md", "docs/ASSET_PROVENANCE.md", "docs/PROGRESS.md", "docs/VALIDATION.md"]
 source = r"""\documentclass[11pt,a4paper]{ctexart}
 \usepackage[margin=22mm]{geometry}
 \usepackage{longtable,booktabs,array,xcolor,hyperref}
@@ -61,7 +61,7 @@ source = r"""\documentclass[11pt,a4paper]{ctexart}
 \setlength{\parindent}{0pt}
 \emergencystretch=3em
 \begin{document}
-\title{Auto-LAMMPS MCP\\项目开发与交付手册}
+\title{Auto-LAMMPS MCP v1.0\\项目开发与交付手册}
 \author{Auto-LAMMPS}
 \date{2026年10月30日}
 \maketitle

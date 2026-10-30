@@ -1,5 +1,7 @@
 # Installation and setup
 
+The formal release is v1.0 (package 1.0.0). Read its release manifest and match the installer, wheel, guide and skill to that tag. Managed desktop installation uses macOS; Linux source/isolated installation uses --no-launchd. Native Windows installation is pending.
+
 Follow the repository's `docs/FOR_AGENTS_INSTALL.md`. Detect local execution and MCP support. Reuse an existing installation. Use the actual executable path returned by the installer. Keep installation progress and give a copyable resume sentence when the host needs a new session.
 
 If installation returns service_busy, read the current task's progress and resume the saved installation after its active upload, analysis or background turn finishes. The existing installation remains available. Accepted work stays in its queue while an upgrade owns service replacement and resumes after startup.
