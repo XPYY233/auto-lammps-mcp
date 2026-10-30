@@ -58,7 +58,7 @@ NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保�
 
 `batch_dataset` 根据实际回收文件生成样本清单，保留工况、种子、重试链及排除原因。`analysis_submit(batch_id,batch_files)` 固定文件摘要，工作进程再次核对并生成 `batch-samples.json`；原生脚本选择统计方法。`method` 记录定义、区间及不确定度，`supersedes` 关联历史分析；完成和失败自动进入本地记忆，保留观察状态。
 
-`results_get` 读取需求覆盖、当前/失效/被替代的成果、近期分析与导入来源。`artifact_register(description,supersedes)` 将新路径成果与旧编号关联，保留原文件及全部要求；`completion_check` 检查当前有效结果。元数据放入 schema 2 的现有 settings，随备份和研究记录导出。交接包 README 列出相对路径；重新导入保留原始成果目录与操作记录。
+`results_get` 读取需求覆盖、当前/失效/被替代的成果、近期分析与导入来源。`artifact_register` 的 `description` 和 `supersedes` 字段将新路径成果与旧编号关联，保留原文件及全部要求；`completion_check` 检查当前有效结果。元数据放入 schema 2 的现有 settings，随备份和研究记录导出。交接包 README 列出相对路径；重新导入保留原始成果目录与操作记录。
 
 `trajectory_correlate` 对齐轨迹、热力学实际采样及执行阶段，保留重复步数歧义。解析器读取 `ITEM: TIME`、单位、盒原点/边向量和按原子编号的类型变化。类型固定检查按任务选择，时间缺失时返回缺项。定义来自官方 [dump_modify](https://docs.lammps.org/dump_modify.html) 和 [thermo_style](https://docs.lammps.org/thermo_style.html)。
 

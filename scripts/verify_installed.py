@@ -47,9 +47,9 @@ async def verify(home, incoming):
             tools = {tool.name for tool in (await client.list_tools()).tools}
             assert {'batch_dataset', 'results_get', 'trajectory_correlate'} <= tools
 
-            async def invoke(method, **values):
-                response = await client.call_tool(method, values)
-                assert not response.isError, (method, response.content)
+            async def invoke(tool_name, **values):
+                response = await client.call_tool(tool_name, values)
+                assert not response.isError, (tool_name, response.content)
                 return json.loads(response.content[0].text)
 
             async def finished(operation, expected="completed"):

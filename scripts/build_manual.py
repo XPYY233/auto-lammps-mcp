@@ -63,7 +63,7 @@ source = r"""\documentclass[11pt,a4paper]{ctexart}
 \begin{document}
 \title{Auto-LAMMPS MCP\\项目开发与交付手册}
 \author{Auto-LAMMPS}
-\date{2026年10月29日}
+\date{2026年10月30日}
 \maketitle
 从安装提示词进入现有 Agent 平台，完成科研执行、持续监视、分析和交接。
 \tableofcontents
