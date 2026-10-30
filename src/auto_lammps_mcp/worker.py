@@ -563,6 +563,9 @@ class Worker:
                 if path.is_file():
                     files[name] = dict(path=str(path), sha256=file_hash(path), size=path.stat().st_size)
             return dict(status=status, sources=sources, input_copies=input_copies, input_bindings=payload.get("input_bindings", {}), outputs=files, script=payload["script"],
+                        method=payload.get('method', {}), supersedes=payload.get('supersedes'),
+                        batch=payload.get('batch'),
+                        immutable_sources={relative_root + '/' + name: sources[copy['source']] for name, copy in input_copies.items()},
                         directory=str(result_root), log=str(output) if output.exists() else None,
                         log_path=relative_root + "/analysis.log" if output.exists() else None,
                         receipt_path=receipt_path, exit_code=returncode,
@@ -579,6 +582,10 @@ class Worker:
                 mode = copy_independent(original, destination)
                 input_copies[name] = dict(source=source, method=mode, bytes=destination.stat().st_size)
                 sources[source] = file_hash(destination)
+                expected = payload.get('batch', {}).get('source_hashes', {}).get(source)
+                require(not expected or sources[source] == expected, '批次分析输入在准备后变化: ' + source, 'analysis_input_changed', '读取原数据变化，保留本次回执后重新准备分析')
+            if payload.get('batch'):
+                atomic_write(result_root / 'batch-samples.json', encode(payload['batch']).encode())
             environment = {**os.environ, "MPLBACKEND": "Agg", "PYTHONUNBUFFERED": "1"}
             with output.open("wb") as log:
                 started = True
@@ -673,6 +680,9 @@ class Worker:
 
     def export(self, task_id, requirement_ids=None, token=None, operation_id=None):
         task = self.service.task_get(task_id, include_details=True)
+        from .delivery import handoff_readme
+        catalog = self.service.results_get(task_id)
+        task['result_catalog'] = catalog
         key = identifier("export")
         archive = self.store.home / "exports" / (key + ".zip")
         progress = dict(phase="reading_sources", files_done=0, files_total=None, input_bytes_done=0,
@@ -719,7 +729,7 @@ class Worker:
                 package.writestr("project-manifest.json", encode(files))
                 package.writestr("research-record.json", encode(task))
                 package.writestr("events.json", encode(sorted(task["events"], key=lambda event: event["seq"])))
-                package.writestr("README.txt", "Auto-LAMMPS 研究交接\n打开 research-record.json 读取原始需求、规则、执行与成果。\nproject/ 保存原生脚本、输入、数据和图表。project-manifest.json 保存 SHA-256。\n在新对话中说：使用 Auto-LAMMPS 导入这个研究结果包，说明已完成内容和剩余成果，然后继续分析。\n")
+                package.writestr("README.txt", handoff_readme(task, catalog))
             publish(force=True, phase="checking_archive", current_file=None)
             receipt = dict(path=str(archive), filename=archive.name, sha256=file_hash(archive), files=len(files),
                            manifest_digest=digest(encode(files).encode()), requirement_ids=requirement_ids or [])

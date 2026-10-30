@@ -86,13 +86,21 @@ def dump_cell(header, lines):
 
 def inspect_dump(path):
     """Inspect per-atom trajectory identities and columns without treating averages as local data."""
-    frames, ids = [], None
+    frames, ids, identities, units = [], None, None, None
     opener = gzip.open if str(path).endswith('.gz') else open
     with opener(path, 'rt') as stream:
         while True:
             line = stream.readline()
             if not line:
                 break
+            physical_time = None
+            while line.strip() in ('ITEM: TIME', 'ITEM: UNITS'):
+                if line.strip() == 'ITEM: TIME':
+                    physical_time = float(stream.readline())
+                    require(math.isfinite(physical_time), '轨迹时间不是有限数')
+                else:
+                    units = stream.readline().strip()
+                line = stream.readline()
             require(line.strip() == "ITEM: TIMESTEP", "轨迹帧头不完整")
             step = int(stream.readline())
             require(stream.readline().strip() == "ITEM: NUMBER OF ATOMS", "轨迹缺少原子数")
@@ -106,6 +114,7 @@ def inspect_dump(path):
             columns = header[2:]
             require("id" in columns, "轨迹需要原子身份 id")
             frame_ids = set()
+            frame_types = {}
             for _ in range(count):
                 values = stream.readline().split()
                 require(len(values) == len(columns), "轨迹帧不完整")
@@ -113,9 +122,43 @@ def inspect_dump(path):
                 atom = int(values[columns.index("id")])
                 require(atom not in frame_ids, "同一帧存在重复原子身份")
                 frame_ids.add(atom)
+                frame_types[atom] = {key: values[columns.index(key)] for key in ('type', 'element') if key in columns}
             identity_changed = ids is not None and ids != frame_ids
-            frames.append(dict(step=step, atoms=count, columns=columns, box=box, cell=cell, identity_changed=identity_changed))
-            ids = frame_ids
+            changes = sum(any(key in identities[atom] and value != identities[atom][key] for key, value in mapping.items())
+                          for atom, mapping in frame_types.items() if identities is not None and atom in identities)
+            frames.append(dict(index=len(frames), step=step, time=physical_time, units=units, atoms=count, columns=columns,
+                               box=box, cell=cell, identity_changed=identity_changed, type_changes=changes))
+            ids, identities = frame_ids, frame_types
     require(frames, "没有读到完整轨迹帧")
     return dict(frames=frames, frame_count=len(frames))
+
+
+def correlate_trajectory(trajectory, log, phase=None):
+    """Match saved frames to actual thermo samples; preserve repeated-step ambiguity.
+
+    Physical time uses dump_modify time or thermo Time, including variable dt.
+    https://docs.lammps.org/dump_modify.html#description
+    """
+    from .phases import blocks, selected
+    report, by_step = inspect_dump(trajectory), {}
+    for index, block in enumerate(blocks(log)):
+        if not selected(block, index, {'phase': phase} if phase else {}) or 'Step' not in block['columns']:
+            continue
+        for row_index, row in enumerate(block['rows']):
+            values = dict(zip(block['columns'], row))
+            by_step.setdefault(values['Step'], []).append(dict(block=index, row=row_index, first_line=block['first_line'],
+                time=values.get('Time'), phase=block['phase'], values=values, errors=block['errors']))
+    for frame in report['frames']:
+        candidates = by_step.get(frame['step'], [])
+        if frame['time'] is not None:
+            candidates = [c for c in candidates if c['time'] == frame['time'] and
+                          (not frame['units'] or not c['phase']['units'] or frame['units'] == c['phase']['units'])]
+        status = 'matched' if len(candidates) == 1 and not candidates[0]['errors'] else 'ambiguous' if candidates else 'no_exact_sample'
+        if status == 'matched' and candidates[0]['time'] is None:
+            status = 'time_missing'
+        frame.update(match=status, thermo_samples=candidates,
+                     physical_time=frame['time'] if frame['time'] is not None else candidates[0]['time'] if status == 'matched' else None)
+    report.update(unresolved=sum(f['match'] != 'matched' for f in report['frames']),
+                  next_action='根据实际阶段选择对应采样；保留采样间隔和歧义，结构图引用 frame index/Step/实测时间')
+    return report
 

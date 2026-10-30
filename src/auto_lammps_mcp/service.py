@@ -239,6 +239,8 @@ class Service(ResearchOperations):
         output = result if include_details else task_summary(result)
         output['batches'] = self.batch_list(task_id, limit=5)
         output['batches']['read'] = dict(method='batch_list', task_id=task_id)
+        output['results'] = dict(method='results_get', task_id=task_id,
+                                 next_action='读取当前成果、分析版本、缺项和导入项目的原始记录')
         from .research_store import stage_context, DISCUSSION_GUIDE
         with self.store.connect() as db:
             output['interaction_guide'] = DISCUSSION_GUIDE
@@ -703,7 +705,22 @@ class Service(ResearchOperations):
         return self.store.mutate(op_id, dict(method="run_action", run_id=run_id, action=action, revision=revision), apply)
 
     @public
-    def analysis_submit(self, task_id: str, revision: int, script: str, inputs: list[str], outputs: list[str], op_id: str, token: str | None = None, input_bindings: dict[str, str] | None = None) -> dict:
+    def batch_dataset(self, task_id: str, batch_id: str, files: list[str]) -> dict:
+        """Preview batch analysis inputs from collected per-run files. Return independent sample/seed/condition identities, eligible members and all exclusions. files are relative to each run directory. Use analysis_submit(batch_id,batch_files) to generate batch-samples.json and samples/<run_id>/... automatically. Partial failed-run analysis can use ordinary input_bindings with an explicit method."""
+        from .delivery import batch_dataset
+        with self.store.connect() as db:
+            return batch_dataset(self.store, db, task_id, batch_id, files)
+
+    @public
+    def results_get(self, task_id: str) -> dict:
+        """Resume analysis and delivery: current artifact paths/previews, checks, replacement history, missing requirements, recent analysis methods and imported project records. Archives are finally verified by completion_check. Use task_records for older analyses."""
+        from .delivery import results_view
+        with self.store.connect() as db:
+            return results_view(self.store, db, task_id)
+
+    @public
+    def analysis_submit(self, task_id: str, revision: int, script: str, inputs: list[str], outputs: list[str], op_id: str, token: str | None = None, input_bindings: dict[str, str] | None = None,
+                        batch_id: str | None = None, batch_files: list[str] | None = None, method: dict | None = None, supersedes: str | None = None) -> dict:
         """Run a native Python script against existing data in a persistent analysis queue.
 
         script and inputs are project-relative files. They are copied, with subdirectories preserved, into analysis/<operation_id>/.
@@ -713,11 +730,15 @@ class Service(ResearchOperations):
         Reuse previous results without editing script paths: input_bindings={'data.csv':'analysis/<prior-operation>/data.csv'} maps workspace paths to project source files. inputs may be [] when bindings are provided. The receipt retains source paths, hashes and each independent input copy.
         Returns operation_id; release the task lease before polling. operation_get returns output paths, SHA-256 values and analysis.log.
         Use file_read for logs, artifact_preview for the actual image, then artifact_register to link each result to requirements.
+        For batch analysis set batch_id and batch_files (paths relative to each collected run). The service generates batch-samples.json and samples/<run_id>/... inputs, preserving planned/included/excluded members. The script chooses scientific statistics and reports their denominator.
+        method is optional native-analysis context (purpose, units, window, uncertainty, rationale); supersedes links an earlier analysis operation without deleting its files. Source/version facts are recorded by the service.
         Physics evaluations use run_prepare/run_submit on HPC.
         """
         bindings = input_bindings or {}
         require(isinstance(bindings, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in bindings.items()), "input_bindings 需要工作目录路径到项目文件路径的映射")
-        require((inputs or bindings) and outputs and script.endswith(".py"), "需要 Python 脚本、输入与输出清单")
+        require((inputs or bindings or batch_id) and outputs and script.endswith(".py"), "需要 Python 脚本、输入与输出清单")
+        require((batch_id is None) == (batch_files is None), 'batch_id 和 batch_files 一起填写')
+        require(method is None or isinstance(method, dict), 'method 使用方法说明对象')
         for name in [script, *inputs, *outputs, *bindings, *bindings.values()]:
             self.store.path(task_id, name)
             require(Path(name).as_posix() != ".", "分析路径必须指向文件")
@@ -726,22 +747,37 @@ class Service(ResearchOperations):
             normalized = Path(name).as_posix()
             require(normalized not in destinations, f"分析输入路径重复: {name}", "input_collision", "为每个输入选择独立的工作目录路径")
             destinations.add(normalized)
-        reserved = {"analysis.log", "analysis-receipt.json"}
+        reserved = {"analysis.log", "analysis-receipt.json"} | ({'batch-samples.json'} if batch_id else set())
         require(not destinations & reserved, "输入路径与分析日志或回执冲突", "input_collision")
         for name in destinations:
             require(not any(parent.as_posix() in destinations for parent in Path(name).parents), f"分析输入目录与文件冲突: {name}", "input_collision")
         require(not {Path(name).as_posix() for name in bindings} & {Path(name).as_posix() for name in outputs}, "绑定输入与输出路径冲突", "input_collision")
         def apply(db):
             self.store.task(db, task_id, revision, token)
+            if supersedes:
+                require(db.execute("SELECT 1 FROM queue WHERE id=? AND task_id=? AND kind='analysis' AND state IN ('completed','failed','interrupted')", (supersedes, task_id)).fetchone(), 'supersedes 指向本任务已结束的分析操作')
+            payload = dict(script=script, inputs=inputs, outputs=outputs, input_bindings=dict(bindings), method=method or {}, supersedes=supersedes)
+            if batch_id:
+                from .delivery import batch_dataset
+                dataset = batch_dataset(self.store, db, task_id, batch_id, batch_files)
+                require(dataset['included'], '所选批次暂无完整的已回收样本；读取 batch_dataset 的缺项')
+                require(not set(dataset['input_bindings']).intersection(destinations | set(outputs)), '批次输入与原生文件路径冲突')
+                require('batch-samples.json' not in outputs, '输出不要覆盖批次清单')
+                payload['batch'] = dataset
+                payload['input_bindings'].update(dataset['input_bindings'])
             self.store.bump(db, task_id)
-            return self.store.queue(db, task_id, "analysis", dict(script=script, inputs=inputs, outputs=outputs, input_bindings=bindings))
+            return self.store.queue(db, task_id, "analysis", payload)
         arguments = dict(method="analysis_submit", task_id=task_id, revision=revision, script=script, inputs=inputs, outputs=outputs, token=token)
         if input_bindings is not None:
             arguments["input_bindings"] = input_bindings
+        for key, value in dict(batch_id=batch_id, batch_files=batch_files, analysis_method=method, supersedes=supersedes).items():
+            if value is not None:
+                arguments[key] = value
         return self.store.mutate(op_id, arguments, apply)
 
     @public
-    def artifact_register(self, task_id: str, revision: int, path: str, sources: list[str], requirement_ids: list[str], checks: list[dict], op_id: str, token: str | None = None) -> dict:
+    def artifact_register(self, task_id: str, revision: int, path: str, sources: list[str], requirement_ids: list[str], checks: list[dict], op_id: str, token: str | None = None,
+                          description: str = '', supersedes: list[str] | None = None) -> dict:
         """Link an actual output to the user's requirement IDs, source files and verification evidence.
 
         path, sources and checks[].evidence are project-relative. The service reads their hashes; do not calculate or repeat hashes in the request.
@@ -749,10 +785,15 @@ class Service(ResearchOperations):
         The latest registration for this path supplies its current checks and complete requirement_ids. Earlier verdicts remain in history.
         A failed current check blocks its linked requirements and reopens a completed task; record corrected evidence before re-reviewing.
         An analysis result path normally starts with analysis/<operation_id>/. Returns the new task revision.
+        description labels the result for users. supersedes explicitly replaces earlier artifact IDs with a revised output, preserving their files/reviews. Replacement must retain their requirement IDs. Other results remain current.
         """
         def apply(db):
             task = self.store.task(db, task_id, revision, token)
             require(set(requirement_ids) <= {r["id"] for r in task["requirements"]}, "成果要求编号不存在")
+            require(isinstance(description, str) and (supersedes is None or isinstance(supersedes, list)), 'description 为文字；supersedes 为成果编号列表')
+            for previous in supersedes or []:
+                old = db.execute('SELECT requirements FROM artifacts WHERE id=? AND task_id=?', (previous, task_id)).fetchone()
+                require(old and set(json.loads(old[0])) <= set(requirement_ids), '替代成果需属于同一任务，并保留原成果的要求编号')
             require(checks, "检查需要服务回执")
             from .verification import receipt_current
             recorded, measured_sources = [], {}
@@ -775,13 +816,17 @@ class Service(ResearchOperations):
             require(file.is_file() and file.stat().st_size > 0, "成果文件为空或缺失")
             aid = identifier("artifact")
             db.execute("INSERT INTO artifacts(id,task_id,path,sha256,sources,requirements,checks,created) VALUES(?,?,?,?,?,?,?,?)", (aid, task_id, path, file_hash(file), encode(source_map), encode(requirement_ids), encode(recorded), time.time()))
+            self.store.set_setting(db, 'artifact_meta:' + task_id + ':' + aid, dict(description=description, supersedes=supersedes or []))
             self.store.bump(db, task_id)
             self.store.event(db, task_id, "artifact_registered", dict(artifact_id=aid, path=path))
             if requirement_ids and not all(check["passed"] for check in recorded):
                 db.execute("UPDATE tasks SET state='active' WHERE id=? AND state='completed'", (task_id,))
                 self.store.event(db, task_id, "artifact_review_failed", dict(artifact_id=aid, path=path, requirements=requirement_ids))
             return dict(artifact_id=aid, path=str(file), revision=revision + 1)
-        return self.store.mutate(op_id, dict(method="artifact_register", task_id=task_id, revision=revision, path=path, sources=sources, requirement_ids=requirement_ids, checks=checks, token=token), apply)
+        arguments = dict(method="artifact_register", task_id=task_id, revision=revision, path=path, sources=sources, requirement_ids=requirement_ids, checks=checks, token=token)
+        if description or supersedes is not None:
+            arguments.update(description=description, supersedes=supersedes)
+        return self.store.mutate(op_id, arguments, apply)
 
     @public
     def completion_check(self, task_id: str, revision: int, op_id: str, token: str | None = None) -> dict:
@@ -790,18 +835,11 @@ class Service(ResearchOperations):
             task = self.store.task(db, task_id, revision, token)
             current = manifest(self.store, task_id)
             invalidate(self.store, db, task_id, current)
-            satisfied, failed_reviews = set(), set()
+            from .delivery import artifact_catalog
+            _, satisfied, failed_reviews = artifact_catalog(self.store, db, task_id)
             archive_ids = {item["id"] for item in task["requirements"] if item.get("kind") == "archive"}
-            latest = {row["path"]: row for row in db.execute("SELECT * FROM artifacts WHERE task_id=? ORDER BY created,rowid", (task_id,))}
-            for row in latest.values():
-                if row["stale"]:
-                    continue
-                from .verification import receipt_current
-                checks = json.loads(row['checks'])
-                if checks and all(check.get('receipt_id') and receipt_current(self.store, db, task_id, check['receipt_id'], row['path']) for check in checks):
-                    satisfied.update(set(json.loads(row["requirements"])) - archive_ids)
-                else:
-                    failed_reviews.update(set(json.loads(row["requirements"])) - archive_ids)
+            satisfied -= archive_ids
+            failed_reviews -= archive_ids
             for row in db.execute("SELECT value FROM settings WHERE key LIKE ?", ("delivery:" + task_id + ":%",)):
                 delivery = json.loads(row[0])
                 archive = self.store.home / "exports" / delivery["filename"]
@@ -840,6 +878,13 @@ class Service(ResearchOperations):
         """Convert dimensionally compatible scientific units, retaining the original expression (including Å³)."""
         from .science import convert
         return convert(value, unit, target)
+
+    @public
+    def trajectory_correlate(self, task_id: str, trajectory: str, log: str, phase: dict | None = None) -> dict:
+        """Link saved trajectory frames to exact thermo samples by Step and recorded Time, optionally selecting an executed phase (fix_id/style/group/marker/run_index/timestep). Preserve duplicate-step ambiguity; no interpolation or step*current-dt inference. Returns frame/cell/atom-type facts and actual matching rows for plots and structural previews."""
+        from .science import correlate_trajectory
+        require(phase is None or isinstance(phase, dict) and set(phase) <= {'fix_id', 'style', 'group', 'marker', 'run_index', 'timestep'}, 'phase 使用实际运行阶段字段')
+        return correlate_trajectory(self.store.path(task_id, trajectory), self.store.path(task_id, log), phase)
 
     @public
     def data_inspect(self, task_id: str, path: str, kind: str) -> dict:

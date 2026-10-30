@@ -1,5 +1,13 @@
 # Development audit
 
+## 2026-10-30 P4 安装检查准备
+
+224项源码检查通过。第一次安装检查误用了源码虚拟环境，断言缺少构建时打入的 data/skill/SKILL.md；未启动研究或改动数据。改为先固定源码、构建 wheel，再用独立安装目录的 Python 运行同一检查。代码复查同时将分析方法的幂等参数名设为 analysis_method，保留操作种类字段 method。一次补丁因猜测审计标题失败，读取实际标题后接续。
+
+## 2026-10-30 P4 entry review
+
+Existing native analysis, checks, previews and export are reusable. Batch outputs have no generated analysis manifest with included/excluded sample identities; result replacement across new analysis directories has no explicit supersession relation, so an earlier failed artifact can keep its requirement failed after a corrected version. Export README only points to JSON and lacks a result/continuation index. Analysis events do not retain a directly searchable method receipt. Trajectory inspection tracks IDs but not type/element changes by ID or exact thermo-time ambiguity. Add these scoped links and stage regressions; retain task-specific scientific criteria.
+
 ## 2026-10-30 P3 共同缺陷阶段样本修正
 
 首次阶段检查为 18 通过、1 失败。第二批次引用了第一方案的验证回执，第一方案停用后，该引用正确失效；原测试却把它当作独立有效批次。修正样本：第二方案在同一保留数据上生成自己的检查回执，再验证仅暂停指定方案的批次。无新增物理计算；修正后19项批次/复用检查及218项源码检查通过。

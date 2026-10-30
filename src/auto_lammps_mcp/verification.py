@@ -17,7 +17,7 @@ OPTIONS = {
  'file': {'min_bytes', 'contains'},
  'csv': {'columns', 'min_rows', 'bounds'},
  'thermo': {'columns', 'min_rows', 'block', 'phase', 'energy_column', 'max_abs_drift', 'time_column', 'balance'},
- 'trajectory': {'columns', 'min_frames', 'atoms'},
+ 'trajectory': {'columns', 'min_frames', 'atoms', 'constant_types'},
  'energy_jump': {'before_block', 'after_block', 'column', 'expected', 'tolerance'},
  'json': {'values', 'bounds'},
 }
@@ -55,6 +55,8 @@ def validate_checks(checks):
         if check['kind'] == 'energy_jump':
             require(all(k in check for k in ('before_block', 'after_block', 'expected', 'tolerance')),
                     '注入能量检查需要明确前后段、期望值和容差')
+        if 'constant_types' in check:
+            require(type(check['constant_types']) is bool, 'constant_types 使用 true/false，按研究中类型是否固定选择')
 
 
 def execute_check(path, spec):
@@ -90,11 +92,14 @@ def execute_check(path, spec):
         frames = report['frames']
         measured = dict(frame_count=report['frame_count'], checked_frames=len(frames),
                         identity_changes=sum(f['identity_changed'] for f in frames),
+                        type_changes=sum(f['type_changes'] for f in frames),
                         atom_counts=sorted({f['atoms'] for f in frames}),
                         missing_columns=sorted(set(spec.get('columns', [])) - set.intersection(*(set(f['columns']) for f in frames))))
         passed = len(frames) >= spec.get('min_frames', 1) and not measured['identity_changes'] and not measured['missing_columns']
         if 'atoms' in spec:
             passed = passed and measured['atom_counts'] == [spec['atoms']]
+        if spec.get('constant_types'):
+            passed = passed and not measured['type_changes']
         return measured, passed
     if kind == 'csv':
         with path.open(newline='') as stream:

@@ -88,6 +88,19 @@ def save_memory(db, value, reason):
 
 
 def remember_event(db, task_id, kind, data, seq):
+    if task_id and kind in ('work_completed', 'work_failed') and data.get('kind') == 'analysis':
+        task = db.execute('SELECT title,constraints_json FROM tasks WHERE id=?', (task_id,)).fetchone()
+        result = data.get('result', {})
+        receipt = result.get('error', {}).get('evidence', result)
+        if task and receipt.get('receipt_path'):
+            save_memory(db, dict(id='memory_analysis_' + data['operation_id'], task_id=task_id,
+                kind='method' if kind == 'work_completed' else 'failure', status='observed',
+                title=task['title'] + ' / ' + receipt.get('script', 'analysis'),
+                summary=encode(dict(state=receipt.get('status'), method=receipt.get('method', {}), supersedes=receipt.get('supersedes')))[:3000],
+                conditions=json.loads(task['constraints_json']),
+                evidence=dict(operation_id=data['operation_id'], receipt_path=receipt['receipt_path'], files=receipt.get('immutable_sources', {})),
+                source_event=seq), 'native_analysis_observed')
+        return
     if not task_id or kind not in {'task_created', 'task_updated', 'decision_needed',
                                   'research_completed', 'artifact_review_failed', 'validation_checked', 'measured_review_failed'}:
         return

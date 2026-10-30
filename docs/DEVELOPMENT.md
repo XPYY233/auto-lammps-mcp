@@ -22,6 +22,7 @@
 | dsh.py / network.py | 官方 Harness 接入、配置保留与已有系统代理发现 |
 | handoff.py / backup.py | 带来源记录的成果包导入、完整备份与独立目录恢复 |
 | science.py | 单位、热力学列、逐原子轨迹检查 |
+| delivery.py | 批次分析清单、成果版本目录、交接说明 |
 
 原生项目入口接受快照和 shell 脚本。工况、独立样本、重试、续算和分析各有身份。运行绑定环境与输入；更新环境产生新指纹。
 
@@ -54,6 +55,12 @@ NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保�
 固定源码与安装包、安装提示词和安装器、Codex/DSH 连接、skill、任务服务、后台接续、执行/分析/可视化/导出能力，以及用户、开发、恢复、迁移和验收文档。手册交付 PDF 与可编辑 TeX。
 
 ## 复用已有分析数据
+
+`batch_dataset` 根据实际回收文件生成样本清单，保留工况、种子、重试链及排除原因。`analysis_submit(batch_id,batch_files)` 固定文件摘要，工作进程再次核对并生成 `batch-samples.json`；原生脚本选择统计方法。`method` 记录定义、区间及不确定度，`supersedes` 关联历史分析；完成和失败自动进入本地记忆，保留观察状态。
+
+`results_get` 读取需求覆盖、当前/失效/被替代的成果、近期分析与导入来源。`artifact_register(description,supersedes)` 将新路径成果与旧编号关联，保留原文件及全部要求；`completion_check` 检查当前有效结果。元数据放入 schema 2 的现有 settings，随备份和研究记录导出。交接包 README 列出相对路径；重新导入保留原始成果目录与操作记录。
+
+`trajectory_correlate` 对齐轨迹、热力学实际采样及执行阶段，保留重复步数歧义。解析器读取 `ITEM: TIME`、单位、盒原点/边向量和按原子编号的类型变化。类型固定检查按任务选择，时间缺失时返回缺项。定义来自官方 [dump_modify](https://docs.lammps.org/dump_modify.html) 和 [thermo_style](https://docs.lammps.org/thermo_style.html)。
 
 `analysis_submit` 的 `input_bindings` 将工作目录内路径映射到项目原文件。例如脚本读取 `data/input.csv`，可绑定到先前分析的 `analysis/<operation>/data/input.csv`。回执保存映射、原文件摘要和副本方式。输入文件保持独立，输出、失败与重试继续保留。
 
