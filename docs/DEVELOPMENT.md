@@ -69,3 +69,9 @@ NbTiZrMoV、CoCrNi、FeAl、W 与已完成 MD 数据以结果项目接入，保�
 Checks carry required/advisory/candidate roles; monitors additionally choose warn/stop. Candidate comparisons preserve all measurements without invalidating unrelated required evidence. `validation_compare` reads alternatives; `validation_plan(reuse_sources=..., rationale=...)` merges compatible measured components. Native qualified Python checkers attach through component `checker_id` and `validation_check(analysis_operation_id=...)`. Old collected runs can be rechecked when their actual conditions and input dependencies match. Missing/failed measurements invalidate their own quantity and component.
 
 Regression coverage includes cooling-phase mismatch, omitted first NVE, phase continuity across time-step changes, partial logs, candidate failures, scoped reuse, explicitly requested stopping, and qualified custom checks on an existing accounted run. Frozen criteria and history remain available after revision.
+
+## 批次阶段实现
+
+`batch_views.py` 从持久成员与运行回执生成统一汇总，供 task_get、batch_list、batch_get 及 Worker 的阶段事件和五分钟摘要复用。详情包含输出字段、证据时间与未知费用，不复制长日志。`batch_observation:<id>` 保存上一次状态以避免重启后的重复完成事件；控制状态与计算结果分别保留。提交异常与最新 evidence 合并，保留提交期间写入的取消请求。
+
+`tests/test_batch_progress.py` 使用实际服务和队列完成20成员调度、控制交接、丢失回执、独立批次失效范围及真实 MCP/服务重启。阶段检查在隔离目录运行；完整科研批次、双平台与长期监视按最终验收清单统一执行。

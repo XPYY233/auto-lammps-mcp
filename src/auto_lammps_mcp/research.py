@@ -496,23 +496,31 @@ class ResearchOperations:
             db.execute("UPDATE batches SET state='active' WHERE id=?", (batch_id,))
             db.execute("UPDATE tasks SET state='active' WHERE id=?", (task['id'],))
             self.store.bump(db, task['id'])
+            self.store.event(db, task['id'], 'batch_submitted', dict(batch_id=batch_id, queued=len(runs)))
             return dict(batch_id=batch_id, queued=len(runs), revision=revision + 1)
         return self.store.mutate(op_id, dict(method='batch_submit', batch_id=batch_id, revision=revision, token=token), apply)
 
     @public
-    def batch_get(self, batch_id: str) -> dict:
-        """Read durable sample identities, per-state counts, current costs and validation references."""
+    def batch_list(self, task_id: str, offset: int = 0, limit: int = 20) -> dict:
+        """Find durable batches in a resumed project. Return compact counts, controls, costs and batch_get links; follow next_offset for more."""
+        from .batch_views import batch_view
+        require(type(offset) is int and offset >= 0 and type(limit) is int and 1 <= limit <= 50, 'offset >= 0，limit 为 1–50')
+        with self.store.connect() as db:
+            self.store.task(db, task_id)
+            total = db.execute('SELECT count(*) FROM batches WHERE task_id=?', (task_id,)).fetchone()[0]
+            rows = db.execute('SELECT * FROM batches WHERE task_id=? ORDER BY created DESC,id LIMIT ? OFFSET ?', (task_id, limit, offset)).fetchall()
+            items = [batch_view(db, row, members=False) for row in rows]
+        more = offset + len(items) < total
+        return dict(task_id=task_id, items=items, total=total, offset=offset, more=more, next_offset=offset + len(items) if more else None)
+
+    @public
+    def batch_get(self, batch_id: str, include_details: bool = False) -> dict:
+        """Read batch progress, sample identities, controls, costs and latest output steps/time. Missing accounting stays unknown. Computational completion leads to output analysis/checks. Read run_get for full evidence or include_details for all member evidence."""
+        from .batch_views import batch_view
         with self.store.connect() as db:
             batch = db.execute('SELECT * FROM batches WHERE id=?', (batch_id,)).fetchone()
             require(batch, '批次不存在')
-            members = [dict(r) for r in db.execute('SELECT m.*,r.state,r.job_id,r.evidence,r.updated FROM batch_members m JOIN runs r ON r.id=m.run_id WHERE m.batch_id=? ORDER BY m.ordinal', (batch_id,))]
-        counts, core_seconds = {}, 0
-        for member in members:
-            counts[member['state']] = counts.get(member['state'], 0) + 1
-            member['evidence'] = json.loads(member['evidence'])
-            core_seconds += member['evidence'].get('core_seconds', 0) or 0
-        return {**dict(batch), 'specification': json.loads(batch['specification']), 'members': members,
-                'counts': counts, 'accounted_core_hours': core_seconds / 3600}
+            return batch_view(db, batch, details=include_details)
 
     @public
     def batch_control(self, batch_id: str, revision: int, action: str, op_id: str) -> dict:

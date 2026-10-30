@@ -1,5 +1,12 @@
 # Development audit
 
+## 2026-10-30 P3 共同缺陷阶段样本修正
+
+首次阶段检查为 18 通过、1 失败。第二批次引用了第一方案的验证回执，第一方案停用后，该引用正确失效；原测试却把它当作独立有效批次。修正样本：第二方案在同一保留数据上生成自己的检查回执，再验证仅暂停指定方案的批次。无新增物理计算；修正后19项批次/复用检查及218项源码检查通过。
+
+
+- P3 entry review after the user's P2 acceptance: batch identities and controls already exist, but a new conversation has no batch-list entry, batch_get returns raw per-run logs without a compact completion/connection/accounting summary, and periodic summaries lack batch totals. Submission exceptions also overwrite the current evidence, potentially losing a stop request received while awaiting sbatch. Add bounded batch discovery/progress and preserve in-flight cancellation evidence, with isolated recovery checks. Existing W research stays paused; real batch/scientific acceptance remains in the final suite under the revised development order.
+
 - Pause reconciliation confirmed the task at revision 60 and all five physical preflights terminal; three were added on candidate f248649. Total recorded cost is 24,288 core-seconds (6.746667 core-hours), within the confirmed cap. No formal sample has started. The lower-cadence run had completed before pause reconciliation; retain it alongside the finer-cadence evidence. The page then exhausted model transport retries, including a background-job status follow-up, and displayed TRANSPORT failures. No model retry or new calculation was issued after that failure; the persistent pause remains authoritative.
 
 - The follow-up also retained about 12.5 eV first-segment drift. DSH then proposed reducing thermo output frequency to match the earlier production log, which would omit the already observed transient. This does not establish passing the same full-window maximum-drift criterion. Stopped the visible generation and sent a scoped page request to pause the task, cancel/reconcile any new preflight, preserve all inputs/data/criteria/costs, and report the decision point. The service continues to preserve valid components; the remaining issue is evidence-based scientific criterion selection. P2 acceptance remains open for the user's stage decision.

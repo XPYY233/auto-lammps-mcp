@@ -176,6 +176,7 @@ class Worker:
         now = time.time()
         if now - self.last_poll >= 60:
             self.poll()
+            self.batch_observations()
             self.last_poll = now
             with self.store.transaction() as db:
                 heartbeat = dict(boot_id=self.boot_id, pid=os.getpid(), started_at=self.started_at, observed_at=time.time(),
@@ -187,8 +188,25 @@ class Worker:
             with self.store.transaction() as db:
                 for task in db.execute("SELECT id,title,state FROM tasks WHERE state IN ('active','paused','stopping')").fetchall():
                     jobs = [dict(row) for row in db.execute("SELECT id,state,updated FROM runs WHERE task_id=?", (task["id"],))]
-                    self.store.event(db, task["id"], "progress_summary", dict(title=task["title"], state=task["state"], jobs=jobs))
+                    from .batch_views import batch_view
+                    batches = [batch_view(db, row, members=False) for row in db.execute('SELECT * FROM batches WHERE task_id=? ORDER BY created DESC', (task['id'],)).fetchall()]
+                    self.store.event(db, task["id"], "progress_summary", dict(title=task["title"], state=task["state"], jobs=jobs, batches=batches))
             self.last_summary = now
+
+    def batch_observations(self):
+        """Persist meaningful batch changes once, including across service restart."""
+        from .batch_views import batch_view
+        with self.store.transaction() as db:
+            for batch in db.execute('SELECT * FROM batches').fetchall():
+                view = batch_view(db, batch, members=False)
+                state = {key: view[key] for key in ('counts', 'effective_control', 'execution_state', 'disconnected_members')}
+                key = 'batch_observation:' + batch['id']
+                previous = db.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
+                if previous and json.loads(previous[0]) == state:
+                    continue
+                self.store.set_setting(db, key, state)
+                kind = 'batch_execution_finished' if view['execution_state'] != 'in_progress' else 'batch_progress'
+                self.store.event(db, batch['task_id'], kind, view)
 
     def dispatch_loop(self):
         while not self.stopping.is_set():
@@ -263,7 +281,8 @@ class Worker:
             job_id = self.slurm.submit(run)
         except Exception as exc:
             with self.store.transaction() as db:
-                db.execute("UPDATE runs SET state='unknown',evidence=?,updated=? WHERE id=?", (encode(dict(error=str(exc))), time.time(), run["id"]))
+                previous = json.loads(db.execute('SELECT evidence FROM runs WHERE id=?', (run['id'],)).fetchone()[0])
+                db.execute("UPDATE runs SET state='unknown',evidence=?,updated=? WHERE id=?", (encode({**previous, 'error': str(exc)}), time.time(), run["id"]))
                 self.store.event(db, run["task_id"], "submission_unknown", dict(run_id=run["id"], error=str(exc), next_action="reconcile"))
             return
         with self.store.transaction() as db:
@@ -722,7 +741,7 @@ class Worker:
             return
         cursor = self.store.setting("notification_cursor", 0)
         events = self.service.events(after=cursor)
-        meaningful = {"job_accepted", "job_state_changed", "connection_lost", "decision_needed", "research_completed", "task_stopped", "work_failed"}
+        meaningful = {"job_accepted", "job_state_changed", "connection_lost", "decision_needed", "research_completed", "task_stopped", "work_failed", "batch_execution_finished"}
         relevant = [e for e in events["events"] if e["kind"] in meaningful]
         if relevant:
             message = f"{len(relevant)} 条新进展。回到对话后输入：查看 Auto-LAMMPS 未读进展。"

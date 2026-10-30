@@ -44,7 +44,7 @@ def run(home, host="unknown"):
             tool.__signature__ = signature
             return tool
         read_only = name in {"help", "doctor", "task_list", "task_get", "task_records", "events", "file_read", "artifact_preview", "operation_get", "operation_read", "response_read", "run_get", "run_log", "units_convert", "data_inspect", "resource_search", "resource_get", "resource_file_read", "legacy_inspect", "lammps_reference", "lammps_input_review"}
-        read_only = read_only or name in {'memory_search', 'memory_get', 'research_context', 'research_metrics', 'check_get', 'validation_match', 'batch_get'}
+        read_only = read_only or name in {'memory_search', 'memory_get', 'research_context', 'research_metrics', 'check_get', 'validation_match', 'batch_get', 'batch_list'}
         app.add_tool(build(name, fn), name=name, description=inspect.getdoc(fn),
                      annotations=ToolAnnotations(readOnlyHint=read_only, destructiveHint=not read_only,
                                                  idempotentHint=read_only or "op_id" in inspect.signature(fn).parameters,

@@ -237,6 +237,8 @@ class Service(ResearchOperations):
             for name in ("runs", "work", "events", "stages"):
                 result[name] = [decoded_record(row) for row in result[name]]
         output = result if include_details else task_summary(result)
+        output['batches'] = self.batch_list(task_id, limit=5)
+        output['batches']['read'] = dict(method='batch_list', task_id=task_id)
         from .research_store import stage_context, DISCUSSION_GUIDE
         with self.store.connect() as db:
             output['interaction_guide'] = DISCUSSION_GUIDE
