@@ -1,5 +1,10 @@
 # Development audit
 
+## 2026-10-31 普通用户 Blind 入口
+
+用户批准改用普通 research 模式、空白记忆环境与新 DSH 对话开展 Blind。当前正式 B 拒绝入口不再是该验收的前置条件。页面旧句柄返回 browser.user is unavailable，未发送消息；重置后重新绑定可见页面。辅助文档搜索的 DSH 通配路径不存在，后续使用实际配置入口，未改变研究状态。
+
+
 ## 2026-10-31 ORVB 验收准备
 
 文档分支首次 HTTPS 推送超过一分钟无回执，GitHub 查询尚无该分支。停止本次挂起传输，保留本地提交，使用有超时的传输重试并核对远端摘要；未改动发布标签或研究执行。
@@ -491,3 +496,7 @@ Installed a10 completed real Ni export, preserving the original environment chec
 - P0 installed wheel dd001dfadd7003fb completed measured-review, malformed-criteria, incomplete-sample, pause/diagnostic/resume checks, 43 installed regressions and the 514-file handoff flow. Existing W failed log was rejected; injection and corrected log checks passed their fixed criteria. No model or physical run was used. Resetting the CUA session restored the documented browser API; the existing official DSH page is now readable. Native Codex app access was refused by the tool and was not used.
 - P0 visible DSH session successfully paused the candidate task and reported the failed measured checks. It exposed stale summary fields: checks_passed used registration-time values and completion_recorded counted an earlier completion after reopening. A later unrelated failed check also repeated a failed-review event for the already-invalid artifact. Refresh summary verdicts from current receipts, distinguish historical completion, and attach failure events only to matching source evidence. Remain in P0 until the same page verifies the corrected summary.
 - P0 receipt inspection encountered a paginated checks array and treated its descriptor as the full list. The stored service evidence is intact; the verifier must follow operation_read pages when saving a complete receipt. A source search also named a nonexistent presentation.py; use the observed records.py module.
+
+准备入口时两次文档路径搜索未命中，改为文件列表定位；未执行科研动作。DSH 新目录选择框输入追加到原路径，页面明确返回 ENOENT；改为全选替换并核对目录。新 UI 首次请求要求启动链接认证，按官方启动链接连接成功。以上均为准备/操作记录，不改研究结果。
+
+Git 推送通道在20秒内未完成；远端分支核对不存在，采用 GitHub Git API 发布同一文件树并创建 PR。DSH 已实际调用 doctor 确认连接；读取集群配置时绕到本地文件和服务实现，记录为配置可发现性待改进项，保留真实调用轨迹。

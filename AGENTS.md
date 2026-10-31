@@ -7,7 +7,7 @@ The user accepted P2, reviewed the completed P3 stage and authorized P4 developm
 
 This is a new project with a new skill. The historical desktop project supplies reusable assets and failure evidence. The seven historical interface/roadmap images no longer require repeated review.
 
-On 2026-10-31 the user adopted Origin / RAW / VIEW / Blind for current scientific acceptance. Read docs/ORVB_ACCEPTANCE.md before scientific evaluation: verify/reuse existing O/R, classify the current author-informed DSH task as V, execute a new isolated B and deliver all four groups in one comparison figure. A separate reference Agent prepares B's answer-free natural-language request. Preserve historical identities and the current formal-B execution gap; do not substitute a research-mode task for an isolated executor.
+On 2026-10-31 the user adopted Origin / RAW / VIEW / Blind and then approved ordinary research-mode Blind: a new visible DSH conversation, fresh MCP memory, the independent reference Agent's answer-free request and permitted potentials. Do not call historical memory or inspect old tasks, author paper/code or O/R/V results. Preserve this task's state and access trace. Use this workflow for later Blind cases; the historical formal_b executor is not a prerequisite. Read docs/ORVB_ACCEPTANCE.md and retain all prior identities, failures, costs and approved resource rules.
 
 - The approved product uses Codex/DSH, native scientific files, MCP/CLI, a persistent task service and Slurm. User outcomes determine scope.
 - Keep the original request, scientific conditions, required outputs, attempts and failures. A scheduler exit is one event in a research workflow.
