@@ -41,7 +41,7 @@ Show task name, completed work, current stage, latest evidence time, next action
 
 ## Project development
 
-For the current scientific acceptance, read the [Origin / RAW / VIEW / Blind standard](references/ORVB_ACCEPTANCE.md). Keep author-informed work in VIEW; prepare Blind's answer-free request with a separate reference Agent and verify its execution access scope. Historical results retain their identities. These evaluation rules apply to the selected acceptance tasks, not ordinary research.
+For the current scientific acceptance, read the [Origin / RAW / VIEW / Blind standard](references/ORVB_ACCEPTANCE.md). Keep author-informed work in VIEW; prepare Blind's answer-free request with a separate reference Agent. The user-approved Blind flow uses ordinary research mode in a new visible DSH conversation with fresh memory; do not call historical memory or read old tasks, author solutions or comparison answers. Retain this task's state and review actual tool/file access records. Historical results retain their identities. These evaluation rules apply to the selected acceptance tasks, not ordinary research.
 
 At every development work turn and after context restoration, read the entire original [approved plan](references/APPROVED_PLAN.md) and the entire [capability-improvement plan](references/APPROVED_CAPABILITY_PLAN.md), then [amendments](references/PLAN_AMENDMENTS.md) and the checkout's current progress. Load the full texts into the working context; summaries do not replace them. Apply later user corrections.
 
