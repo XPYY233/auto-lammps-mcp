@@ -41,6 +41,8 @@ Show task name, completed work, current stage, latest evidence time, next action
 
 ## Project development
 
+For the current scientific acceptance, read the [Origin / RAW / VIEW / Blind standard](references/ORVB_ACCEPTANCE.md). Keep author-informed work in VIEW; prepare Blind's answer-free request with a separate reference Agent and verify its execution access scope. Historical results retain their identities. These evaluation rules apply to the selected acceptance tasks, not ordinary research.
+
 At every development work turn and after context restoration, read the entire original [approved plan](references/APPROVED_PLAN.md) and the entire [capability-improvement plan](references/APPROVED_CAPABILITY_PLAN.md), then [amendments](references/PLAN_AMENDMENTS.md) and the checkout's current progress. Load the full texts into the working context; summaries do not replace them. Apply later user corrections.
 
 Locate the current P0–P4 stage and the completion condition the next action addresses. Complete and record acceptance for P0, P1, P2, P3 and P4 in order; do not skip stages. All DSH verification uses visible official page controls, never a headless/background model invocation. Distinguish implemented code, source tests, installed checks and complete user-flow acceptance. A report from existing logs does not establish memory reuse or batch acceptance. For user-facing DSH acceptance, verify the visible official session title and location before starting. This is the MCP project using assets and lessons from the historical desktop project; the seven historical images need no repeated review. Keep the README's fixed installation prompt unchanged.
