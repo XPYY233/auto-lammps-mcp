@@ -465,3 +465,5 @@ Installed a10 completed real Ni export, preserving the original environment chec
 The 1.0.0 service rejected a 1 CPU, 2048 MiB task policy before dispatch. The input validator required exactly 32 CPUs and 8192 MiB. An opt-in resource profile and separately identified candidate will be checked against the original defaults, invalid values and actual scheduled resources. No scientific run was performed by the failing check.
 
 The first mixed-environment test launched the daemon from candidate source while an stdio subprocess selected the installed 1.0.0 client. Its real connection status was reload_required. Recheck in a separately installed candidate environment with an identical client and daemon.
+
+GitHub rejected the macos-14 runner configuration before executing the test job. The Ubuntu job passed. Move the macOS CI lane to the supported macos-latest runner and retain the previous check result. This change affects CI only.
