@@ -300,6 +300,8 @@ class Worker:
             return False
         try:
             task = self.store.task(db, run['task_id'])
+            from .resource_profile import check_resources
+            check_resources(task['policy'])
             require(task['policy']['authorized'] and encode(task['policy']) == run['rules'], '当前授权或规则已变化')
             dispatch_gate(self.store, db, run)
             return True

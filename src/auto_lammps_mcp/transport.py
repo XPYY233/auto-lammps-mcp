@@ -48,12 +48,12 @@ def call(home, method, arguments=None, host=None, client=None):
     return result["result"]
 
 
-def serve(home):
+def serve(home, *, service=None, worker_factory=None):
     from .service import Service
     from .worker import Worker
     from .identity import runtime_identity, connection_status
     from .responses import bound_response, bound_error
-    service = Service(home)
+    service = service if service is not None else Service(home)
     identity = runtime_identity()
     lock = (service.store.home / "service.lock").open("a+")
     try:
@@ -109,7 +109,7 @@ def serve(home):
     class Server(socketserver.ThreadingUnixStreamServer):
         daemon_threads = True
 
-    worker = Worker(service)
+    worker = (worker_factory or Worker)(service)
     threading.Thread(target=worker.loop, daemon=True, name="alm-worker").start()
     try:
         if not worker.ready.wait(timeout=30):
