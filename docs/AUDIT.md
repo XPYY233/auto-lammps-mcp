@@ -491,3 +491,11 @@ Installed a10 completed real Ni export, preserving the original environment chec
 - P0 installed wheel dd001dfadd7003fb completed measured-review, malformed-criteria, incomplete-sample, pause/diagnostic/resume checks, 43 installed regressions and the 514-file handoff flow. Existing W failed log was rejected; injection and corrected log checks passed their fixed criteria. No model or physical run was used. Resetting the CUA session restored the documented browser API; the existing official DSH page is now readable. Native Codex app access was refused by the tool and was not used.
 - P0 visible DSH session successfully paused the candidate task and reported the failed measured checks. It exposed stale summary fields: checks_passed used registration-time values and completion_recorded counted an earlier completion after reopening. A later unrelated failed check also repeated a failed-review event for the already-invalid artifact. Refresh summary verdicts from current receipts, distinguish historical completion, and attach failure events only to matching source evidence. Remain in P0 until the same page verifies the corrected summary.
 - P0 receipt inspection encountered a paginated checks array and treated its descriptor as the full list. The stored service evidence is intact; the verifier must follow operation_read pages when saving a complete receipt. A source search also named a nonexistent presentation.py; use the observed records.py module.
+
+### Small scheduled allocations
+
+The 1.0.0 service rejected a 1 CPU, 2048 MiB task policy before dispatch. The input validator required exactly 32 CPUs and 8192 MiB. An opt-in resource profile and separately identified candidate will be checked against the original defaults, invalid values and actual scheduled resources. No scientific run was performed by the failing check.
+
+The first mixed-environment test launched the daemon from candidate source while an stdio subprocess selected the installed 1.0.0 client. Its real connection status was reload_required. Recheck in a separately installed candidate environment with an identical client and daemon.
+
+GitHub rejected the macos-14 runner configuration before executing the test job. The Ubuntu job passed. Move the macOS CI lane to the supported macos-latest runner and retain the previous check result. This change affects CI only.

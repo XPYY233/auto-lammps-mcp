@@ -11,6 +11,7 @@ from . import __version__
 from .core import Store, Fault, digest, encode, identifier, require
 from .files import file_hash, invalidate, manifest, patch_file
 from .research import ResearchOperations
+from .resource_profile import resources, check_resources
 
 
 def public(fn):
@@ -160,7 +161,7 @@ class Service(ResearchOperations):
         def apply(db):
             task_id, now = identifier("task"), time.time()
             policy = dict(mode=mode, submission_limit=2 if mode == "formal_b" else None,
-                          cores=32, memory_mib=8192, wall_seconds=604800, concurrency=1,
+                          **resources(), concurrency=1,
                           source=policy_source, effective_at=now, authorized=False)
             db.execute("INSERT INTO tasks(id,title,request,requirements,constraints_json,policy,created,updated) VALUES(?,?,?,?,?,?,?,?)",
                        (task_id, title, request, encode(requirements), encode(constraints or {}), encode(policy), now, now))
@@ -352,7 +353,7 @@ class Service(ResearchOperations):
                         require(isinstance(value.get('preflight_budget_authorization'), str) and value['preflight_budget_authorization'].strip(),
                                 '设置或扩大预验证预算需要同时保存用户确认原话', 'preflight_budget_confirmation')
                     value = {**task["policy"], **value, "effective_at": time.time()}
-                    require(value["cores"] == 32 and value["memory_mib"] == 8192 and 1 <= value["wall_seconds"] <= 604800, "当前执行配置为 32 核、8 GiB，时限最长七天")
+                    check_resources(value)
                     require(value["submission_limit"] is None or type(value["submission_limit"]) is int and value["submission_limit"] > 0, "提交上限应为正整数或空")
                     require(not value["authorized"] or bool(value.get("authorization")), "授权需要保存用户原话")
                 if name == "requirements":
@@ -632,6 +633,7 @@ class Service(ResearchOperations):
             require(task["state"] not in ("paused", "stopping", "stopped"), "任务已暂停或停止")
             policy = task["policy"]
             require(policy["mode"] != "formal_b", "正式 B 需要独立执行身份与访问隔离配置", "isolation_required", "完成独立评测执行器验收后接入正式 B")
+            check_resources(policy)
             require(policy.get("authorized"), "等待确认计算内容和资源", "authorization_needed", "展示方案并保存用户的开始指令")
             used = db.execute("SELECT count(*) FROM runs WHERE task_id=? AND state NOT IN ('prepared','cancelled_before_dispatch','staging_failed')", (task["id"],)).fetchone()[0]
             limit = policy.get("submission_limit")

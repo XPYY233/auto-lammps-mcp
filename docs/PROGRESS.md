@@ -228,3 +228,7 @@ Issue #26 补齐大成果包导出的持续反馈。新版本逐块归档，显�
 阶段二已获用户开始指令，官方 DSH 已建立 Ni 研究并核对既有势文件和引擎。旧版资源库纳入核心产品：Issue #32 补齐旧势目录与作者代码清单导入、分页搜索、文件摘要核对和原生代码读取。来源目录保持原样，索引记录与可用文件分别呈现。固定安装提示词保持批准文本。
 
 Ni 第四次正式作业完成 15,000 步，官方 DSH 已生成五张图和中文 PDF；前三次失败与全部费用保留。真实导出发现 runs.cluster 纯文本被错误解析为 JSON，Issue #35 补齐包含 Slurm 历史的导出回归。Issue #34 将旧版官方命令经验接到原生脚本：按引擎版本读取官方文档并缓存，输入检查给出行号及来源，准备执行时核对固定快照。当前在检查和安装修复版本，随后只恢复原成果导出。
+
+## Scoped resource candidate
+
+Version 1.0.1rc1 supports an operator-selected JSON file through ALM_RESOURCE_PROFILE with integer cores, memory_mib and wall_seconds. New tasks inherit the profile. Both admission and dispatch validate the frozen policy. Existing installations default to 32 CPUs, 8192 MiB and seven days. A site controller may supply its own scheduling transport for work inside an existing allocation. Benchmark results must identify that transport, its digest and the scheduler evidence.
